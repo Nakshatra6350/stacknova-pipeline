@@ -109,7 +109,7 @@ def test_a_narration_outside_the_loudness_limits_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(narrate_module, "measure", lambda path: Loudness(-20.0, -3.0))
-    with pytest.raises(LoudnessError, match="-20.0 LUFS"):
+    with pytest.raises(LoudnessError, match=r"-20\.0 LUFS"):
         narrate(UNITS, "long", fake_synthesizer(), settings, tmp_path / "out", tmp_path / "c")
 
 
@@ -120,7 +120,7 @@ def test_a_true_peak_over_the_limit_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(narrate_module, "measure", lambda path: Loudness(-14.0, -0.5))
-    with pytest.raises(LoudnessError, match="-0.5 dBTP"):
+    with pytest.raises(LoudnessError, match=r"-0\.5 dBTP"):
         narrate(UNITS, "long", fake_synthesizer(), settings, tmp_path / "out", tmp_path / "c")
 
 
