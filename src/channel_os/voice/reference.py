@@ -15,6 +15,8 @@ from channel_os.voice.wavio import duration_seconds
 
 MIN_SECONDS = 6.0  # chatterbox turbo rejects references of 5 s or less
 PEAK_LIMIT = 0.89  # about -1 dBFS, in case the level change meets a stray peak
+ONSET_SECONDS = 0.1  # how long sound must last to be the first word rather than a click
+LEAD_IN_SECONDS = 0.05  # silence kept before the first word
 
 
 def prepare_reference(src: Path, dst: Path, settings: ReferenceSettings) -> None:
@@ -22,9 +24,13 @@ def prepare_reference(src: Path, dst: Path, settings: ReferenceSettings) -> None
     threshold = f"{settings.silence_threshold_db}dB"
     # silenceremove keeps stop_duration + stop_silence of each pause, so give each half.
     half_pause = settings.max_pause_ms / 2000
+    # Sound must last ONSET_SECONDS to count as the first word, so a click or breath before it
+    # is trimmed with the silence. silenceremove drops that detection window too, so keep it
+    # back, plus a short lead-in.
     cleanup = (
         "aformat=channel_layouts=mono,"
-        f"silenceremove=start_periods=1:start_threshold={threshold}:start_silence=0.05"
+        f"silenceremove=start_periods=1:start_duration={ONSET_SECONDS}"
+        f":start_threshold={threshold}:start_silence={ONSET_SECONDS + LEAD_IN_SECONDS}"
         f":stop_periods=-1:stop_duration={half_pause}:stop_threshold={threshold}"
         f":stop_silence={half_pause}"
     )

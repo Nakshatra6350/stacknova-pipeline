@@ -31,6 +31,17 @@ def test_reference_is_trimmed_tightened_and_levelled(tmp_path: Path, audio: Any)
     assert [path.name for path in dst.parent.iterdir()] == ["reference.wav"]
 
 
+def test_a_short_noise_before_speech_is_not_taken_as_the_start(
+    tmp_path: Path, audio: Any
+) -> None:
+    # A click or breath before the first word must not open the model's voice prompt.
+    parts = [(0.5, 0.0), (0.05, 0.02), (0.7, 0.0), (7.0, 0.05), (0.2, 0.0)]
+    src = audio(tmp_path / "ref.wav", parts, rate=44100)
+    dst = tmp_path / "out.wav"
+    prepare_reference(src, dst, SETTINGS)
+    assert duration_seconds(dst) == pytest.approx(0.05 + 7.0 + 0.2, abs=0.1)
+
+
 def test_a_reference_shorter_than_the_model_minimum_is_rejected(
     tmp_path: Path, audio: Any
 ) -> None:
