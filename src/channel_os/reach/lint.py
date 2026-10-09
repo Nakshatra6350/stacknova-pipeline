@@ -12,6 +12,12 @@ Level = Literal["error", "warning"]
 Episode = Mapping[str, Any]
 Reach = Mapping[str, Any]
 
+HOOK_MAX_WORDS = 6  # docs/CAPTIONS_SPEC.md, hook card
+KEYWORD_WINDOW_CHARS = 40  # docs/REACH_PLAYBOOK.md section 1
+NARRATION_WORDS = (1100, 2200)  # docs/CONTENT_RULES.md section 4
+STORY_PLACEHOLDER = "[STORY:"
+UNGATED_STATUSES = frozenset({"draft", "archived"})
+
 
 @dataclass(frozen=True)
 class Finding:
@@ -26,6 +32,11 @@ class Finding:
 def _norm(text: str) -> str:
     """Collapse whitespace and ignore case, as the caption aligner does."""
     return " ".join(text.split()).casefold()
+
+
+def _gate_level(episode: Episode) -> Level:
+    """Gate rules block rendering, so they are only warnings while an episode is a draft."""
+    return "warning" if episode["status"] in UNGATED_STATUSES else "error"
 
 
 def _title_length(episode: Episode, reach: Reach) -> Iterator[Finding]:
@@ -96,6 +107,80 @@ def _short_source(episode: Episode, reach: Reach) -> Iterator[Finding]:
             )
 
 
+def _story_placeholder(episode: Episode, reach: Reach) -> Iterator[Finding]:
+    level = _gate_level(episode)
+    for segment in episode["segments"]:
+        if STORY_PLACEHOLDER in segment["narration"]:
+            yield Finding(
+                level,
+                "story-placeholder",
+                segment["id"],
+                "narration still holds a [STORY:...] placeholder",
+            )
+    for short in episode["shorts"]:
+        if STORY_PLACEHOLDER in str(short.get("script", "")):
+            yield Finding(
+                level,
+                "story-placeholder",
+                short["id"],
+                "script still holds a [STORY:...] placeholder",
+            )
+
+
+def _localizations(episode: Episode, reach: Reach) -> Iterator[Finding]:
+    level = _gate_level(episode)
+    localizations = episode.get("localizations", {})
+    for language in reach["subtitle_languages"]:
+        entry = localizations.get(language) or {}
+        missing = [
+            field for field in ("title", "description") if not str(entry.get(field) or "").strip()
+        ]
+        if missing:
+            yield Finding(
+                level,
+                "localizations",
+                f"localizations.{language}",
+                f"missing {' and '.join(missing)}",
+            )
+
+
+def _hook_words(episode: Episode, reach: Reach) -> Iterator[Finding]:
+    for short in episode["shorts"]:
+        words = len(short["hook_on_screen"].split())
+        if words > HOOK_MAX_WORDS:
+            yield Finding(
+                "warning",
+                "hook-words",
+                short["id"],
+                f"hook_on_screen has {words} words, limit is {HOOK_MAX_WORDS}",
+            )
+
+
+def _keyword_position(episode: Episode, reach: Reach) -> Iterator[Finding]:
+    primary = episode["keywords"]["primary"]
+    keyword = _norm(primary)
+    for index, title in enumerate(episode["packaging"]["titles"]):
+        if keyword not in _norm(title[:KEYWORD_WINDOW_CHARS]):
+            yield Finding(
+                "warning",
+                "keyword-position",
+                f"packaging.titles[{index}]",
+                f'"{primary}" is not within the first {KEYWORD_WINDOW_CHARS} characters',
+            )
+
+
+def _word_count(episode: Episode, reach: Reach) -> Iterator[Finding]:
+    low, high = NARRATION_WORDS
+    total = sum(len(segment["narration"].split()) for segment in episode["segments"])
+    if not low <= total <= high:
+        yield Finding(
+            "warning",
+            "word-count",
+            "segments",
+            f"narration is {total} words, target is {low}-{high}",
+        )
+
+
 Rule = Callable[[Episode, Reach], Iterator[Finding]]
 
 RULES: tuple[Rule, ...] = (
@@ -104,6 +189,11 @@ RULES: tuple[Rule, ...] = (
     _emphasis_in_narration,
     _step_anchor,
     _short_source,
+    _story_placeholder,
+    _localizations,
+    _hook_words,
+    _keyword_position,
+    _word_count,
 )
 
 
