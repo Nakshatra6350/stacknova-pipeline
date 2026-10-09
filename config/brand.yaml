@@ -17,11 +17,15 @@ accounts:
   telegram_bot: "StackNova Studio (@stacknova_studio_bot)"
 logo:
   concept: >-
-    "Trail S": an S drawn as three parallel lanes (the stack) in a violet→pink→orange gradient,
-    rising into a gold four-point nova burst at the top-right terminal. Supernova theme.
-  avatar: "Trail S on near-black radial background"
+    "Nova Stack": three glowing isometric tech layers (violet → pink → orange, the stack) with a
+    golden four-point supernova bursting from the top layer (the nova). 3D neon-glass style.
+    Wordmark: "Stack" white + "Nova" pink→orange→gold gradient, Inter Display ExtraBold.
+    Tagline lockup: LIGHT UP YOUR WHOLE STACK in spaced caps between two violet hairlines.
+  source: "brand-assets/source/emblem-1264.jpg"   # AI-generated in Canva (media MAHXgbOcNuA)
+  full_lockup: "brand-assets/stacknova-logo-full-1600.png"
+  avatar: "emblem only, full-bleed, dark background"
 colors:
-  background: "#07050D"
+  background: "#020008"
   surface: "#17122E"
   text: "#FFFFFF"
   muted: "#B7B0D6"
@@ -37,7 +41,7 @@ fonts:
   sans: "Inter"
   sans_bold: "Inter Display ExtraBold"
   mono: "JetBrains Mono"
-watermark: "bottom-right"     # star mark, 6% width, 60% opacity
+watermark: "bottom-right"     # emblem, 6% width, 70% opacity
 bios:                         # paste-ready versions in BRAND_PROFILE_TEXT.md
   youtube_name: "StackNova"
   instagram_name: "StackNova | Backend Systems"
@@ -46,4 +50,5 @@ assets:
   youtube_profile: "brand-assets/youtube-profile-800.png"
   youtube_banner: "brand-assets/youtube-banner-2560x1440.png"
   instagram_profile: "brand-assets/instagram-profile-1080.png"
+  full_lockup: "brand-assets/stacknova-logo-full-1600.png"
   source: "brand-assets/render.py"   # re-render with: python brand-assets/render.py (needs playwright)

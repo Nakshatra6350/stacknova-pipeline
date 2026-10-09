@@ -1,122 +1,75 @@
-"""StackNova brand v4 — Supernova theme, two refined marks.
-
-1. 'Trail S'   : an S drawn as three parallel lanes (the stack) that rise into a nova burst.
-2. 'Strata Nova': a four-point nova built from stacked horizontal strata.
-"""
-import asyncio
+"""StackNova final brand: 3D emblem (stack of glowing layers + nova burst) + wordmark."""
+import asyncio, base64
 from pathlib import Path
 from playwright.async_api import async_playwright
 
-OUT = Path(__file__).parent / "v4"
-OUT.mkdir(exist_ok=True)
+HERE = Path(__file__).parent
+OUT = HERE  # outputs next to this script
+EMB = "data:image/jpeg;base64," + base64.b64encode((HERE / "source" / "emblem-1264.jpg").read_bytes()).decode()
 
-BG1, BG2 = "#17122E", "#07050D"
-INK, SUB = "#FFFFFF", "#B7B0D6"
-VIOLET, PINK, ORANGE, GOLD = "#7B5CFF", "#FF4D8D", "#FF8A3D", "#FFD24D"
-
-
-def sparkle(cx, cy, r, pinch=0.12):
-    p = r * pinch
-    return (f"M{cx} {cy-r} C{cx+p} {cy-p} {cx+p} {cy-p} {cx+r} {cy} "
-            f"C{cx+p} {cy+p} {cx+p} {cy+p} {cx} {cy+r} C{cx-p} {cy+p} {cx-p} {cy+p} {cx-r} {cy} "
-            f"C{cx-p} {cy-p} {cx-p} {cy-p} {cx} {cy-r} Z")
+BG = "#020008"
+CSS = """*{margin:0;padding:0;box-sizing:border-box} body{overflow:hidden;font-family:'Inter Display',Inter,sans-serif}
+.emb{background:url(EMB) center/cover no-repeat;
+ -webkit-mask-image:radial-gradient(circle at 50% 50%,#000 52%,transparent 71%)}""".replace("EMB", EMB)
+GRAD = "linear-gradient(90deg,#FF4D8D 0%,#FF8A3D 60%,#FFD24D 100%)"
 
 
-S = "M610 210 H340 A130 130 0 0 0 340 470 H460 A130 130 0 0 1 460 730 H190"
-
-
-def trail_s(u, glow=True):
-    return f"""<svg viewBox="95 70 760 790" xmlns="http://www.w3.org/2000/svg"><defs>
-<linearGradient id="t{u}" gradientUnits="userSpaceOnUse" x1="190" y1="820" x2="640" y2="120">
-  <stop offset="0" stop-color="{VIOLET}"/><stop offset=".55" stop-color="{PINK}"/><stop offset="1" stop-color="{ORANGE}"/></linearGradient>
-<linearGradient id="sp{u}" x1="0" y1="1" x2="1" y2="0">
-  <stop offset="0" stop-color="{ORANGE}"/><stop offset="1" stop-color="{GOLD}"/></linearGradient>
-<radialGradient id="gl{u}"><stop offset="0" stop-color="{GOLD}" stop-opacity=".55"/>
-  <stop offset=".5" stop-color="{ORANGE}" stop-opacity=".15"/><stop offset="1" stop-color="{ORANGE}" stop-opacity="0"/></radialGradient>
-<mask id="m{u}" maskUnits="userSpaceOnUse" x="0" y="0" width="900" height="900">
-  <path d="{S}" fill="none" stroke="#fff" stroke-width="180"/>
-  <path d="{S}" fill="none" stroke="#000" stroke-width="96"/>
-  <path d="{S}" fill="none" stroke="#fff" stroke-width="48"/>
-</mask></defs>
-{f'<circle cx="728" cy="210" r="124" fill="url(#gl{u})"/>' if glow else ''}
-<rect width="900" height="900" fill="url(#t{u})" mask="url(#m{u})"/>
-<path d="{sparkle(728, 210, 100)}" fill="url(#sp{u})"/>
-</svg>"""
-
-
-def strata_nova(u, glow=True):
-    bands, top, bot, gap = 5, 70, 730, 22
-    h = (bot - top) / bands
-    rects = "".join(f'<rect x="0" y="{top + i*h + gap/2:.1f}" width="800" height="{h-gap:.1f}" fill="#fff"/>'
-                    for i in range(bands))
-    return f"""<svg viewBox="40 40 720 720" xmlns="http://www.w3.org/2000/svg"><defs>
-<linearGradient id="n{u}" gradientUnits="userSpaceOnUse" x1="0" y1="70" x2="0" y2="730">
-  <stop offset="0" stop-color="{GOLD}"/><stop offset=".3" stop-color="{ORANGE}"/>
-  <stop offset=".62" stop-color="{PINK}"/><stop offset="1" stop-color="{VIOLET}"/></linearGradient>
-<radialGradient id="g{u}"><stop offset="0" stop-color="{PINK}" stop-opacity=".35"/>
-  <stop offset="1" stop-color="{VIOLET}" stop-opacity="0"/></radialGradient>
-<mask id="k{u}" maskUnits="userSpaceOnUse" x="0" y="0" width="800" height="800">{rects}</mask></defs>
-{f'<circle cx="400" cy="400" r="360" fill="url(#g{u})"/>' if glow else ''}
-<path d="{sparkle(400, 400, 330, .26)}" fill="url(#n{u})" mask="url(#k{u})"/>
-</svg>"""
-
-
-MARKS = {"trail-s": (trail_s, 760 / 790), "strata-nova": (strata_nova, 1.0)}
-CSS = "*{margin:0;padding:0;box-sizing:border-box} body{overflow:hidden;font-family:'Inter Display',Inter,sans-serif}"
-
-
-def avatar_html(fn, ar, size, k=.66):
-    w = int(size * k * min(1, ar)); h = int(w / ar)
+def avatar(size):
+    # emblem fills the circle; content centre is slightly above middle, so nudge down
+    s = int(size * 1.0)
     return f"""<!doctype html><html><head><style>{CSS}
-body{{width:{size}px;height:{size}px;display:grid;place-items:center;
- background:radial-gradient(circle at 50% 35%,#221A42 0%,{BG2} 75%)}}
-.m{{width:{w}px;height:{h}px}} .m svg{{width:100%;height:100%}}
-</style></head><body><div class="m">{fn('a')}</div></body></html>"""
+body{{width:{size}px;height:{size}px;position:relative;background:radial-gradient(circle at 50% 55%,#1a0b33 0%,{BG} 70%)}}
+.emb{{position:absolute;width:{s}px;height:{s}px;left:{(size-s)//2}px;top:{(size-s)//2 + int(size*.025)}px;-webkit-mask-image:none}}
+</style></head><body><div class="emb"></div></body></html>"""
 
 
-def banner_html(fn, ar):
-    mh = 360; mw = int(mh * ar)
+def banner():
+    stars = "".join(
+        f'<circle cx="{x}" cy="{y}" r="{r}" fill="#fff" opacity="{o}"/>'
+        for x, y, r, o in [(180,220,1.6,.5),(420,120,1.2,.4),(760,300,1.4,.35),(1900,160,1.5,.5),(2240,260,1.2,.4),
+                           (2400,520,1.8,.45),(2100,1180,1.3,.35),(300,1200,1.6,.4),(980,1300,1.2,.3),(1500,90,1.3,.35),
+                           (120,760,1.2,.3),(2460,980,1.4,.35),(1700,1340,1.5,.3),(640,980,1.1,.25),(2300,820,1.1,.3)])
     return f"""<!doctype html><html><head><style>{CSS}
 body{{width:2560px;height:1440px;position:relative;
- background:radial-gradient(ellipse 70% 80% at 30% 45%,{BG1} 0%,{BG2} 100%)}}
-.giant{{position:absolute;right:-380px;top:-160px;width:1600px;height:{int(1600/ar)}px;opacity:.09}}
-.giant svg{{width:100%;height:100%}}
-.safe{{position:absolute;left:507px;top:508px;width:1546px;height:423px;display:flex;align-items:center;gap:64px;padding:0 20px}}
-.m{{width:{mw}px;height:{mh}px;flex:none}} .m svg{{width:100%;height:100%}}
-.word{{font-weight:800;font-size:150px;letter-spacing:-6px;line-height:.95;color:{INK}}}
-.word span{{background:linear-gradient(90deg,{PINK},{ORANGE});-webkit-background-clip:text;color:transparent}}
-.head{{font-family:Inter;font-weight:500;font-size:44px;letter-spacing:-.5px;color:{SUB};margin-top:22px;white-space:nowrap}}
-.head b{{color:{INK};font-weight:700}}
-.row{{display:flex;gap:18px;margin-top:34px;white-space:nowrap;font-family:Inter}}
-.chip{{font-weight:700;font-size:28px;padding:12px 24px;border-radius:999px;color:#fff;
- background:linear-gradient(90deg,{PINK},{ORANGE})}}
-.ghost{{font-weight:600;font-size:28px;padding:12px 24px;border-radius:999px;border:2px solid #3A3260;color:{INK}}}
+ background:radial-gradient(ellipse 45% 60% at 36% 52%,#1d0c3a 0%,{BG} 70%)}}
+.bg{{position:absolute;inset:0}}
+.emb{{position:absolute;left:520px;top:438px;width:570px;height:570px}}
+.txt{{position:absolute;left:1110px;top:515px}}
+.word{{font-weight:800;font-size:160px;letter-spacing:-6px;line-height:1;color:#fff}}
+.word span{{background:{GRAD};-webkit-background-clip:text;color:transparent}}
+.tag{{display:flex;align-items:center;gap:22px;margin-top:22px;font-family:Inter;font-weight:600;font-size:30px;
+ letter-spacing:9px;color:#C9C2E8;text-transform:uppercase;white-space:nowrap}}
+.tag i{{display:block;width:70px;height:2px;background:linear-gradient(90deg,transparent,#7B5CFF)}}
+.tag i:last-child{{background:linear-gradient(90deg,#7B5CFF,transparent)}}
+.topics{{font-family:Inter;font-weight:500;font-size:32px;color:#A79FC9;margin-top:26px;white-space:nowrap}}
+.row{{display:flex;gap:18px;margin-top:26px;white-space:nowrap;font-family:Inter}}
+.chip{{font-weight:700;font-size:28px;padding:12px 26px;border-radius:999px;color:#fff;background:{GRAD}}}
+.ghost{{font-weight:600;font-size:28px;padding:12px 26px;border-radius:999px;border:2px solid #3B2A66;color:#EDE9FF;background:#0C0620}}
 </style></head><body>
-<div class="giant">{fn('g', False)}</div>
-<div class="safe">
-  <div class="m">{fn('b')}</div>
-  <div>
-    <div class="word">Stack<span>Nova</span></div>
-    <div class="head">Backend systems, <b>explained from the inside.</b></div>
-    <div class="row">
-      <div class="chip">New deep dives · Tue &amp; Sat</div>
-      <div class="ghost">Distributed systems · Databases · Java · Go · Node</div>
-    </div>
-  </div>
+<svg class="bg" viewBox="0 0 2560 1440">{stars}</svg>
+<div class="emb"></div>
+<div class="txt">
+  <div class="word">Stack<span>Nova</span></div>
+  <div class="tag"><i></i>Light up your whole stack<i></i></div>
+  <div class="topics">Distributed systems · Databases · Java · Go · Node.js</div>
+  <div class="row"><div class="chip">New deep dives · Tue &amp; Sat</div></div>
 </div></body></html>"""
 
 
-def sheet_html():
-    rows = ""
-    for name in MARKS:
-        av = (OUT / f"{name}-avatar-800.png").resolve().as_uri()
-        bn = (OUT / f"{name}-banner.png").resolve().as_uri()
-        sizes = "".join(f'<img src="{av}" style="width:{s}px;height:{s}px;border-radius:50%">' for s in (200, 88, 40))
-        rows += f'<div class="r"><div class="l">{name}</div>{sizes}<img class="b" src="{bn}"></div>'
+def logo_full():
+    """Square lockup like the reference: emblem above wordmark (for posts, watermark, intros)."""
     return f"""<!doctype html><html><head><style>{CSS}
-body{{width:1900px;padding:40px;background:#F4F3EF;font-family:Inter}}
-.r{{display:flex;align-items:center;gap:26px;margin-bottom:34px}} .l{{width:160px;font-weight:700;font-size:28px;color:#111}}
-.b{{width:1120px;border-radius:12px;margin-left:16px}}</style></head><body>{rows}</body></html>"""
+body{{width:1600px;height:1600px;position:relative;background:radial-gradient(circle at 50% 38%,#1d0c3a 0%,{BG} 65%)}}
+.emb{{position:absolute;left:330px;top:40px;width:940px;height:940px}}
+.word{{position:absolute;top:1010px;width:100%;text-align:center;font-weight:800;font-size:220px;letter-spacing:-8px;color:#fff}}
+.word span{{background:{GRAD};-webkit-background-clip:text;color:transparent}}
+.tag{{position:absolute;top:1290px;width:100%;display:flex;justify-content:center;align-items:center;gap:26px;
+ font-family:Inter;font-weight:600;font-size:38px;letter-spacing:12px;color:#C9C2E8;text-transform:uppercase}}
+.tag i{{display:block;width:120px;height:2px;background:linear-gradient(90deg,transparent,#7B5CFF)}}
+.tag i:last-child{{background:linear-gradient(90deg,#7B5CFF,transparent)}}
+</style></head><body><div class="emb"></div>
+<div class="word">Stack<span>Nova</span></div>
+<div class="tag"><i></i>Light up your whole stack<i></i></div></body></html>"""
 
 
 async def shot(page, html, w, h, name):
@@ -127,17 +80,12 @@ async def shot(page, html, w, h, name):
 
 async def main():
     async with async_playwright() as p:
-        b = await p.chromium.launch(executable_path="/opt/pw-browsers/chromium-1194/chrome-linux/chrome",
-                                    args=["--allow-file-access-from-files"])
+        b = await p.chromium.launch(executable_path="/opt/pw-browsers/chromium-1194/chrome-linux/chrome")
         page = await b.new_page()
-        for name, (fn, ar) in MARKS.items():
-            await shot(page, avatar_html(fn, ar, 800), 800, 800, f"{name}-avatar-800.png")
-            await shot(page, avatar_html(fn, ar, 1080), 1080, 1080, f"{name}-avatar-1080.png")
-            await shot(page, banner_html(fn, ar), 2560, 1440, f"{name}-banner.png")
-        tmp = OUT / "_sheet.html"; tmp.write_text(sheet_html())
-        await page.set_viewport_size({"width": 1900, "height": 900})
-        await page.goto(tmp.resolve().as_uri(), wait_until="networkidle")
-        await page.screenshot(path=str(OUT / "compare-sheet.png"), full_page=True)
+        await shot(page, avatar(800), 800, 800, "youtube-profile-800.png")
+        await shot(page, avatar(1080), 1080, 1080, "instagram-profile-1080.png")
+        await shot(page, banner(), 2560, 1440, "youtube-banner-2560x1440.png")
+        await shot(page, logo_full(), 1600, 1600, "stacknova-logo-full-1600.png")
         await b.close()
 
 
