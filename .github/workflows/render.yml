@@ -1,0 +1,84 @@
+name: render
+
+# Renders narration in the owner's cloned voice. Handles a secret and writes Releases, so:
+# it never runs on pull requests, every action is pinned to a commit, and inputs reach the
+# shell only through environment variables. Rendered audio goes only into a draft Release.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "content/episodes/*/episode.yaml"
+  workflow_dispatch:
+    inputs:
+      episode:
+        description: "Episode id, for example 001-idempotency"
+        required: true
+        type: string
+      only:
+        description: "long, a Short id such as short-1, or all"
+        required: true
+        default: short-1
+        type: string
+      models:
+        description: "Voice models, space-separated (original turbo nano). Blank uses config/voice.yaml"
+        required: false
+        default: ""
+        type: string
+      allow_draft:
+        description: "Render a draft episode as a preview"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: write # creates and updates the draft Release that stores renders
+
+concurrency:
+  group: render
+  cancel-in-progress: false
+
+jobs:
+  voice:
+    name: voice
+    runs-on: ubuntu-24.04
+    timeout-minutes: 340
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      EPISODE: ${{ inputs.episode }}
+      ONLY: ${{ inputs.only || 'all' }}
+      MODELS: ${{ inputs.models }}
+      ALLOW_DRAFT: ${{ inputs.allow_draft }}
+      BEFORE: ${{ github.event.before }}
+      HF_HUB_DISABLE_TELEMETRY: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg
+      - name: Install voice dependencies
+        run: uv sync --locked --no-default-groups --group voice
+      - name: Restore model weights (public files, safe to cache)
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/huggingface
+          key: hf-chatterbox-${{ hashFiles('uv.lock') }}-${{ inputs.models || 'default' }}
+          restore-keys: |
+            hf-chatterbox-${{ hashFiles('uv.lock') }}-
+            hf-chatterbox-
+      - name: Fetch the voice reference
+        env:
+          GH_TOKEN: ${{ secrets.CONTENT_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY_OWNER}/stacknova-content/contents/voice/reference.wav" \
+            -H "Accept: application/vnd.github.raw+json" > "$RUNNER_TEMP/reference.wav"
+          test "$(head -c 4 "$RUNNER_TEMP/reference.wav")" = "RIFF"
+      - name: Render voice
+        run: bash scripts/render-voice.sh

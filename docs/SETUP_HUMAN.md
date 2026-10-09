@@ -14,8 +14,8 @@ roadmap doc ("Setup guide" and "First video" tabs). Checklist so agents can tell
 - [ ] Google Cloud project, YouTube Data API v3 + YouTube Analytics API enabled, consent screen **published to production**, Web client with OAuth Playground redirect, refresh token
 - [ ] YouTube API audit form submitted (answers in `docs/youtube_audit_answers.md`, written by Claude)
 - [ ] Meta developer app, Instagram API with Instagram login, token + user id
-- [ ] All secrets from `docs/SECRETS.md` added
-- [ ] Voice reference recorded → private repo `voice/reference.wav` (30–60 s, quiet room, 44.1 kHz)
+- [ ] All secrets from `docs/SECRETS.md` added (`CONTENT_REPO_TOKEN` added 9 October 2026; the rest come with M4-M6)
+- [x] Voice reference recorded → private repo `voice/reference.wav` (30–60 s, quiet room, 44.1 kHz)
 - [ ] Story bank session done → private repo `stories/*.md`
 - [x] Plugins installed in Claude Code (`docs/SKILLS.md` §2): superpowers and document-skills (both from the start; paid-guide work stays Phase 2)
 - [ ] Night agent scheduled task created with Automatically approve on

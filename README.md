@@ -27,7 +27,8 @@ uv run python -m channel_os.validate content/episodes/001-idempotency/episode.ya
 ```
 
 `uv sync` installs Python 3.12 and the locked dependencies. The validator exits 0 when an episode
-has no errors; warnings do not fail it.
+has no errors; warnings do not fail it. The audio tests need `ffmpeg` on PATH. The voice model
+itself is a separate, heavy group (`uv sync --group voice`) that only the render workflow needs.
 
 ## Map
 

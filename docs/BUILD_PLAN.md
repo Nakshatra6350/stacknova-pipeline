@@ -31,7 +31,8 @@ content/episodes/*/episode.yaml. Do not implement rendering yet.
 Implement M1 from docs/BUILD_PLAN.md. Use chatterbox-tts on CPU. The reference voice clip is
 fetched at runtime from the private content repo (path voice/reference.wav) using the
 CONTENT_REPO_TOKEN secret — never commit it. Synthesize each segment of episode.yaml separately
-(segments[].narration), cache by sha256(text+voice+model version) in actions/cache, normalize
+(segments[].narration), cache by sha256(text+voice+model version) inside the draft Release
+(never actions/cache: the repo is public), normalize
 loudness with ffmpeg loudnorm two-pass to -14 LUFS, concatenate with 250 ms pauses between
 segments, and write timing.json. Add a render.yml job that runs on push when an episode.yaml has
 status ready_to_render, with a 'only' input to render just the short or long. Add tests that mock
