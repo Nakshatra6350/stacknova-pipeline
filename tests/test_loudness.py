@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from channel_os.voice.loudness import Target, measure, normalize
+from channel_os.voice.loudness import Target, detect_pauses, measure, normalize
 from channel_os.voice.wavio import duration_seconds
 
 TARGET = Target(integrated_lufs=-14.0, true_peak_db=-1.5, loudness_range=11.0, sample_rate=48000)
@@ -53,6 +53,16 @@ def test_measure_reads_back_what_normalize_reports(tmp_path: Path, audio: Any) -
     dst = tmp_path / "out.wav"
     achieved = normalize(audio(tmp_path / "in.wav", [(4.0, 0.05)]), dst, TARGET)
     assert measure(dst) == achieved
+
+
+def test_pauses_are_found_between_stretches_of_sound(tmp_path: Path, audio: Any) -> None:
+    parts = [(1.0, 0.2), (0.5, 0.0), (1.0, 0.2), (0.3, 0.0), (0.6, 0.2)]
+    pauses = detect_pauses(audio(tmp_path / "gappy.wav", parts))
+    assert [(round(a, 1), round(b, 1)) for a, b in pauses] == [(1.0, 1.5), (2.5, 2.8)]
+
+
+def test_continuous_sound_has_no_pauses(tmp_path: Path, audio: Any) -> None:
+    assert detect_pauses(audio(tmp_path / "tone.wav", [(2.0, 0.2)])) == []
 
 
 def test_silence_cannot_be_normalised(tmp_path: Path, audio: Any) -> None:

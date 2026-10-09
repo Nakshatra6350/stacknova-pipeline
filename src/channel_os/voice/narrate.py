@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from channel_os.voice.chunking import chunk_text
-from channel_os.voice.loudness import Loudness, Target, measure, normalize
+from channel_os.voice.loudness import Loudness, Target, detect_pauses, measure, normalize
 from channel_os.voice.polish import polish
 from channel_os.voice.settings import VoiceSettings
 from channel_os.voice.tts import Synthesizer, cache_key
@@ -112,6 +112,7 @@ def narrate(
                     "file": segment.relative_to(out_dir).as_posix(),
                     "start": round(cursor, 3),
                     "duration": round(duration, 3),
+                    "pauses": [list(pause) for pause in detect_pauses(segment)],
                 }
             )
             cursor += duration + gap

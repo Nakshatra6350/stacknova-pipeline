@@ -125,6 +125,20 @@ def test_a_true_peak_over_the_limit_fails(
         narrate(UNITS, "long", fake_synthesizer(), settings, tmp_path / "out", tmp_path / "c")
 
 
+def test_segments_record_the_pauses_between_their_chunks(
+    tmp_path: Path, settings: VoiceSettings, fake_synthesizer: Any
+) -> None:
+    # Scenes time their steps from these pauses, so every segment entry carries them.
+    text = " ".join(f"Sentence number {n} is here." for n in range(30))
+    chunks = chunk_text(text, settings.max_chunk_chars)
+    entry = narrate(
+        [Unit("s01", text)], "long", fake_synthesizer(), settings, tmp_path / "o", tmp_path / "c"
+    )
+    pauses = entry["segments"][0]["pauses"]
+    assert len(pauses) == len(chunks) - 1
+    assert all(end > start for start, end in pauses)
+
+
 def test_tempo_stretches_the_segments(
     tmp_path: Path, settings: VoiceSettings, fake_synthesizer: Any
 ) -> None:

@@ -18,6 +18,7 @@ MAX_PRE_GAIN_ROUNDS = 3
 PRE_GAIN_TOLERANCE_LU = 0.3
 PEAK_TOLERANCE_DB = 0.05
 _JSON_BLOCK = re.compile(r"\{[^{}]*\}")
+_SILENCE = re.compile(r"silence_(start|end): (-?[0-9.]+)")
 
 
 @dataclass(frozen=True)
@@ -60,6 +61,23 @@ def measure(path: Path) -> Loudness:
     chain = "loudnorm=print_format=json"
     report = _report(run_ffmpeg(["-i", str(path), "-af", chain, "-f", "null", "-"]))
     return Loudness(float(report["input_i"]), float(report["input_tp"]))
+
+
+def detect_pauses(
+    path: Path, noise_db: float = -38.0, min_seconds: float = 0.12
+) -> list[tuple[float, float]]:
+    """Silent stretches as (start, end) seconds. Scenes use them to time steps to speech."""
+    chain = f"silencedetect=noise={noise_db}dB:d={min_seconds}"
+    report = run_ffmpeg(["-i", str(path), "-af", chain, "-f", "null", "-"])
+    pauses: list[tuple[float, float]] = []
+    start: float | None = None
+    for kind, value in _SILENCE.findall(report):
+        if kind == "start":
+            start = max(0.0, float(value))
+        elif start is not None:
+            pauses.append((round(start, 3), round(float(value), 3)))
+            start = None
+    return pauses
 
 
 def _peak_tamer(path: Path, target: Target) -> str:
