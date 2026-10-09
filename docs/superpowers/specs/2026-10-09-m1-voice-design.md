@@ -92,6 +92,16 @@ Because manual dispatch only works for workflows present on the default branch, 
 `render.yml` with no permissions and no secrets is pushed to `main` first; runs then use the
 branch's version through `--ref`.
 
+## Pace and clarity (added after the owner's first listening)
+
+`voice/polish.py` applies an optional time-stretch (`tempo`) and a gentle EQ (`clarity`) to the
+raw speech before loudness. Neither is part of the chunk cache key, so changing them reuses the
+cached speech. Any setting can be overridden for one run (`--set KEY=VALUE`; workflow inputs
+`settings` and `label`), which is how tuning variants are rendered without commits.
+
+The owner's approved voice, 9 October 2026: original model, `tempo: 0.92`, clarity with an 80 Hz
+high-pass, +2.5 dB at 3 kHz and +2 dB above 7 kHz. A test pins these values.
+
 ## Changes to earlier docs
 
 - `docs/BUILD_PLAN.md` M1: the synthesis cache lives in the draft Release, not `actions/cache`.

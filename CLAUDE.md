@@ -64,7 +64,7 @@ content/
 schemas/           episode.schema.json  (validate every episode.yaml against it)
 src/channel_os/
   voice/           tts.py (chatterbox), loudness.py, reference.py, chunking.py, narrate.py,
-                   wavio.py, settings.py
+                   polish.py (pace + clarity), wavio.py, settings.py
   scenes/          shared Manim theme + components (Box, Arrow, Timeline, CodeBlock)
   assemble/        timeline.py, ffmpeg.py, cuts.py (shorts/reels), thumbnails.py, carousel.py
   captions/        align.py (whisper→script words), ass.py (burned-in), srt.py (upload track)
