@@ -33,7 +33,7 @@ for ep in $episodes; do
   fi
 
   for model in ${MODELS:-default}; do
-    [[ "$model" =~ ^(default|original|turbo|nano)$ ]] \
+    [[ "$model" =~ ^(default|original|turbo)$ ]] \
       || { echo "refusing odd model: $model" >&2; exit 1; }
     out="out/$ep/$model"
     args=(--episode "$ep" --only "$ONLY" --reference "$reference" --out "$out")

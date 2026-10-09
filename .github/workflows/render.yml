@@ -21,7 +21,7 @@ on:
         default: short-1
         type: string
       models:
-        description: "Voice models, space-separated (original turbo nano). Blank uses config/voice.yaml"
+        description: "Voice models, space-separated (original turbo). Blank uses config/voice.yaml"
         required: false
         default: ""
         type: string

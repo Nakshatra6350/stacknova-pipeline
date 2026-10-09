@@ -6,7 +6,7 @@ from typing import Any
 
 import yaml
 
-MODELS = ("original", "turbo", "nano")
+MODELS = ("original", "turbo")
 
 
 @dataclass(frozen=True)

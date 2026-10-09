@@ -110,8 +110,8 @@ def test_all_renders_the_long_video_and_every_short(
 
 def test_the_model_can_be_overridden(project: Any, episode: Data, fake_synthesizer: Any) -> None:
     root, reference = project(episode)
-    assert run(root, reference, fake_synthesizer(), "--only", "short-2", "--model", "nano") == 0
-    assert timing(root)["targets"]["short-2"]["model"] == "nano"
+    assert run(root, reference, fake_synthesizer(), "--only", "short-2", "--model", "turbo") == 0
+    assert timing(root)["targets"]["short-2"]["model"] == "turbo"
 
 
 def test_the_model_gets_a_prepared_copy_of_the_reference(

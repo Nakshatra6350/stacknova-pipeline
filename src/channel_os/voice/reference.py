@@ -13,7 +13,7 @@ from channel_os.voice.loudness import measure
 from channel_os.voice.settings import ReferenceSettings
 from channel_os.voice.wavio import duration_seconds
 
-MIN_SECONDS = 6.0  # chatterbox turbo and nano reject references of 5 s or less
+MIN_SECONDS = 6.0  # chatterbox turbo rejects references of 5 s or less
 PEAK_LIMIT = 0.89  # about -1 dBFS, in case the level change meets a stray peak
 
 

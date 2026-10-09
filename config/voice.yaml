@@ -1,5 +1,5 @@
 # Narration settings for the voice stage (milestone M1). Read by src/channel_os/voice/settings.py.
-model: original              # original | turbo | nano  (chatterbox-tts models)
+model: original              # original | turbo  (the English models in chatterbox-tts 0.1.7)
 seed: 20261009               # fixed, so the same sentence always renders the same audio
 exaggeration: 0.5            # original model only
 cfg_weight: 0.5              # original model only

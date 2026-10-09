@@ -20,9 +20,13 @@ broadcast loudness, with per-segment timing that later milestones build on.
 
 - `chatterbox-tts` 0.1.7 supports Python 3.12 and pins `torch==2.6.0`; with the PyTorch CPU index
   the lock holds no GPU packages.
-- The library has three English models: original (500M), Turbo (350M) and Nano (110M, built for CPU).
+- The released library (0.1.7) has two English models: original (500M) and Turbo (350M). A
+  smaller Nano model exists only in unreleased code on GitHub and is not used.
 - It builds its voice prompt from the first 6-15 s of the reference, does not trim silence, and
-  rejects references under 5 s (Turbo, Nano). One call yields at most about 40 s of speech.
+  rejects references under 5 s (Turbo). One call yields at most about 40 s of speech.
+- Its watermarker (resemble-perth 1.0.1) imports `pkg_resources`, which setuptools dropped in
+  version 81, so the voice group pins `setuptools<81`.
+- `gh api` cannot download binary files; the workflow fetches the reference with `curl`.
 - Every output carries the Perth watermark.
 - The owner's reference is 48 s, 44.1 kHz, dual-mono, -30 LUFS, peaks at -13 dBFS, with
   noise-suppressed (digitally silent) pauses.

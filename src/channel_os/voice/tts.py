@@ -83,9 +83,7 @@ class ChatterboxSynthesizer:
             else:
                 from chatterbox.tts_turbo import ChatterboxTurboTTS
 
-                model = ChatterboxTurboTTS.from_pretrained(
-                    device=self._device, nano=self._settings.model == "nano"
-                )
+                model = ChatterboxTurboTTS.from_pretrained(device=self._device)
                 model.prepare_conditionals(str(self._reference))
             self._model = model
         return self._model

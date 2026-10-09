@@ -17,12 +17,18 @@ def test_repo_config_loads(repo_root: Path) -> None:
 
 
 def test_model_can_be_overridden(repo_root: Path) -> None:
-    assert load_settings(repo_root / "config" / "voice.yaml", model="nano").model == "nano"
+    assert load_settings(repo_root / "config" / "voice.yaml", model="turbo").model == "turbo"
 
 
 def test_unknown_model_is_rejected(repo_root: Path) -> None:
     with pytest.raises(ValueError, match="unknown voice model"):
         load_settings(repo_root / "config" / "voice.yaml", model="loud")
+
+
+def test_nano_is_not_offered(repo_root: Path) -> None:
+    # Nano exists only in unreleased chatterbox code; the pinned 0.1.7 has original and turbo.
+    with pytest.raises(ValueError, match="unknown voice model"):
+        load_settings(repo_root / "config" / "voice.yaml", model="nano")
 
 
 def test_unknown_key_is_rejected(tmp_path: Path, repo_root: Path) -> None:
