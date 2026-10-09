@@ -5,8 +5,40 @@
   "type": "object",
   "required": ["id", "version", "status", "pillar", "language", "keywords", "packaging", "segments", "shorts", "sources", "fact_check"],
   "additionalProperties": false,
+  "$defs": {
+    "scene": {
+      "description": "One stage and its timed steps. Stage-specific keys (nodes, lanes, table, header) sit beside these; docs/VISUAL_DSL.md lists them.",
+      "type": "object",
+      "required": ["layout", "steps"],
+      "properties": {
+        "layout": {"type": "string", "description": "stage name, e.g. flow"},
+        "from": {"type": "string", "description": "phrase at which this scene takes over; required on every scene of a list except the first"},
+        "steps": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["at", "action", "target"],
+            "properties": {
+              "at": {"type": "string", "description": "phrase in the narration that triggers the step, or 'start'. Steps are listed in spoken order; a repeated phrase means its next occurrence."},
+              "action": {"enum": ["add", "animate", "highlight", "arrow", "break_arrow", "crash", "label", "code", "move", "clear", "press", "send", "row", "chip", "badge", "tag", "block", "dim", "focus", "title", "timeout"]},
+              "target": {"type": "string"},
+              "params": {"type": "object"}
+            }
+          }
+        }
+      }
+    },
+    "visual": {
+      "description": "One scene, or a list of scenes that cut from one to the next at each scene's `from` phrase.",
+      "oneOf": [
+        {"$ref": "#/$defs/scene"},
+        {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/scene"}}
+      ]
+    }
+  },
   "properties": {
     "id": {"type": "string", "pattern": "^[0-9]{3}-[a-z0-9-]+$"},
+    "theme": {"type": "string", "description": "name of a theme in config/themes.yaml; omit to use the rotation"},
     "version": {"type": "integer", "minimum": 1},
     "status": {"enum": ["draft", "ready_to_render", "rendering", "rendered", "published", "archived"]},
     "pillar": {"enum": ["database-internals", "distributed-systems", "jvm-java", "go-runtime", "node-runtime", "production-failures", "money-systems", "interview-depth"]},
@@ -44,26 +76,7 @@
           "title": {"type": "string", "maxLength": 60},
           "narration": {"type": "string"},
           "emphasis": {"type": "array", "items": {"type": "string"}},
-          "visual": {
-            "type": "object",
-            "required": ["layout", "steps"],
-            "properties": {
-              "layout": {"type": "string"},
-              "steps": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "required": ["at", "action", "target"],
-                  "properties": {
-                    "at": {"type": "string", "description": "phrase in narration that triggers the step (matched against aligned words), or 'start'"},
-                    "action": {"enum": ["add", "animate", "highlight", "arrow", "break_arrow", "crash", "label", "code", "move", "clear"]},
-                    "target": {"type": "string"},
-                    "params": {"type": "object"}
-                  }
-                }
-              }
-            }
-          }
+          "visual": {"$ref": "#/$defs/visual"}
         }
       }
     },
@@ -81,7 +94,9 @@
           "hook_on_screen": {"type": "string", "maxLength": 40},
           "youtube_title": {"type": "string", "maxLength": 100},
           "instagram_caption": {"type": "string", "maxLength": 2200},
-          "pillar_hashtags": {"type": "string"}
+          "pillar_hashtags": {"type": "string"},
+          "theme": {"type": "string", "description": "theme for this Short; omit to use the rotation"},
+          "visual": {"$ref": "#/$defs/visual", "description": "required for a standalone Short before it can render; a cut Short reuses its segments' visuals"}
         }
       }
     },

@@ -85,6 +85,52 @@ def test_standalone_short_without_a_script_is_an_error(
     assert found(lint_episode(episode, reach), "short-source") == [("error", "short-2")]
 
 
+def test_a_layout_without_a_stage_blocks_rendering_but_not_drafting(
+    episode: Data, reach: Data
+) -> None:
+    episode["segments"][0]["visual"]["layout"] = "phone-and-bank"
+    assert found(lint_episode(episode, reach), "visual-stage") == [("error", "s01")]
+    episode["status"] = "draft"
+    assert found(lint_episode(episode, reach), "visual-stage") == [("warning", "s01")]
+
+
+def test_a_step_the_stage_cannot_draw_is_reported(episode: Data, reach: Data) -> None:
+    episode["segments"][1]["visual"]["steps"][0] = {
+        "at": "start", "action": "press", "target": "bank",
+    }
+    findings = [f for f in lint_episode(episode, reach) if f.rule == "visual-stage"]
+    assert [(f.level, f.where) for f in findings] == [("error", "s02")]
+    assert "phone" in findings[0].message
+
+
+def test_steps_out_of_spoken_order_block_rendering(episode: Data, reach: Data) -> None:
+    steps = episode["segments"][0]["visual"]["steps"]
+    steps[0]["at"], steps[1]["at"] = "that matters", "Here is"
+    findings = [f for f in lint_episode(episode, reach) if f.rule == "visual-stage"]
+    assert [(f.level, f.where) for f in findings] == [("error", "s01")]
+    assert "spoken order" in findings[0].message
+
+
+def test_a_standalone_short_needs_a_visual_before_rendering(episode: Data, reach: Data) -> None:
+    del episode["shorts"][1]["visual"]
+    assert found(lint_episode(episode, reach), "short-visual") == [("error", "short-2")]
+    episode["status"] = "draft"
+    assert found(lint_episode(episode, reach), "short-visual") == [("warning", "short-2")]
+
+
+def test_a_shorts_visual_is_checked_against_its_script(episode: Data, reach: Data) -> None:
+    episode["shorts"][1]["visual"]["steps"][0]["at"] = "never said"
+    assert found(lint_episode(episode, reach), "step-anchor") == [
+        ("error", "short-2.visual.steps[0]")
+    ]
+
+
+def test_a_list_of_scenes_is_checked_scene_by_scene(episode: Data, reach: Data) -> None:
+    first = episode["segments"][0]["visual"]
+    episode["segments"][0]["visual"] = [first, {**first, "from": "never said", "steps": []}]
+    assert found(lint_episode(episode, reach), "step-anchor") == [("error", "s01.visual[1]")]
+
+
 GATED_STATUSES = ["ready_to_render", "rendering", "rendered", "published"]
 UNGATED_STATUSES = ["draft", "archived"]
 

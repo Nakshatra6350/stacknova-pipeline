@@ -46,19 +46,31 @@ class FakeSynthesizer:
         write_audio(out_path, [(1.5 + 0.02 * len(text), 0.1)])
 
 
+def _flow(steps: list[dict[str, Any]]) -> dict[str, Any]:
+    """A visual the flow stage can draw: phone, server and bank in a row."""
+    return {
+        "layout": "flow",
+        "nodes": [
+            {"id": "you", "kind": "phone", "label": "you"},
+            {"id": "server", "kind": "service", "label": "server"},
+            {"id": "bank", "kind": "ledger", "label": "bank"},
+        ],
+        "steps": steps,
+    }
+
+
 def _segment(segment_id: str) -> dict[str, Any]:
     return {
         "id": segment_id,
         "title": f"Segment {segment_id}",
         "narration": "Here is the retry that matters." + " filler" * 400,
         "emphasis": ["retry"],
-        "visual": {
-            "layout": "client-server-db",
-            "steps": [
-                {"at": "start", "action": "add", "target": "client"},
-                {"at": "the retry", "action": "highlight", "target": "client"},
-            ],
-        },
+        "visual": _flow(
+            [
+                {"at": "start", "action": "press", "target": "you"},
+                {"at": "the retry", "action": "send", "target": "you->bank"},
+            ]
+        ),
     }
 
 
@@ -91,6 +103,7 @@ def episode() -> dict[str, Any]:
                 "id": "short-2",
                 "source": "standalone",
                 "script": "A standalone script about one retry.",
+                "visual": _flow([{"at": "one retry", "action": "press", "target": "you"}]),
                 "hook_on_screen": "Exactly-once is a lie",
                 "youtube_title": "Exactly-Once Delivery Doesn't Exist #Shorts",
                 "instagram_caption": "Caption.",

@@ -8,6 +8,8 @@ from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from channel_os.scenes.spec import order_problems, scene_blocks, stage_problems
+
 Level = Literal["error", "warning"]
 Episode = Mapping[str, Any]
 Reach = Mapping[str, Any]
@@ -73,18 +75,62 @@ def _emphasis_in_narration(episode: Episode, reach: Reach) -> Iterator[Finding]:
                 )
 
 
-def _step_anchor(episode: Episode, reach: Reach) -> Iterator[Finding]:
+def _visual_units(episode: Episode) -> Iterator[tuple[str, Any, str]]:
+    """(owner id, visual, spoken text) for every segment and every Short that has a visual."""
+    narrations = {segment["id"]: segment["narration"] for segment in episode["segments"]}
     for segment in episode["segments"]:
-        narration = _norm(segment["narration"])
-        for index, step in enumerate(segment["visual"]["steps"]):
+        yield segment["id"], segment["visual"], segment["narration"]
+    for short in episode["shorts"]:
+        if "visual" not in short:
+            continue
+        if short["source"] == "standalone":
+            spoken = str(short.get("script", ""))
+        else:
+            spoken = " ".join(narrations.get(sid, "") for sid in short.get("segments", []))
+        yield short["id"], short["visual"], spoken
+
+
+def _unspoken(owner: str, visual: Any, text: str) -> Iterator[tuple[str, str]]:
+    """(where, message) for each `from` or `at` phrase that is not in the spoken text."""
+    spoken = _norm(text)
+    for scene_index, block in enumerate(scene_blocks(visual)):
+        single = isinstance(visual, Mapping)
+        where = f"{owner}.visual" if single else f"{owner}.visual[{scene_index}]"
+        if "from" in block and _norm(block["from"]) not in spoken:
+            yield where, f'from "{block["from"]}" is not in the narration'
+        for index, step in enumerate(block["steps"]):
             anchor = step["at"]
-            if anchor != "start" and _norm(anchor) not in narration:
-                yield Finding(
-                    "error",
-                    "step-anchor",
-                    f"{segment['id']}.visual.steps[{index}]",
-                    f'at "{anchor}" is not in the narration',
-                )
+            if anchor != "start" and _norm(anchor) not in spoken:
+                yield f"{where}.steps[{index}]", f'at "{anchor}" is not in the narration'
+
+
+def _step_anchor(episode: Episode, reach: Reach) -> Iterator[Finding]:
+    for owner, visual, text in _visual_units(episode):
+        for where, message in _unspoken(owner, visual, text):
+            yield Finding("error", "step-anchor", where, message)
+
+
+def _visual_stage(episode: Episode, reach: Reach) -> Iterator[Finding]:
+    """A visual must name a stage that exists and steps that stage can draw, in spoken order."""
+    level = _gate_level(episode)
+    for owner, visual, text in _visual_units(episode):
+        issues = stage_problems(visual)
+        if not any(_unspoken(owner, visual, text)):  # step-anchor already reports those
+            issues += order_problems(visual, text)
+        for issue in issues:
+            yield Finding(level, "visual-stage", owner, issue)
+
+
+def _short_visual(episode: Episode, reach: Reach) -> Iterator[Finding]:
+    level = _gate_level(episode)
+    for short in episode["shorts"]:
+        if short["source"] == "standalone" and "visual" not in short:
+            yield Finding(
+                level,
+                "short-visual",
+                short["id"],
+                "a standalone Short needs a visual before it can render",
+            )
 
 
 def _short_source(episode: Episode, reach: Reach) -> Iterator[Finding]:
@@ -191,6 +237,8 @@ RULES: tuple[Rule, ...] = (
     _short_source,
     _story_placeholder,
     _localizations,
+    _visual_stage,
+    _short_visual,
     _hook_words,
     _keyword_position,
     _word_count,

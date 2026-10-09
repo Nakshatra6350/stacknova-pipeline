@@ -57,13 +57,23 @@ def anchors(text: str, duration: float, pauses: Sequence[tuple[float, float]]) -
     return result
 
 
+def find_offset(phrase: str, text: str, start: int = 0) -> int:
+    """Offset of `phrase` in the normalised text at or after `start`; -1 when it is not there."""
+    return normalise(text).casefold().find(normalise(phrase).casefold(), start)
+
+
 def phrase_time(phrase: str, text: str, anchor_list: Sequence[Anchor]) -> float:
     """When `phrase` starts being spoken. The phrase `start` means time zero."""
     if phrase == "start":
         return 0.0
-    offset = normalise(text).casefold().find(normalise(phrase).casefold())
+    offset = find_offset(phrase, text)
     if offset < 0:
         raise ValueError(f"phrase {phrase!r} is not in the narration")
+    return time_at(offset, anchor_list)
+
+
+def time_at(offset: int, anchor_list: Sequence[Anchor]) -> float:
+    """The time at which the character at `offset` is spoken, interpolated between anchors."""
     for (left, left_time), (right, right_time) in pairwise(anchor_list):
         if left <= offset <= right:
             if right == left:
