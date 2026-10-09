@@ -26,10 +26,16 @@ voice = [
     # chatterbox's watermarker (resemble-perth 1.0.1) imports pkg_resources, gone in setuptools 81.
     "setuptools<81",
 ]
+# Animated scenes: `uv sync --group scenes`. Manim needs numpy>=2.1 and chatterbox needs
+# numpy<2, so this group and `voice` can never share an environment (see conflicts below).
+scenes = [
+    "manim==0.21.0",
+]
 
 [tool.uv]
 default-groups = ["dev"]
 environments = ["sys_platform == 'linux'", "sys_platform == 'win32'"]
+conflicts = [[{ group = "voice" }, { group = "scenes" }]]
 
 [[tool.uv.index]]
 name = "pytorch-cpu"
@@ -66,4 +72,11 @@ files = ["src"]
 
 [[tool.mypy.overrides]]
 module = ["chatterbox.*", "torch", "perth"]
+ignore_missing_imports = true
+
+# Manim and its helpers are treated as untyped whether or not the scenes group is installed,
+# so `mypy src` gives the same result in every environment.
+[[tool.mypy.overrides]]
+module = ["manim", "manim.*", "manimpango", "av", "av.*", "numpy", "numpy.*"]
+follow_imports = "skip"
 ignore_missing_imports = true

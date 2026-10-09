@@ -98,7 +98,7 @@ and on each Short. `docs/VISUAL_DSL.md` is the reference for stages, node kinds 
 
 **Themes.** `config/themes.yaml` holds named palettes and a rotation. With no `theme` given, the
 long video uses `rotation[(episode number - 1) mod n]` and Short k uses
-`rotation[(episode number + k) mod n]`, so neighbouring assets differ.
+`rotation[(episode number - 1 + k) mod n]`, so neighbouring assets differ.
 
 **Timing.** The voice stage records the pauses of each segment in `timing.json`. A step's time is
 found by locating its phrase in the text and interpolating between anchors, where anchors are

@@ -1,0 +1,42 @@
+# Colour themes for animated scenes (milestone M2). Read by src/channel_os/scenes/theme.py.
+#
+# The owner wants a mixture: not every video, Reel or Short in the same colours. An asset uses
+# the theme named in episode.yaml (`theme:` on the episode or on a Short). With none named, the
+# long video takes rotation[(episode number - 1) mod n] and Short k takes
+# rotation[(episode number - 1 + k) mod n], so neighbouring assets differ.
+rotation: [brand, navy]
+
+fonts:
+  mono: "JetBrains Mono"      # labels, numbers, code
+  sans: "Inter"               # sentences on screen
+  display: "Inter Display"    # big titles
+
+themes:
+  brand:                      # StackNova: near-black with violet, from config/brand.yaml
+    bg: "#020008"
+    surface: "#120E26"        # fill of panels and shapes
+    line: "#2B2452"           # quiet strokes and placeholder bars
+    strong: "#4B4085"         # outlines and rails
+    ink: "#FFFFFF"            # primary text
+    muted: "#B7B0D6"          # secondary text
+    accent: "#7B5CFF"         # active outlines, flows, lit status lights
+    soft: "#1D1647"           # resting fill of an accent shape
+    packet: "#A995FF"         # a request travelling
+    reply: "#FFD24D"          # a response travelling
+    retry: "#FF4D8D"          # a repeated request
+    ok: "#5FE0A8"
+    bad: "#FF5C5C"
+  navy:                       # the palette of the owner's portfolio illustrations
+    bg: "#08111F"
+    surface: "#101F35"
+    line: "#243654"
+    strong: "#3B5478"
+    ink: "#EDF4FF"
+    muted: "#9AABC2"
+    accent: "#4D9CFF"
+    soft: "#122C4C"
+    packet: "#69B4FF"
+    reply: "#BFE0FF"
+    retry: "#FF9F6B"
+    ok: "#6FD3A5"
+    bad: "#FF7A90"

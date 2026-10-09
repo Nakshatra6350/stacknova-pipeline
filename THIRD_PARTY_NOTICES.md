@@ -9,3 +9,17 @@ Each folder keeps its original licence file.
   (commit cef0450), MIT License, Copyright (c) 2026 Adithya S Kolavi (see LICENSE-upstream.txt).
 
 No changes were made to the vendored files.
+
+## Fonts
+
+`assets/fonts/` bundles the fonts every render uses, so videos look the same on any machine.
+Both are under the SIL Open Font License 1.1; the licence texts sit beside the files.
+
+- Inter and Inter Display (Regular, Medium, SemiBold, Bold, Display ExtraBold) — from
+  https://github.com/rsms/inter release v4.1, Copyright (c) 2016 The Inter Project Authors.
+  See `assets/fonts/LICENSE-Inter.txt`.
+- JetBrains Mono (Regular, Bold) — from https://github.com/JetBrains/JetBrainsMono release
+  v2.304, Copyright 2020 The JetBrains Mono Project Authors.
+  See `assets/fonts/LICENSE-JetBrainsMono.txt`.
+
+The font files are unmodified.
