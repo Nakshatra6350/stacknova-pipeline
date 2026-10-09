@@ -16,6 +16,14 @@ def test_repo_config_loads(repo_root: Path) -> None:
     assert settings.reference.target_lufs == -27.0
 
 
+def test_repo_config_holds_the_voice_the_owner_approved(repo_root: Path) -> None:
+    # Approved by ear on 9 October 2026. Change these only with the owner's say-so.
+    settings = load_settings(repo_root / "config" / "voice.yaml")
+    assert (settings.model, settings.cfg_weight, settings.tempo) == ("original", 0.5, 0.92)
+    clarity = settings.clarity
+    assert (clarity.highpass_hz, clarity.presence_db, clarity.air_db) == (80, 2.5, 2.0)
+
+
 def test_model_can_be_overridden(repo_root: Path) -> None:
     assert load_settings(repo_root / "config" / "voice.yaml", model="turbo").model == "turbo"
 
