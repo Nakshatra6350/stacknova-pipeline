@@ -1,0 +1,15 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+out/
+media/
+.cache/
+voice/*.wav
+*.mp4
+*.wav
+!tests/fixtures/**
+.local/
+# Logo drafts and comparison sheets; only the chosen assets in brand-assets/ are committed
+brand-assets/options/
+brand-assets/v3/

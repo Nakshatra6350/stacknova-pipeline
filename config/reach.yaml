@@ -1,0 +1,36 @@
+subtitle_languages: [hi, es, pt, id, vi, ar]   # review after 8 weeks; drop any with < 2% of views
+localize_titles: true
+keep_in_english:                              # never translate these terms
+  - idempotency
+  - idempotency key
+  - goroutine
+  - garbage collector
+  - Kafka
+  - Redis
+  - MVCC
+  - write-ahead log
+  - consensus
+  - Raft
+asr_fixups:                                   # ASR spelling → script spelling
+  "go routine": goroutine
+  "go routines": goroutines
+  "cough ka": Kafka
+  "post gress": Postgres
+  "post gres": Postgres
+  "m v c c": MVCC
+  "j v m": JVM
+hashtag_sets:
+  money-systems: ["#systemdesign", "#backenddeveloper", "#fintech", "#softwareengineering", "#payments", "#idempotency"]
+  distributed-systems: ["#distributedsystems", "#systemdesign", "#backenddeveloper", "#softwareengineering", "#microservices"]
+  database-internals: ["#database", "#postgresql", "#backenddeveloper", "#systemdesign", "#sql"]
+  jvm-java: ["#java", "#jvm", "#backenddeveloper", "#javadeveloper", "#softwareengineering"]
+  go-runtime: ["#golang", "#go", "#backenddeveloper", "#concurrency", "#softwareengineering"]
+  node-runtime: ["#nodejs", "#javascript", "#backenddeveloper", "#eventloop", "#softwareengineering"]
+  production-failures: ["#sre", "#devops", "#systemdesign", "#backenddeveloper", "#postmortem"]
+  interview-depth: ["#systemdesigninterview", "#systemdesign", "#codinginterview", "#backenddeveloper", "#faang"]
+quality_gates:
+  title_max_chars: 60
+  short_max_seconds: 59
+  short_visual_change_max_gap_s: 4
+  hook_max_seconds: 2
+  min_ctr_before_swap: 0.04

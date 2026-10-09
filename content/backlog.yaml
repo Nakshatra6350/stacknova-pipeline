@@ -1,0 +1,59 @@
+# Ranked topic queue. The night agent takes the first item with status 'next',
+# and re-ranks weekly from analytics. vidIQ figures: monthly YouTube searches / competition (0-100), Oct 2026.
+- id: 001-idempotency
+  title: Why your payment got charged twice (idempotency)
+  pillar: money-systems
+  keyword: {term: idempotency, searches: null, competition: null}
+  mastery_source: 08-distributed-systems/09-idempotency.html
+  status: in_progress
+- id: 002-outbox-pattern
+  title: The dual-write problem and the outbox pattern
+  pillar: money-systems
+  keyword: {term: outbox pattern, searches: null, competition: null}
+  mastery_source: 08-distributed-systems/11-messaging-patterns.html
+  project_tie_in: 10-projects/p3-kafka-dlq-pipeline
+  status: next
+- id: 003-hashmap-internals
+  title: How HashMap really works inside Java
+  pillar: jvm-java
+  keyword: {term: hashmap in java, searches: 13771, competition: 30}
+  mastery_source: 03-java-advanced/04-concurrent-collections.html
+  status: next
+- id: 004-postgres-mvcc
+  title: How Postgres lets readers and writers never block (MVCC)
+  pillar: database-internals
+  keyword: {term: mvcc, searches: null, competition: null}
+  mastery_source: 05-databases/postgres
+  status: next
+- id: 005-raft
+  title: Raft consensus, animated step by step
+  pillar: distributed-systems
+  keyword: {term: distributed systems explained, searches: 4350, competition: 18}
+  mastery_source: 08-distributed-systems/06-consensus-raft.html
+  status: next
+- id: 006-jvm-internals
+  title: "JVM internals: what happens after you hit run"
+  pillar: jvm-java
+  keyword: {term: jvm internals, searches: 8764, competition: 17}
+  mastery_source: 03-java-advanced/08-classloading-bytecode.html
+  status: next
+- id: 007-go-scheduler
+  title: "Inside the Go scheduler: how goroutines really run"
+  pillar: go-runtime
+  keyword: {term: goroutines, searches: 5418, competition: 26}
+  mastery_source: 02-go-advanced/01-runtime-scheduler.html
+  status: next
+- id: 008-retry-storms
+  title: How retries take down healthy systems
+  pillar: production-failures
+  keyword: {term: retry storm, searches: null, competition: null}
+  mastery_source: 08-distributed-systems/13-resilience.html
+  status: next
+- id: 009-payment-system-design
+  title: Design a payment system at senior depth
+  pillar: interview-depth
+  keyword: {term: system design interview, searches: 90367, competition: 35}
+  mastery_source: 09-system-design/01-method.html
+  status: next
+# Build-it series (one project = 3-4 episodes), after episode 009:
+# p4-mini-redis-go, p2-rate-limiter-gateway, p1-job-scheduler, p5-realtime-collab

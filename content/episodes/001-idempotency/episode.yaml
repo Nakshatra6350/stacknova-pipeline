@@ -1,0 +1,382 @@
+# Episode 001 — written by Claude (night-agent format). Status stays 'draft' until the
+# owner's production story replaces the [STORY] placeholder in segment s09.
+id: 001-idempotency
+version: 1
+status: draft            # draft | ready_to_render | rendering | rendered | published
+pillar: money-systems
+series: how-it-breaks
+language: en
+target_versions:
+  go: "1.26"
+  postgresql: "18"
+estimated_minutes: 9
+
+keywords:
+  primary: idempotency
+  secondary:
+    - idempotency key
+    - payment charged twice
+    - exactly once delivery
+    - system design interview
+    - distributed systems explained
+
+packaging:
+  titles:                       # ≤ 60 chars; top 2 go to YouTube A/B test
+    - "Why Your Payment Got Charged Twice (Idempotency)"
+    - "Idempotency Keys: How Stripe Stops Double Charges"
+    - "The Retry That Charged Me Twice"
+    - "Exactly-Once Is a Lie. Here's What Works."
+    - "Idempotency Explained by a Fintech Engineer"
+  thumbnail_texts:              # 2–4 words, must not repeat the title
+    - "CHARGED TWICE?"
+    - "RETRY = $$"
+    - "ONE KEY FIXES IT"
+  description: |
+    You tapped Pay, saw "something went wrong", tapped again — and got charged twice. Here's the
+    exact gap that causes it, and how idempotency keys make retries safe.
+
+    {chapters}
+
+    Next: the outbox pattern — {next_link}
+
+    Sources:
+    {sources}
+  tags:
+    - idempotency
+    - idempotency key
+    - idempotent api
+    - payment system design
+    - exactly once delivery
+    - at least once delivery
+    - distributed systems
+    - system design interview
+    - backend engineering
+    - golang
+    - postgresql
+  pinned_comment: "Have you ever been double-charged? What do you think caused it? 👇"
+
+segments:
+  - id: s01
+    title: The double charge
+    narration: >-
+      You tapped Pay. The spinner spun for thirty seconds. Then: "Something went wrong. Try again."
+      So you tried again. And the next morning, your bank shows two charges. Nobody wrote a line
+      of code that says "charge twice". Every line did exactly what it was told. In the next few
+      minutes you'll see the exact gap that lets this happen, the one pattern payment companies use
+      to close it, and why "exactly-once delivery" is a promise no network can keep.
+    emphasis: [two charges, exactly what it was told, exactly-once]
+    visual:
+      layout: phone-and-bank
+      steps:
+        - {at: "tapped Pay", action: add, target: phone, params: {screen: pay_button}}
+        - {at: "spinner", action: animate, target: phone, params: {screen: spinner}}
+        - {at: "tried again", action: highlight, target: phone, params: {screen: retry}}
+        - {at: "two charges", action: add, target: bank_statement, params: {rows: 2, flash: true}}
+
+  - id: s02
+    title: Silence has three causes
+    narration: >-
+      Here's how most of us picture an API call. The client sends a request, the server does the
+      work, the server sends a response. If anything fails, the client retries. Clean. But that
+      picture hides a question: when the client gets no response, what actually happened? There are
+      three possibilities. One: the request never reached the server, so a retry is safe. Two: the
+      server received it and crashed before changing anything. Also safe. Three: the server did the
+      work, it charged the card, and the response got lost on the way back. A timeout, a dropped
+      connection, a load balancer restart. From the client's side, all three look identical:
+      silence. That's not a bug in your code. It's a property of networks. And in case three, a
+      retry means a second charge.
+    emphasis: [three possibilities, silence, second charge]
+    visual:
+      layout: client-server-db
+      steps:
+        - {at: "client sends a request", action: arrow, target: client->server}
+        - {at: "never reached", action: break_arrow, target: client->server, params: {label: "1"}}
+        - {at: "crashed", action: crash, target: server, params: {label: "2"}}
+        - {at: "charged the card", action: arrow, target: server->db, params: {label: "3"}}
+        - {at: "got lost", action: break_arrow, target: server->client}
+        - {at: "all three look identical", action: label, target: client, params: {text: "?"}}
+
+  - id: s03
+    title: Retries are guaranteed
+    narration: >-
+      So why not just never retry? Because then cases one and two become lost payments. And
+      retries happen whether you write them or not. Your HTTP client may retry. Your service mesh
+      may retry. The mobile app retries when the network switches from Wi-Fi to mobile data. The
+      user retries by tapping the button again. A message queue redelivers a message when the
+      consumer doesn't acknowledge it in time. In a distributed system, assume every request can
+      arrive more than once. That's called at-least-once delivery. So the real question isn't "how
+      do I stop duplicates from arriving?" It's "how do I make a duplicate harmless?"
+    emphasis: [at-least-once, harmless]
+    visual:
+      layout: retry-sources
+      steps:
+        - {at: "HTTP client", action: add, target: chip, params: {text: "HTTP client"}}
+        - {at: "service mesh", action: add, target: chip, params: {text: "service mesh"}}
+        - {at: "mobile app", action: add, target: chip, params: {text: "mobile app"}}
+        - {at: "user retries", action: add, target: chip, params: {text: "user"}}
+        - {at: "message queue", action: add, target: chip, params: {text: "queue redelivery"}}
+        - {at: "at-least-once", action: label, target: center, params: {text: "at-least-once"}}
+
+  - id: s04
+    title: What idempotent means
+    narration: >-
+      That property has a name: idempotency. An operation is idempotent if doing it twice has the
+      same effect as doing it once. Setting a user's email to a value is idempotent; do it ten
+      times and you end in the same state. "Add a hundred dollars to this account" is not; do it
+      twice and you've added two hundred. HTTP already defines GET, PUT and DELETE as idempotent.
+      POST is not. And "create a payment" is almost always a POST, so we have to make it idempotent
+      ourselves.
+    emphasis: [idempotency, twice, once, POST]
+    visual:
+      layout: two-columns
+      steps:
+        - {at: "Setting a user's email", action: add, target: left, params: {text: "SET email = x  ✓"}}
+        - {at: "Add a hundred dollars", action: add, target: right, params: {text: "balance += 100  ✗"}}
+        - {at: "GET, PUT and DELETE", action: add, target: table, params: {rows: [GET ✓, PUT ✓, DELETE ✓, POST ✗]}}
+
+  - id: s05
+    title: The idempotency key
+    narration: >-
+      The standard fix is an idempotency key. Before the first attempt, the client generates a
+      unique ID for this one operation, a random UUID is fine, and sends it in a header, commonly
+      called Idempotency-Key. Every retry of the same payment sends the same key. A new payment
+      gets a new key. On the server, before doing any work, we look the key up. Never seen it?
+      Record it, do the work, and save the response next to the key. Seen it, and the work is
+      finished? Don't charge again; return the saved response. To the client, the retry looks
+      exactly like a successful first attempt. The duplicate became harmless.
+    emphasis: [Idempotency-Key, same key, saved response]
+    visual:
+      layout: client-server-db
+      steps:
+        - {at: "generates a unique ID", action: label, target: client, params: {text: "key = 7f3c…"}}
+        - {at: "sends it in a header", action: arrow, target: client->server, params: {label: "Idempotency-Key: 7f3c…"}}
+        - {at: "look the key up", action: arrow, target: server->db, params: {label: "seen 7f3c?"}}
+        - {at: "save the response", action: add, target: db_row, params: {text: "7f3c | completed | 201 {...}"}}
+        - {at: "return the saved response", action: arrow, target: server->client, params: {label: "201 (replayed)"}}
+
+  - id: s06
+    title: The race most tutorials miss
+    narration: >-
+      Most tutorials stop there. It isn't enough. Imagine the first request is still running, the
+      card network is slow, when the retry arrives. Both requests check the table. Neither finds a
+      finished entry. Both charge. We're back to two charges, just faster. The fix is to let the
+      database decide who wins. Make the key a primary key, or give it a unique constraint. The
+      first request inserts a row marked "in progress". The second request tries to insert the
+      same key, and the database refuses. Now the second request knows someone else owns this
+      operation. It must not charge, and it shouldn't hang. The usual answer is a 409 Conflict that
+      tells the client to retry later. When the first request finishes, its row moves to
+      "completed" with the stored response, and every later retry gets that response back.
+    emphasis: [Both charge, database decide, unique constraint, 409 Conflict]
+    visual:
+      layout: race-timeline
+      steps:
+        - {at: "still running", action: add, target: lane_a, params: {text: "request #1"}}
+        - {at: "retry arrives", action: add, target: lane_b, params: {text: "request #2"}}
+        - {at: "Both charge", action: crash, target: both, params: {text: "$ $"}}
+        - {at: "unique constraint", action: code, target: code, params: {sample: go, lines: "50-62"}}
+        - {at: "database refuses", action: highlight, target: lane_b, params: {text: "INSERT … conflict"}}
+        - {at: "409 Conflict", action: label, target: lane_b, params: {text: "409 retry later"}}
+
+  - id: s07
+    title: Same key, different request
+    narration: >-
+      One more trap. What if a buggy client reuses a key for a different payment? Same key, but
+      five hundred dollars instead of one hundred. If you blindly replay the stored response, you'll
+      tell the client the five-hundred payment succeeded when it never happened. So store a
+      fingerprint of the request, a hash of its body, next to the key. On a repeat, compare
+      fingerprints. Same fingerprint: replay. Different fingerprint: reject it with a clear error,
+      so the bug shows up loudly instead of silently.
+    emphasis: [fingerprint, reject]
+    visual:
+      layout: compare-cards
+      steps:
+        - {at: "Same key", action: add, target: card_a, params: {text: "key 7f3c · $100"}}
+        - {at: "five hundred dollars", action: add, target: card_b, params: {text: "key 7f3c · $500"}}
+        - {at: "fingerprint", action: label, target: both, params: {text: "sha256(body)"}}
+        - {at: "reject it", action: highlight, target: card_b, params: {text: "422 key reused"}}
+
+  - id: s08
+    title: The chain downstream
+    narration: >-
+      Now zoom out. Your server rarely moves money itself. It calls a payment gateway. If that
+      call times out, you are now the client, facing the same three-case problem. So pass an
+      idempotency key downstream too. Many payment providers support one; Stripe, for example,
+      documents an Idempotency-Key header. Derive it from your own key, so a retry of your
+      operation becomes a retry of theirs, never a new charge. And if the gateway call fails with an
+      unknown outcome, don't release the key and try again with a new one. Keep it, and ask the
+      gateway what happened. Idempotency isn't a feature of one service. It's a chain, and it only
+      holds if every link holds.
+    emphasis: [downstream, chain, every link]
+    visual:
+      layout: chain
+      steps:
+        - {at: "calls a payment gateway", action: arrow, target: server->gateway}
+        - {at: "pass an idempotency key downstream", action: label, target: server->gateway, params: {text: "Idempotency-Key: pay-7f3c…"}}
+        - {at: "every link holds", action: highlight, target: chain, params: {}}
+
+  - id: s09
+    title: From production
+    narration: >-
+      [STORY:duplicate-callback] The night agent replaces this with an anonymised story from the
+      owner's story bank (content/stories/), 60–90 seconds, framed as experience. Episode stays in
+      draft until then.
+    emphasis: []
+    visual:
+      layout: story-card
+      steps:
+        - {at: "start", action: add, target: card, params: {text: "From production"}}
+
+  - id: s10
+    title: The trade-offs
+    narration: >-
+      This isn't free. Every key is a row you store, so give keys an expiry, long enough to cover
+      realistic retries. Stripe, for instance, keeps them for at least twenty-four hours. Clean
+      them up after that. You add a database write before every operation, which costs latency.
+      You're storing responses to replay them, so think about what's in them. And keys only work
+      if clients generate them correctly: once per operation, before the first attempt, reused on
+      every retry. Generate a fresh key on each retry and you've built nothing.
+    emphasis: [expiry, latency, once per operation]
+    visual:
+      layout: checklist
+      steps:
+        - {at: "expiry", action: add, target: item, params: {text: "Expire keys (≥ 24 h)"}}
+        - {at: "latency", action: add, target: item, params: {text: "+1 write per request"}}
+        - {at: "storing responses", action: add, target: item, params: {text: "Mind what you store"}}
+        - {at: "fresh key on each retry", action: add, target: item, params: {text: "Same key on every retry"}}
+
+  - id: s11
+    title: Exactly-once, honestly
+    narration: >-
+      Here's the payoff I promised. You'll see systems advertise exactly-once delivery. Over a real
+      network, delivery is at-least-once: messages can and do arrive twice. What you can build is an
+      exactly-once effect: at-least-once delivery plus idempotent processing. That's what an
+      idempotency key gives you. Not fewer duplicates. Duplicates that don't matter.
+    emphasis: [at-least-once, exactly-once effect, don't matter]
+    visual:
+      layout: equation
+      steps:
+        - {at: "at-least-once delivery plus", action: add, target: eq, params: {text: "at-least-once + idempotent = exactly-once effect"}}
+
+  - id: s12
+    title: Recap and next
+    narration: >-
+      Recap. Silence after a request has three causes you can't tell apart. Retries are guaranteed.
+      So make the operation idempotent: a client-generated key, reused on every retry; a unique
+      constraint so the database picks one winner; a request fingerprint to catch misuse; and keys
+      passed downstream. Next episode: you've charged the card, and now you need to update your
+      database and publish an event, and those two can't share a transaction. That's the outbox
+      pattern. See you there.
+    emphasis: [one winner, outbox pattern]
+    visual:
+      layout: recap
+      steps:
+        - {at: "Recap", action: add, target: summary_diagram, params: {}}
+        - {at: "outbox pattern", action: add, target: next_card, params: {text: "Next: The Outbox Pattern"}}
+
+shorts:
+  - id: short-1
+    source: standalone
+    hook_on_screen: "This retry charged you twice"
+    script: >-
+      You tapped Pay, got an error, tapped again, and got charged twice. Here's why. When your
+      request times out, you can't tell if the server never got it, or charged you and lost the
+      reply. A retry in that second case is a second charge. The fix: send an idempotency key, one
+      random ID per payment, reused on every retry. The server stores it with a unique constraint,
+      so the second attempt can't charge again; it just replays the first response. Same key,
+      same result. That's why your retry should be harmless. Unless someone forgot the key.
+    youtube_title: "Why Your Retry Charged You Twice #Shorts"
+    instagram_caption: |
+      Tapped Pay twice and got charged twice? 💸
+      The network can't tell "never arrived" from "done, reply lost".
+      Idempotency keys make the retry harmless.
+      Save this for your next system design interview.
+    pillar_hashtags: money-systems
+  - id: short-2
+    source: segments
+    segments: [s06]
+    hook_on_screen: "Most tutorials get this wrong"
+    youtube_title: "The Idempotency Race Condition #Shorts"
+    instagram_caption: |
+      Checking "have I seen this key?" isn't enough. Two requests can both pass the check. 🏁
+      Let the database pick one winner with a unique constraint.
+    pillar_hashtags: money-systems
+  - id: short-3
+    source: segments
+    segments: [s11]
+    hook_on_screen: "Exactly-once is a lie"
+    youtube_title: "Exactly-Once Delivery Doesn't Exist #Shorts"
+    instagram_caption: |
+      Networks deliver at-least-once. Always.
+      Exactly-once *effect* = at-least-once + idempotent processing.
+    pillar_hashtags: distributed-systems
+  - id: short-4
+    source: segments
+    segments: [s02]
+    hook_on_screen: "No reply doesn't mean nothing happened"
+    youtube_title: "Your Request Timed Out. Did It Work? #Shorts"
+    instagram_caption: |
+      A timeout has three possible stories — and your client can't tell them apart. ⏱️
+      That's why every retry needs to be safe.
+    pillar_hashtags: distributed-systems
+  - id: short-5
+    source: standalone
+    hook_on_screen: "Which of these is safe to retry?"
+    script: >-
+      Quick test. Which of these is safe to retry? GET, PUT, DELETE, POST. HTTP defines the first
+      three as idempotent: do them twice and the result is the same as doing them once. Setting
+      a value twice changes nothing. Deleting twice still leaves it deleted. POST is the odd one
+      out. Create a payment twice and you've created two payments. So when your API takes a POST
+      that moves money, you need an idempotency key to make the retry safe. GET, PUT, DELETE
+      are safe by design. POST is safe only if you build it that way.
+    youtube_title: "Which HTTP Method Is Safe to Retry? #Shorts"
+    instagram_caption: |
+      GET ✅ PUT ✅ DELETE ✅ POST ❌
+      Only one of these can double-charge your users. Save this for your next API review.
+    pillar_hashtags: money-systems
+
+carousel:
+  slides:
+    - {headline: "Why you got charged twice", body: "And the 1 pattern that stops it"}
+    - {headline: "No reply ≠ nothing happened", body: "Never arrived · crashed · done but reply lost"}
+    - {headline: "Retries are guaranteed", body: "HTTP clients, meshes, apps, users, queues"}
+    - {headline: "Idempotent = twice ≡ once", body: "SET email ✓   balance += 100 ✗"}
+    - {headline: "Idempotency-Key header", body: "1 random ID per operation, same on every retry"}
+    - {headline: "Let the DB pick a winner", body: "PRIMARY KEY on the key → 2nd insert fails → 409"}
+    - {headline: "Fingerprint the request", body: "Same key + different body → reject"}
+    - {headline: "Pass it downstream", body: "Your gateway call needs a key too"}
+    - {headline: "Exactly-once effect", body: "at-least-once + idempotent processing"}
+    - {headline: "Full breakdown on YouTube", body: "Link in bio · Save this post"}
+
+code_samples:
+  - lang: go
+    path: samples/go/idempotency.go
+    purpose: Idempotent create-payment handler with claim/replay and downstream key
+    shown_in: [s06]
+
+sources:
+  - title: "RFC 9110 — HTTP Semantics, §9.2.2 Idempotent Methods"
+    url: https://www.rfc-editor.org/rfc/rfc9110#section-9.2.2
+  - title: "Stripe API — Idempotent requests"
+    url: https://docs.stripe.com/api/idempotent_requests
+  - title: "IETF draft — The Idempotency-Key HTTP Header Field"
+    url: https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/
+
+fact_check:
+  - claim: "GET, PUT and DELETE are defined as idempotent; POST is not"
+    source: https://www.rfc-editor.org/rfc/rfc9110#section-9.2.2
+  - claim: "Stripe documents an Idempotency-Key header and keeps keys at least 24 hours"
+    source: https://docs.stripe.com/api/idempotent_requests
+  - claim: "Stripe compares parameters on key reuse and errors if they differ"
+    source: https://docs.stripe.com/api/idempotent_requests
+  - claim: "A unique constraint makes the second concurrent insert fail"
+    source: "derived from code sample samples/go/idempotency.go (ON CONFLICT DO NOTHING → 0 rows)"
+
+story_ref: duplicate-callback          # needs content/stories/duplicate-callback.md (private repo)
+
+localizations:                          # filled by the night agent before ready_to_render
+  hi: {title: null, description: null}
+  es: {title: null, description: null}
+  pt: {title: null, description: null}
+  id: {title: null, description: null}
+
+next_episode: 002-outbox-pattern

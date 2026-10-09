@@ -1,0 +1,17 @@
+youtube:
+  category_id: 27              # Education
+  default_language: en
+  made_for_kids: false
+  contains_synthetic_media: true
+  license: youtube
+  shorts_hashtag: "#Shorts"
+  playlists_by_pillar: {}      # filled after channel creation: pillar -> playlist id
+  audited: false               # flips to true automatically when a public privacy update succeeds
+instagram:
+  api: instagram_login         # Instagram API with Instagram Login
+  account_type: creator
+  max_posts_per_24h: 100
+  public_host: gh-pages        # fallback: r2
+  trial_reels_per_week: 2
+telegram:
+  max_file_mb: 50

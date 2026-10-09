@@ -1,0 +1,28 @@
+# Audience is GLOBAL. Slots are in UTC and chosen to overlap the Americas, Europe and India.
+# Local-time comments are approximate (they shift by 1 h with daylight saving).
+# Telegram shows times to the owner in owner_timezone. The weekly report re-tunes slots from analytics.
+owner_timezone: Asia/Kolkata
+night_agent_utc: "19:30"            # 01:00 IST, every night
+
+cadence_per_week:
+  long: 2                           # deep dives, 8-12 min
+  short: 10                         # 1 daily + a 2nd on Mon/Wed/Fri
+  reel: 7                           # daily (Shorts re-captioned for Instagram)
+  carousel: 3
+  story: 7
+
+slots_utc:
+  long:     [{day: [tue, sat], time: "14:00"}]   # 10:00 New York · 15:00 London · 19:30 India
+  short:    [{day: daily, time: "13:00"},        # 09:00 NY · 14:00 London · 18:30 India
+             {day: [mon, wed, fri], time: "23:00"}]  # 19:00 NY · 16:00 San Francisco (US evening)
+  reel:     [{day: daily, time: "14:30"}]        # 10:30 NY · 15:30 London · 20:00 India
+  carousel: [{day: [tue, thu, sat], time: "12:00"}]
+  story:    [{day: daily, time: "06:30"}]        # 12:00 India · 07:30 London
+
+buffer:
+  min_rendered_ahead: 4             # night agent keeps >= 4 approved-or-pending deep dives ahead
+weekly_report_utc: {day: sun, time: "04:30"}
+approval:
+  remind_after_days: 3
+  expire_after_days: 7
+  reject_reason_timeout_minutes: 60

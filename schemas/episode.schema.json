@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://channel-os/schemas/episode.schema.json",
+  "title": "Episode",
+  "type": "object",
+  "required": ["id", "version", "status", "pillar", "language", "keywords", "packaging", "segments", "shorts", "sources", "fact_check"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {"type": "string", "pattern": "^[0-9]{3}-[a-z0-9-]+$"},
+    "version": {"type": "integer", "minimum": 1},
+    "status": {"enum": ["draft", "ready_to_render", "rendering", "rendered", "published", "archived"]},
+    "pillar": {"enum": ["database-internals", "distributed-systems", "jvm-java", "go-runtime", "node-runtime", "production-failures", "money-systems", "interview-depth"]},
+    "series": {"enum": ["inside-x", "how-it-breaks", "build-it", "interview-depth"]},
+    "language": {"const": "en"},
+    "target_versions": {"type": "object", "additionalProperties": {"type": "string"}},
+    "estimated_minutes": {"type": "number", "minimum": 1, "maximum": 30},
+    "keywords": {
+      "type": "object",
+      "required": ["primary"],
+      "properties": {
+        "primary": {"type": "string"},
+        "secondary": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "packaging": {
+      "type": "object",
+      "required": ["titles", "thumbnail_texts", "description", "tags"],
+      "properties": {
+        "titles": {"type": "array", "minItems": 2, "maxItems": 5, "items": {"type": "string", "maxLength": 60}},
+        "thumbnail_texts": {"type": "array", "minItems": 1, "maxItems": 3, "items": {"type": "string", "maxLength": 24}},
+        "description": {"type": "string"},
+        "tags": {"type": "array", "minItems": 5, "maxItems": 15, "items": {"type": "string"}},
+        "pinned_comment": {"type": "string"}
+      }
+    },
+    "segments": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "narration", "visual"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^s[0-9]{2}$"},
+          "title": {"type": "string", "maxLength": 60},
+          "narration": {"type": "string"},
+          "emphasis": {"type": "array", "items": {"type": "string"}},
+          "visual": {
+            "type": "object",
+            "required": ["layout", "steps"],
+            "properties": {
+              "layout": {"type": "string"},
+              "steps": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["at", "action", "target"],
+                  "properties": {
+                    "at": {"type": "string", "description": "phrase in narration that triggers the step (matched against aligned words), or 'start'"},
+                    "action": {"enum": ["add", "animate", "highlight", "arrow", "break_arrow", "crash", "label", "code", "move", "clear"]},
+                    "target": {"type": "string"},
+                    "params": {"type": "object"}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "shorts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "source", "hook_on_screen", "youtube_title", "instagram_caption"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^short-[0-9]+$"},
+          "source": {"enum": ["standalone", "segments"]},
+          "segments": {"type": "array", "items": {"type": "string"}},
+          "script": {"type": "string"},
+          "hook_on_screen": {"type": "string", "maxLength": 40},
+          "youtube_title": {"type": "string", "maxLength": 100},
+          "instagram_caption": {"type": "string", "maxLength": 2200},
+          "pillar_hashtags": {"type": "string"}
+        }
+      }
+    },
+    "carousel": {
+      "type": "object",
+      "properties": {
+        "slides": {"type": "array", "minItems": 3, "maxItems": 10, "items": {"type": "object", "required": ["headline"], "properties": {"headline": {"type": "string", "maxLength": 40}, "body": {"type": "string", "maxLength": 90}}}}
+      }
+    },
+    "code_samples": {"type": "array", "items": {"type": "object", "required": ["lang", "path"], "properties": {"lang": {"type": "string"}, "path": {"type": "string"}, "purpose": {"type": "string"}, "shown_in": {"type": "array", "items": {"type": "string"}}}}},
+    "sources": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["title", "url"], "properties": {"title": {"type": "string"}, "url": {"type": "string", "format": "uri"}}}},
+    "fact_check": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["claim", "source"], "properties": {"claim": {"type": "string"}, "source": {"type": "string"}}}},
+    "story_ref": {"type": ["string", "null"]},
+    "localizations": {"type": "object", "additionalProperties": {"type": "object", "properties": {"title": {"type": ["string", "null"]}, "description": {"type": ["string", "null"]}}}},
+    "next_episode": {"type": ["string", "null"]}
+  }
+}
