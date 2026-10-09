@@ -1,9 +1,10 @@
 """Render an episode's assets. Milestone M1 implements the voice stage only.
 
 Usage: python -m channel_os.render --episode ID --reference WAV [--only TARGET] [--model NAME]
-                                   [--out DIR] [--cache-dir DIR] [--root DIR] [--allow-draft]
+                                   [--set KEY=VALUE ...] [--out DIR] [--cache-dir DIR]
+                                   [--root DIR] [--allow-draft]
 Exit codes: 0 rendered or skipped, 1 the episode is invalid or the render failed its checks,
-2 a needed file could not be read.
+2 a needed file could not be read or a setting is invalid.
 """
 
 import argparse
@@ -67,6 +68,14 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--reference", required=True, type=Path, help="voice reference WAV")
     parser.add_argument("--only", default="all", help="long, a Short id, or all (default)")
     parser.add_argument("--model", default=None, help="override the model in config/voice.yaml")
+    parser.add_argument(
+        "--set",
+        dest="overrides",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help="override one voice setting for this run, e.g. tempo=0.92 or clarity.air_db=2",
+    )
     parser.add_argument("--out", type=Path, default=None, help="default: <root>/out/<episode>")
     parser.add_argument("--cache-dir", type=Path, default=None, help="default: <root>/.cache/voice")
     parser.add_argument("--root", type=Path, default=Path.cwd(), help="repo root (default: cwd)")
@@ -86,7 +95,7 @@ def main(
         findings = validate_episode(
             episode, load_json(root / SCHEMA_PATH), load_yaml(root / REACH_PATH)
         )
-        settings = load_settings(root / VOICE_CONFIG, args.model)
+        settings = load_settings(root / VOICE_CONFIG, args.model, args.overrides)
         if not args.reference.is_file():
             raise InputError(f"{args.reference}: voice reference not found")
     except (InputError, OSError, ValueError, TypeError) as exc:

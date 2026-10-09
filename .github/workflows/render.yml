@@ -30,6 +30,16 @@ on:
         required: false
         default: true
         type: boolean
+      settings:
+        description: "Voice setting overrides for this run, space-separated KEY=VALUE (e.g. tempo=0.92)"
+        required: false
+        default: ""
+        type: string
+      label:
+        description: "Short name added to the output files, to keep tuning variants apart"
+        required: false
+        default: ""
+        type: string
 
 permissions:
   contents: write # creates and updates the draft Release that stores renders
@@ -50,6 +60,8 @@ jobs:
       ONLY: ${{ inputs.only || 'all' }}
       MODELS: ${{ inputs.models }}
       ALLOW_DRAFT: ${{ inputs.allow_draft }}
+      SETTINGS: ${{ inputs.settings }}
+      LABEL: ${{ inputs.label }}
       BEFORE: ${{ github.event.before }}
       HF_HUB_DISABLE_TELEMETRY: "1"
     steps:

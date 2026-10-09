@@ -114,6 +114,15 @@ def test_the_model_can_be_overridden(project: Any, episode: Data, fake_synthesiz
     assert timing(root)["targets"]["short-2"]["model"] == "turbo"
 
 
+def test_settings_can_be_overridden_for_one_run(
+    project: Any, episode: Data, fake_synthesizer: Any, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root, reference = project(episode)
+    assert run(root, reference, fake_synthesizer(), "--only", "short-2", "--set", "tempo=0.8") == 0
+    assert run(root, reference, fake_synthesizer(), "--only", "short-2", "--set", "speed=2") == 2
+    assert "unknown voice setting" in capsys.readouterr().err
+
+
 def test_the_model_gets_a_prepared_copy_of_the_reference(
     project: Any, episode: Data, fake_synthesizer: Any
 ) -> None:

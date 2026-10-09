@@ -11,6 +11,13 @@ target_lufs: -14.0
 true_peak_ceiling_db: -1.5   # aim below the -1 dBTP limit so rounding never crosses it
 loudness_range: 11.0
 sample_rate: 48000
+tempo: 1.0                   # below 1 slows the narration without changing pitch (0.92 = 8% slower)
+clarity:                     # gentle EQ before loudness; a zero switches that part off
+  highpass_hz: 0             # removes rumble below this frequency
+  presence_db: 0.0           # boost around presence_hz, where consonants sit
+  presence_hz: 3000
+  air_db: 0.0                # shelf boost above air_hz
+  air_hz: 7000
 reference:
   target_lufs: -27.0         # the level chatterbox itself normalises references to
   silence_threshold_db: -45.0

@@ -1,6 +1,7 @@
 """Units become cached chunks, normalised segments, one narration and a timing entry."""
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -122,6 +123,17 @@ def test_a_true_peak_over_the_limit_fails(
     monkeypatch.setattr(narrate_module, "measure", lambda path: Loudness(-14.0, -0.5))
     with pytest.raises(LoudnessError, match=r"-0\.5 dBTP"):
         narrate(UNITS, "long", fake_synthesizer(), settings, tmp_path / "out", tmp_path / "c")
+
+
+def test_tempo_stretches_the_segments(
+    tmp_path: Path, settings: VoiceSettings, fake_synthesizer: Any
+) -> None:
+    cache = tmp_path / "cache"
+    normal = replace(settings, tempo=1.0)
+    slower = replace(settings, tempo=0.8)
+    first = narrate(UNITS[:1], "long", fake_synthesizer(), normal, tmp_path / "a", cache)
+    second = narrate(UNITS[:1], "long", fake_synthesizer(), slower, tmp_path / "b", cache)
+    assert second["duration"] == pytest.approx(first["duration"] / 0.8, abs=0.05)
 
 
 def test_update_timing_keeps_other_targets(tmp_path: Path) -> None:

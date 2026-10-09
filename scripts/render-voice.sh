@@ -1,11 +1,20 @@
 #!/usr/bin/env bash
 # Voice stage of .github/workflows/render.yml.
-# Reads EPISODE, ONLY, MODELS, ALLOW_DRAFT, BEFORE, RUNNER_TEMP and GITHUB_SHA from the
-# environment. Renders go only into the draft Release ep-<id>; nothing audible is printed.
+# Reads EPISODE, ONLY, MODELS, ALLOW_DRAFT, SETTINGS, LABEL, BEFORE, RUNNER_TEMP and GITHUB_SHA
+# from the environment. Renders go only into the draft Release ep-<id>; nothing audible is printed.
 set -euo pipefail
 
 reference="$RUNNER_TEMP/reference.wav"
 upload="$RUNNER_TEMP/upload"
+
+# Tuning runs: SETTINGS holds KEY=VALUE overrides, LABEL keeps their output files apart.
+overrides=()
+for pair in ${SETTINGS:-}; do
+  [[ "$pair" =~ ^[a-z_.]+=[A-Za-z0-9.+-]+$ ]] || { echo "refusing odd setting: $pair" >&2; exit 1; }
+  overrides+=(--set "$pair")
+done
+[[ "${LABEL:-}" =~ ^[a-z0-9-]{0,24}$ ]] || { echo "refusing odd label: ${LABEL:-}" >&2; exit 1; }
+suffix="${LABEL:+-$LABEL}"
 
 if [ -n "${EPISODE:-}" ]; then
   episodes="$EPISODE"
@@ -35,14 +44,14 @@ for ep in $episodes; do
   for model in ${MODELS:-default}; do
     [[ "$model" =~ ^(default|original|turbo)$ ]] \
       || { echo "refusing odd model: $model" >&2; exit 1; }
-    out="out/$ep/$model"
+    out="out/$ep/$model$suffix"
     args=(--episode "$ep" --only "$ONLY" --reference "$reference" --out "$out")
     if [ "$model" != "default" ]; then args+=(--model "$model"); fi
     if [ "${ALLOW_DRAFT:-false}" = "true" ]; then args+=(--allow-draft); fi
-    uv run --no-sync python -m channel_os.render "${args[@]}"
+    uv run --no-sync python -m channel_os.render "${args[@]}" "${overrides[@]}"
     [ -f "$out/timing.json" ] || continue
 
-    name=$(jq -r '.targets | to_entries[0].value.model' "$out/timing.json")
+    name="$(jq -r '.targets | to_entries[0].value.model' "$out/timing.json")$suffix"
     for dir in "$out"/voice/*/; do
       cp "$dir/narration.wav" "$upload/$(basename "$dir").$name.narration.wav"
     done

@@ -9,6 +9,7 @@ from typing import Any
 
 from channel_os.voice.chunking import chunk_text
 from channel_os.voice.loudness import Loudness, Target, measure, normalize
+from channel_os.voice.polish import polish
 from channel_os.voice.settings import VoiceSettings
 from channel_os.voice.tts import Synthesizer, cache_key
 from channel_os.voice.wavio import concat, duration_seconds
@@ -101,8 +102,9 @@ def narrate(
     with tempfile.TemporaryDirectory() as work:
         for unit in units:
             raw = _raw_unit(unit, synthesizer, settings, cache_dir, Path(work))
+            polished = polish(raw, Path(work) / f"polished-{unit.id}.wav", settings)
             segment = voice_dir / f"seg-{unit.id}.wav"
-            normalize(raw, segment, target)
+            normalize(polished, segment, target)
             duration = duration_seconds(segment)
             segments.append(
                 {

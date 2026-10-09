@@ -31,6 +31,28 @@ def test_nano_is_not_offered(repo_root: Path) -> None:
         load_settings(repo_root / "config" / "voice.yaml", model="nano")
 
 
+def test_overrides_replace_single_settings(repo_root: Path) -> None:
+    settings = load_settings(
+        repo_root / "config" / "voice.yaml",
+        overrides=["cfg_weight=0.3", "tempo=0.92", "clarity.presence_db=2.5"],
+    )
+    assert (settings.cfg_weight, settings.tempo, settings.clarity.presence_db) == (0.3, 0.92, 2.5)
+
+
+@pytest.mark.parametrize(
+    "override", ["speed=2", "clarity.sparkle=1", "tempo", "clarity=1", "reference=2"]
+)
+def test_bad_overrides_are_rejected(repo_root: Path, override: str) -> None:
+    with pytest.raises(ValueError, match=r"voice setting|KEY=VALUE"):
+        load_settings(repo_root / "config" / "voice.yaml", overrides=[override])
+
+
+@pytest.mark.parametrize("override", ["tempo=0.4", "tempo=1.6", "clarity.presence_db=9"])
+def test_values_that_would_damage_the_audio_are_rejected(repo_root: Path, override: str) -> None:
+    with pytest.raises(ValueError, match="outside"):
+        load_settings(repo_root / "config" / "voice.yaml", overrides=[override])
+
+
 def test_unknown_key_is_rejected(tmp_path: Path, repo_root: Path) -> None:
     text = (repo_root / "config" / "voice.yaml").read_text(encoding="utf-8")
     broken = tmp_path / "voice.yaml"
