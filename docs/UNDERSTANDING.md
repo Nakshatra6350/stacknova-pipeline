@@ -70,8 +70,9 @@ M8 night agent and end-to-end dry run. Each starts only when the previous one's 
 
 ## Open questions
 
-1. Does "published" mean only YouTube and Instagram, or should unapproved scripts and renders also
-   stay non-public? If the latter, I propose draft GitHub Releases (visible to collaborators only).
+1. **Decided 9 October 2026:** rendered media stays in draft GitHub Releases (visible to
+   collaborators only) and never in workflow artifacts; see `docs/ARCHITECTURE.md`. Scripts on
+   `main` remain public once pushed.
 2. Is a private YouTube upload before approval allowed? I would make it a separate code path that
    can only ever set `private`.
 3. Until the YouTube audit passes, do you upload long videos by hand, or do we hold YouTube

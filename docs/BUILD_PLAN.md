@@ -61,7 +61,8 @@ hook card, SRT rules, acceptance tests). Cut shorts using episode.yaml shorts[] 
 segment ids or a standalone script). Reels = shorts with IG-specific end card. Build thumbnails
 and carousel slides from HTML templates rendered with Playwright (Chromium is available on
 runners), text from episode.yaml packaging. Write manifest.json listing every asset with path,
-duration, size, sha256 and the target platforms. Upload outputs as a GitHub Release ep-<id>.
+duration, size, sha256 and the target platforms. Upload outputs as a draft GitHub Release ep-<id>
+(never as workflow artifacts — see docs/ARCHITECTURE.md).
 ```
 
 ## M4 — Telegram + approval state machine (1 day)

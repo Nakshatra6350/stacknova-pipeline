@@ -5,7 +5,7 @@
 | # | Component | Runs on | Trigger | Input | Output |
 |---|---|---|---|---|---|
 | 1 | Night agent | Claude scheduled task (cloud) | cron 01:00 IST daily | backlog, analytics, rejects, private content repo | `content/episodes/<id>/episode.yaml`, `scenes/*.py`, updated `backlog.yaml`, git push |
-| 2 | `render.yml` | GitHub Actions `ubuntu-latest` | push touching `content/episodes/**/episode.yaml` with `status: ready_to_render` | episode.yaml, voice reference (from private repo via deploy key) | `out/<id>/` long.mp4, short-*.mp4, reel-*.mp4, carousel-*/NN.jpg, thumb-*.jpg, en.srt, *.vtt translations, manifest.json → uploaded as workflow artifact + GitHub Release `ep-<id>` (assets ≤ 2 GB each) |
+| 2 | `render.yml` | GitHub Actions `ubuntu-latest` | push touching `content/episodes/**/episode.yaml` with `status: ready_to_render` | episode.yaml, voice reference (from private repo via deploy key) | `out/<id>/` long.mp4, short-*.mp4, reel-*.mp4, carousel-*/NN.jpg, thumb-*.jpg, en.srt, *.vtt translations, manifest.json → uploaded to a **draft** GitHub Release `ep-<id>` (assets ≤ 2 GB each); no media goes into workflow artifacts |
 | 3 | `notify.yml` | Actions | `workflow_run` of render (success) | manifest.json | Telegram previews, `state/queue.json` entries → `pending_approval` |
 | 4 | `watch-approvals.yml` | Actions | cron `*/10 * * * *` | Telegram `getUpdates` (offset in state) | state transitions → `approved` / `rejected`; dispatches `publish.yml` |
 | 5 | `publish.yml` | Actions | `workflow_dispatch` (from 4) + cron `*/15` for scheduled slots | approved assets whose slot ≤ now | YouTube video id / IG media id saved in state; Telegram "posted" message with links |
@@ -28,6 +28,7 @@ rejected ──▶ night agent reads reason next run ──▶ revised episode (
 ## Why each choice
 
 - **Public pipeline repo**: GitHub Actions minutes are free for public repos; rendering a 12-min video on CPU takes ~1 h.
+- **Draft Releases for renders** (owner decision, 9 October 2026): the repo is public, and workflow artifacts on a public repo can be downloaded by anyone signed in to GitHub. Rendered media, including narration in the cloned voice, therefore goes only into a draft Release, which is visible only to people with write access. The Release stays a draft for good: it is storage for the pipeline, not a publishing surface. Scripts in `episode.yaml` are still public once pushed; only rendered media is held back.
 - **Chatterbox on CPU**: free and MIT-licensed; slow but unattended. If render > 5 h, split narration by segment across a job matrix.
 - **Polling instead of webhook**: no server to host; ≤10 min latency is fine overnight.
 - **GitHub Pages temp hosting for Instagram**: Instagram API with Instagram Login only accepts a public `video_url`/`image_url`. `pages_host.py` commits the file to branch `gh-pages` under `tmp/<random>/`, waits until the URL returns 200, publishes, then removes the file with a force-pushed orphan commit (no history growth). If Meta rejects Pages URLs in the dry run, switch to Cloudflare R2 (spec stays the same: `PublicHost.put(path) -> url`, `PublicHost.delete(url)`).
