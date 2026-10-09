@@ -1,0 +1,17 @@
+# Narration settings for the voice stage (milestone M1). Read by src/channel_os/voice/settings.py.
+model: original              # original | turbo | nano  (chatterbox-tts models)
+seed: 20261009               # fixed, so the same sentence always renders the same audio
+exaggeration: 0.5            # original model only
+cfg_weight: 0.5              # original model only
+temperature: 0.8
+max_chunk_chars: 280         # one model call yields at most ~40 s of speech; stay well below it
+sentence_gap_ms: 150         # pause between synthesised chunks inside a segment
+segment_gap_ms: 250          # pause between segments (docs/BUILD_PLAN.md M1)
+target_lufs: -14.0
+true_peak_ceiling_db: -1.5   # aim below the -1 dBTP limit so rounding never crosses it
+loudness_range: 11.0
+sample_rate: 48000
+reference:
+  target_lufs: -27.0         # the level chatterbox itself normalises references to
+  silence_threshold_db: -45.0
+  max_pause_ms: 300          # the model reads only the first 6-15 s, so keep them mostly speech

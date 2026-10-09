@@ -17,6 +17,26 @@ dev = [
     "types-jsonschema>=4.23",
     "types-pyyaml>=6.0.12",
 ]
+# Heavy and only needed to synthesise speech: `uv sync --group voice`. Tests never import it.
+voice = [
+    "chatterbox-tts==0.1.7",
+    # Named here only so the CPU-only index below applies; chatterbox pins these versions.
+    "torch==2.6.0",
+    "torchaudio==2.6.0",
+]
+
+[tool.uv]
+default-groups = ["dev"]
+environments = ["sys_platform == 'linux'", "sys_platform == 'win32'"]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+torchaudio = { index = "pytorch-cpu" }
 
 [build-system]
 requires = ["hatchling"]
@@ -41,3 +61,7 @@ select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
 python_version = "3.12"
 strict = true
 files = ["src"]
+
+[[tool.mypy.overrides]]
+module = ["chatterbox.*", "torch"]
+ignore_missing_imports = true
