@@ -1,0 +1,56 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: lint, types, tests, episodes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          enable-cache: true
+      - name: Install
+        run: uv sync --locked
+      - name: Lint
+        run: uv run ruff check
+      - name: Types
+        run: uv run mypy src
+      - name: Tests
+        run: uv run pytest
+      - name: Validate every episode
+        run: uv run python -m channel_os.validate content/episodes/*/episode.yaml
+
+  samples:
+    name: code samples compile
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+          cache: false
+      - name: Vet and build every Go sample
+        run: |
+          set -euo pipefail
+          count=0
+          while IFS= read -r mod; do
+            dir=$(dirname "$mod")
+            echo "::group::$dir"
+            (cd "$dir" && go vet ./... && go build ./...)
+            echo "::endgroup::"
+            count=$((count + 1))
+          done < <(find content/episodes -name go.mod)
+          echo "checked $count Go module(s)"

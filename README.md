@@ -18,6 +18,17 @@ themselves to YouTube and Instagram.
 | The night agent | `docs/NIGHT_AGENT.md` |
 | The owner | The roadmap doc (Setup guide + First video tabs), `docs/SETUP_HUMAN.md` |
 
+## Develop
+
+```bash
+uv sync
+uv run pytest && uv run ruff check && uv run mypy src
+uv run python -m channel_os.validate content/episodes/001-idempotency/episode.yaml
+```
+
+`uv sync` installs Python 3.12 and the locked dependencies. The validator exits 0 when an episode
+has no errors; warnings do not fail it.
+
 ## Map
 
 - `CLAUDE.md` — rules, stack, layout, conventions

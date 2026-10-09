@@ -71,6 +71,8 @@ src/channel_os/
   telegram/        bot.py (send preview, parse callbacks), approvals.py
   state/           queue.py (state machine, see docs/APPROVAL_FLOW.md)
   report/          weekly.py
+  reach/           lint.py (mechanical content + reach rules, run by validate)
+  validate.py      CLI: python -m channel_os.validate <episode.yaml> (schema + reach lint)
 .github/workflows/ render.yml, notify.yml, watch-approvals.yml, publish.yml,
                    refresh-tokens.yml, weekly-report.yml, ci.yml
 docs/              specs — the source of truth for behaviour
