@@ -72,13 +72,18 @@ jobs:
           restore-keys: |
             hf-chatterbox-${{ hashFiles('uv.lock') }}-
             hf-chatterbox-
+      # curl, not `gh api`: gh fails on binary bodies ("transform: short source buffer").
       - name: Fetch the voice reference
         env:
-          GH_TOKEN: ${{ secrets.CONTENT_REPO_TOKEN }}
+          CONTENT_TOKEN: ${{ secrets.CONTENT_REPO_TOKEN }}
         run: |
           set -euo pipefail
-          gh api "repos/${GITHUB_REPOSITORY_OWNER}/stacknova-content/contents/voice/reference.wav" \
-            -H "Accept: application/vnd.github.raw+json" > "$RUNNER_TEMP/reference.wav"
+          curl --fail --silent --show-error --location \
+            -H "Authorization: Bearer ${CONTENT_TOKEN}" \
+            -H "Accept: application/vnd.github.raw+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -o "$RUNNER_TEMP/reference.wav" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY_OWNER}/stacknova-content/contents/voice/reference.wav"
           test "$(head -c 4 "$RUNNER_TEMP/reference.wav")" = "RIFF"
       - name: Render voice
         run: bash scripts/render-voice.sh
