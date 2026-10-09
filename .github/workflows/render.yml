@@ -1,0 +1,38 @@
+name: render
+
+# Placeholder so GitHub lists this workflow for manual runs. The real render workflow is on a
+# milestone branch until it is merged; run it with: gh workflow run render.yml --ref <branch>
+# This version has no permissions and uses no secrets.
+
+on:
+  workflow_dispatch:
+    inputs:
+      episode:
+        description: "Episode id, for example 001-idempotency"
+        required: true
+        type: string
+      only:
+        description: "long, a Short id such as short-1, or all"
+        required: true
+        default: short-1
+        type: string
+      models:
+        description: "Voice models, space-separated (original turbo nano). Blank uses config/voice.yaml"
+        required: false
+        default: ""
+        type: string
+      allow_draft:
+        description: "Render a draft episode as a preview"
+        required: false
+        default: true
+        type: boolean
+
+permissions: {}
+
+jobs:
+  voice:
+    name: voice
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - run: echo "The render workflow is not merged yet. Run it from its branch with --ref."
