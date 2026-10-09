@@ -50,7 +50,7 @@
 - Consumes: nothing.
 - Produces: an installed, importable `channel_os` package; the `uv run` commands used by every later task.
 
-- [ ] **Step 1: Write the project configuration**
+- [x] **Step 1: Write the project configuration**
 
 `pyproject.toml`:
 
@@ -124,7 +124,7 @@ Append to `.gitignore`:
 .mypy_cache/
 ```
 
-- [ ] **Step 2: Create the package root and install**
+- [x] **Step 2: Create the package root and install**
 
 `src/channel_os/__init__.py`:
 
@@ -137,7 +137,7 @@ Append to `.gitignore`:
 Run: `uv sync`
 Expected: uv downloads CPython 3.12, creates `.venv/` and writes `uv.lock`.
 
-- [ ] **Step 3: Write the failing test**
+- [x] **Step 3: Write the failing test**
 
 `tests/test_skeleton.py`:
 
@@ -179,12 +179,12 @@ def test_module_imports_and_is_documented(name: str) -> None:
     assert module.__doc__ and module.__doc__.strip()
 ```
 
-- [ ] **Step 4: Run the test to verify it fails**
+- [x] **Step 4: Run the test to verify it fails**
 
 Run: `uv run pytest tests/test_skeleton.py -q`
 Expected: 1 passed (`channel_os`), 20 failed with `ModuleNotFoundError`.
 
-- [ ] **Step 5: Create the skeleton**
+- [x] **Step 5: Create the skeleton**
 
 Each file below contains exactly one line: the docstring shown.
 
@@ -219,7 +219,7 @@ Each file below contains exactly one line: the docstring shown.
 | `report/weekly.py` | `"""Pull YouTube and Instagram analytics and write the weekly report (M7)."""` |
 | `reach/__init__.py` | `"""Reach and content rules enforced before an episode can render."""` |
 
-- [ ] **Step 6: Run the checks to verify they pass**
+- [x] **Step 6: Run the checks to verify they pass**
 
 Run: `uv run pytest tests/test_skeleton.py -q`
 Expected: 21 passed.
@@ -230,7 +230,7 @@ Expected: `All checks passed!`
 Run: `uv run mypy src`
 Expected: `Success: no issues found in 29 source files`
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add pyproject.toml uv.lock .python-version .gitattributes .gitignore src tests/test_skeleton.py
@@ -253,7 +253,7 @@ git commit -m "build: add uv project, tooling config and package skeleton" -m "C
   - `lint_episode(episode: Mapping[str, Any], reach: Mapping[str, Any]) -> list[Finding]`.
   - Fixtures `episode` (a dict that passes the schema and every rule), `reach` (minimal reach config) and `repo_root` (`Path`).
 
-- [ ] **Step 1: Write the fixtures**
+- [x] **Step 1: Write the fixtures**
 
 `tests/conftest.py`:
 
@@ -340,7 +340,7 @@ def repo_root() -> Path:
     return REPO_ROOT
 ```
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 `tests/test_reach_lint.py`:
 
@@ -432,12 +432,12 @@ def test_standalone_short_without_a_script_is_an_error(
     assert found(lint_episode(episode, reach), "short-source") == [("error", "short-2")]
 ```
 
-- [ ] **Step 3: Run the tests to verify they fail**
+- [x] **Step 3: Run the tests to verify they fail**
 
 Run: `uv run pytest tests/test_reach_lint.py -q`
 Expected: collection error, `ModuleNotFoundError: No module named 'channel_os.reach.lint'`.
 
-- [ ] **Step 4: Write the implementation**
+- [x] **Step 4: Write the implementation**
 
 `src/channel_os/reach/lint.py`:
 
@@ -556,7 +556,7 @@ def lint_episode(episode: Episode, reach: Reach) -> list[Finding]:
     return [finding for rule in RULES for finding in rule(episode, reach)]
 ```
 
-- [ ] **Step 5: Run the checks to verify they pass**
+- [x] **Step 5: Run the checks to verify they pass**
 
 Run: `uv run pytest tests/test_reach_lint.py -q`
 Expected: 13 passed.
@@ -564,7 +564,7 @@ Expected: 13 passed.
 Run: `uv run ruff check` then `uv run mypy src`
 Expected: both clean.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/channel_os/reach/lint.py tests/conftest.py tests/test_reach_lint.py
@@ -583,7 +583,7 @@ git commit -m "feat: add reach lint with the always-error rules" -m "Co-Authored
 - Consumes: `Finding`, `Episode`, `Reach`, `Level`, `_norm`, `RULES` from Task 2.
 - Produces: five more rules in `RULES`. A gate rule yields `"warning"` when `episode["status"]` is `draft` or `archived` and `"error"` otherwise.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `tests/test_reach_lint.py`:
 
@@ -657,12 +657,12 @@ def test_narration_outside_the_word_range_is_a_warning(episode: Data, reach: Dat
     ]
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `uv run pytest tests/test_reach_lint.py -q`
 Expected: 13 passed, 12 failed (each new test gets `[]` instead of the expected findings).
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 In `src/channel_os/reach/lint.py`, add the constants below the type aliases:
 
@@ -776,7 +776,7 @@ RULES: tuple[Rule, ...] = (
 )
 ```
 
-- [ ] **Step 4: Run the checks to verify they pass**
+- [x] **Step 4: Run the checks to verify they pass**
 
 Run: `uv run pytest tests/test_reach_lint.py -q`
 Expected: 25 passed.
@@ -784,7 +784,7 @@ Expected: 25 passed.
 Run: `uv run ruff check` then `uv run mypy src`
 Expected: both clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/channel_os/reach/lint.py tests/test_reach_lint.py
@@ -803,7 +803,7 @@ git commit -m "feat: add ready_to_render gate rules and reach warnings" -m "Co-A
 - Consumes: `Finding` and `lint_episode` from `channel_os.reach.lint`; fixtures `episode` and `repo_root`.
 - Produces: `main(argv: Sequence[str] | None = None) -> int`, run as `python -m channel_os.validate [--root DIR] PATH [PATH ...]`. Exit 0 = no errors, 1 = errors, 2 = unreadable input.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `tests/test_validate.py`:
 
@@ -926,12 +926,12 @@ def test_episode_001_validates_as_a_draft(
     assert " error [" not in out
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `uv run pytest tests/test_validate.py -q`
 Expected: collection error, `ModuleNotFoundError: No module named 'channel_os.validate'`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 `src/channel_os/validate.py`:
 
@@ -1055,7 +1055,7 @@ if __name__ == "__main__":
     sys.exit(main())
 ```
 
-- [ ] **Step 4: Run the checks to verify they pass**
+- [x] **Step 4: Run the checks to verify they pass**
 
 Run: `uv run pytest -q`
 Expected: 56 passed (21 skeleton + 25 lint + 10 validate).
@@ -1066,7 +1066,7 @@ Expected: both clean.
 Run: `uv run python -m channel_os.validate content/episodes/001-idempotency/episode.yaml`
 Expected: warnings only, last line `1 file(s) checked: 0 error(s), N warning(s)`, exit code 0.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/channel_os/validate.py tests/test_validate.py
@@ -1085,7 +1085,7 @@ git commit -m "feat: add the episode validator CLI" -m "Co-Authored-By: Claude O
 - Consumes: the `uv run` commands from Tasks 1-4.
 - Produces: the `check` and `samples` jobs that later milestones extend.
 
-- [ ] **Step 1: Write the workflow**
+- [x] **Step 1: Write the workflow**
 
 `.github/workflows/ci.yml`:
 
@@ -1149,7 +1149,7 @@ jobs:
           echo "checked $count Go module(s)"
 ```
 
-- [ ] **Step 2: Update the docs**
+- [x] **Step 2: Update the docs**
 
 In `CLAUDE.md` §5, inside the `src/channel_os/` block, add these two lines after the `report/` line:
 
@@ -1173,12 +1173,12 @@ uv run python -m channel_os.validate content/episodes/001-idempotency/episode.ya
 has no errors; warnings do not fail it.
 ````
 
-- [ ] **Step 3: Run the full local check**
+- [x] **Step 3: Run the full local check**
 
 Run: `uv run pytest -q` then `uv run ruff check` then `uv run mypy src`
 Expected: 56 passed; both linters clean.
 
-- [ ] **Step 4: Commit and push the branch**
+- [x] **Step 4: Commit and push the branch**
 
 ```bash
 git add .github/workflows/ci.yml CLAUDE.md README.md
@@ -1186,7 +1186,7 @@ git commit -m "ci: add lint, type, test, episode and sample checks" -m "Co-Autho
 git push -u origin m0-bootstrap
 ```
 
-- [ ] **Step 5: Verify CI is green on GitHub**
+- [x] **Step 5: Verify CI is green on GitHub**
 
 Open `https://github.com/Nakshatra6350/stacknova-pipeline/actions` and wait for the `ci` run on
 `m0-bootstrap`.
@@ -1197,7 +1197,7 @@ If a job fails, read its log, fix the cause with a failing test first where code
 
 ## Acceptance (from `docs/BUILD_PLAN.md` M0)
 
-- [ ] `uv run pytest` passes
-- [ ] `uv run ruff check` and `uv run mypy src` pass
-- [ ] `ci.yml` is green on GitHub
-- [ ] `content/episodes/001-idempotency/episode.yaml` validates (exit 0)
+- [x] `uv run pytest` passes
+- [x] `uv run ruff check` and `uv run mypy src` pass
+- [x] `ci.yml` is green on GitHub
+- [x] `content/episodes/001-idempotency/episode.yaml` validates (exit 0)
