@@ -1,13 +1,36 @@
 """The cache key and the synthesizer interface. The real model runs only in the workflow."""
 
 import importlib.util
+import sys
+import types
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from channel_os.voice.settings import load_settings
-from channel_os.voice.tts import ChatterboxSynthesizer, Synthesizer, cache_key
+from channel_os.voice.tts import (
+    ChatterboxSynthesizer,
+    Synthesizer,
+    cache_key,
+    require_watermarker,
+)
+
+
+def test_a_watermarker_that_failed_to_import_stops_synthesis(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # resemble-perth sets the class to None when its own imports fail (seen with setuptools 84).
+    monkeypatch.setitem(sys.modules, "perth", types.SimpleNamespace(PerthImplicitWatermarker=None))
+    with pytest.raises(RuntimeError, match="watermarker"):
+        require_watermarker()
+
+
+def test_a_working_watermarker_passes(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setitem(
+        sys.modules, "perth", types.SimpleNamespace(PerthImplicitWatermarker=object)
+    )
+    require_watermarker()
 
 
 def test_cache_key_changes_with_identity_and_text() -> None:

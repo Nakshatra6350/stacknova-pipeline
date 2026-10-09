@@ -27,6 +27,22 @@ def cache_key(identity: str, text: str) -> str:
     return hashlib.sha256(f"{identity}\n{text}".encode()).hexdigest()
 
 
+def require_watermarker() -> None:
+    """Stop early, with a readable reason, if chatterbox's watermarker did not import.
+
+    resemble-perth 1.0.1 imports pkg_resources and, when that fails, quietly sets its
+    watermarker class to None; chatterbox then dies with "'NoneType' object is not callable".
+    pkg_resources left setuptools in version 81, hence the `setuptools<81` pin in pyproject.
+    """
+    import perth
+
+    if getattr(perth, "PerthImplicitWatermarker", None) is None:
+        raise RuntimeError(
+            "the Perth watermarker did not import (it needs pkg_resources: setuptools<81); "
+            "refusing to synthesise without it"
+        )
+
+
 class ChatterboxSynthesizer:
     """chatterbox-tts on CPU, cloning the voice in `reference`."""
 
@@ -56,6 +72,7 @@ class ChatterboxSynthesizer:
     def _load(self) -> Any:
         """Load the model and the voice once; later chunks reuse both."""
         if self._model is None:
+            require_watermarker()
             if self._settings.model == "original":
                 from chatterbox.tts import ChatterboxTTS
 
