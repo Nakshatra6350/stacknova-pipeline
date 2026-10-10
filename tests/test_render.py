@@ -1,36 +1,15 @@
 """The render CLI: validation gate, status gate, targets and exit codes."""
 
 import json
-import shutil
-from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 import pytest
-import yaml
 
 from channel_os.render import main
 
 Data = dict[str, Any]
 SHORT = "Here is the retry that matters. It works every time."
-
-
-@pytest.fixture
-def project(tmp_path: Path, repo_root: Path, audio: Any) -> Callable[[Data], tuple[Path, Path]]:
-    """Build a throwaway repo root holding one episode, plus a voice reference beside it."""
-
-    def build(episode: Data) -> tuple[Path, Path]:
-        root = tmp_path / "repo"
-        shutil.copytree(repo_root / "schemas", root / "schemas")
-        shutil.copytree(repo_root / "config", root / "config")
-        folder = root / "content" / "episodes" / episode["id"]
-        folder.mkdir(parents=True)
-        text = yaml.safe_dump(episode, allow_unicode=True, sort_keys=False)
-        (folder / "episode.yaml").write_text(text, encoding="utf-8")
-        reference = audio(tmp_path / "reference.wav", [(8.0, 0.05)], rate=44100, channels=2)
-        return root, reference
-
-    return build
 
 
 def run(root: Path, reference: Path, synthesizer: Any, *extra: str) -> int:

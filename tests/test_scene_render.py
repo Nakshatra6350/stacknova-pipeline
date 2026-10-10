@@ -8,15 +8,9 @@ import pytest
 pytest.importorskip("manim", reason="needs the scenes dependency group")
 
 from channel_os.scenes.easing import bump, lin, smooth, window
-from channel_os.scenes.flow_model import LANDSCAPE, PORTRAIT
+from channel_os.scenes.formats import LANDSCAPE, PORTRAIT, frame_count
 from channel_os.scenes.kit import Canvas, SceneError
-from channel_os.scenes.render import (
-    RenderError,
-    count_frames,
-    frame_count,
-    read_frame,
-    render_scene,
-)
+from channel_os.scenes.render import RenderError, count_frames, read_frame, render_scene
 from channel_os.scenes.theme import load_themes
 
 QUALITY = 0.25  # quarter size keeps these tests quick
@@ -26,12 +20,6 @@ QUALITY = 0.25  # quarter size keeps these tests quick
 def themes(tmp_path_factory: pytest.TempPathFactory) -> Any:
     root = Path(__file__).resolve().parents[1]
     return load_themes(root / "config" / "themes.yaml")
-
-
-@pytest.fixture
-def cache(repo_root: Path) -> Path:
-    # Shared between runs on purpose: Manim caches rasterised text here.
-    return repo_root / ".cache" / "manim-tests"
 
 
 def test_easing_shapes() -> None:
@@ -100,10 +88,14 @@ def test_text_is_fitted_to_its_slot_and_sits_on_a_shared_baseline(
         with pytest.raises(SceneError, match="too long"):
             canvas.text("a label far too long to shrink into its slot", 540, 500, 40,
                         canvas.theme.ink, max_width=300)
+        with pytest.raises(SceneError, match="no bundled font for JetBrains Mono HEAVY"):
+            canvas.text("x", 540, 500, 40, canvas.theme.ink, weight="HEAVY")
         low = canvas.text("gypsy", 300, 700, 40, canvas.theme.ink)
         high = canvas.text("TITLE", 700, 700, 40, canvas.theme.ink)
-        canvas.add(wide, low, high)
-        seen.update(width=wide.width / canvas.unit, low=low, high=high, unit=canvas.unit)
+        small = canvas.text("TITLE", 700, 900, 20, canvas.theme.muted)
+        canvas.add(wide, low, high, small)
+        seen.update(width=wide.width / canvas.unit, low=low, high=high, unit=canvas.unit,
+                    ratio=high.width / small.width, box=canvas.bounds(high))
         return lambda t: None
 
     render_scene(build, PORTRAIT, themes.themes["brand"], themes, 2, tmp_path / "clip.mp4",
@@ -113,3 +105,10 @@ def test_text_is_fitted_to_its_slot_and_sits_on_a_shared_baseline(
     # neither word may be re-centred on its own letters.
     assert seen["low"].get_bottom()[1] < seen["high"].get_bottom()[1]
     assert seen["high"].get_top()[1] > seen["low"].get_center()[1]
+    # One cached outline serves every size: the same word at half the size is half as wide.
+    assert seen["ratio"] == pytest.approx(2.0, rel=1e-6)
+    # 40 px mono capitals at portrait's 1.25 text scale: five 30 px advances, about 36 px tall.
+    box = seen["box"]
+    assert box.cx == pytest.approx(700, abs=1.0)
+    assert 130 < box.w < 150
+    assert 30 < box.h < 42

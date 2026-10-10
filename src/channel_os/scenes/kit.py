@@ -11,17 +11,31 @@ from typing import Any
 
 import manimpango
 import numpy as np
-from manim import Arc, Circle, Dot, Line, RoundedRectangle, Text, VGroup, VMobject
+from manim import WHITE, Arc, Circle, Dot, Line, RoundedRectangle, Text, VGroup, VMobject
 
-from channel_os.scenes.flow_model import Format
+from channel_os.scenes.formats import Format, Rect
 from channel_os.scenes.theme import Theme, Themes
 
-FPS = 30
 UNIT = 1 / 135  # scene units per pixel: the frame is 8 units across its short side
 STROKE = 3.0
 FONT_UNITS_PER_PX = 1 / 1.92  # Manim font_size that gives a 1 px em at UNIT scale
 MIN_TEXT_SHRINK = 0.6
 FONT_DIR = Path(__file__).resolve().parents[3] / "assets" / "fonts"
+# Every label is rasterised once, white, at this size, then scaled and coloured. Manim caches a
+# label by text, font, size and colour, so this makes one cached outline serve every theme and
+# both formats.
+RASTER_FONT_SIZE = 48.0
+# The bundled faces. Text is drawn only in these, so a render never falls back to whatever
+# font the machine happens to have.
+FONT_FILES = {
+    ("JetBrains Mono", "NORMAL"): "JetBrainsMono-Regular.ttf",
+    ("JetBrains Mono", "BOLD"): "JetBrainsMono-Bold.ttf",
+    ("Inter", "NORMAL"): "Inter-Regular.ttf",
+    ("Inter", "MEDIUM"): "Inter-Medium.ttf",
+    ("Inter", "SEMIBOLD"): "Inter-SemiBold.ttf",
+    ("Inter", "BOLD"): "Inter-Bold.ttf",
+    ("Inter Display", "ULTRABOLD"): "InterDisplay-ExtraBold.ttf",
+}
 
 _registered: set[Path] = set()
 
@@ -30,13 +44,21 @@ class SceneError(RuntimeError):
     """A scene that cannot be drawn as described. The message says what and where."""
 
 
-def register_fonts(font_dir: Path = FONT_DIR) -> None:
-    """Make the bundled fonts visible to Pango. Safe to call again."""
-    for font_file in sorted(font_dir.glob("*.ttf")):
-        if font_file not in _registered:
-            if not manimpango.register_font(str(font_file)):
-                raise SceneError(f"could not register font {font_file.name}")
-            _registered.add(font_file)
+def use_font(family: str, weight: str, font_dir: Path = FONT_DIR) -> None:
+    """Make one bundled face visible to Pango. Safe to call again.
+
+    Faces are registered only when first used: on Windows each registered file adds most of a
+    second to every label that has to be rasterised.
+    """
+    name = FONT_FILES.get((family, weight))
+    if name is None:
+        known = ", ".join(f"{face} {style}" for face, style in sorted(FONT_FILES))
+        raise SceneError(f"no bundled font for {family} {weight}; assets/fonts has: {known}")
+    font_file = font_dir / name
+    if font_file not in _registered:
+        if not manimpango.register_font(str(font_file)):
+            raise SceneError(f"could not register font {name}")
+        _registered.add(font_file)
 
 
 class Canvas:
@@ -54,6 +76,17 @@ class Canvas:
     def point(self, x: float, y: float) -> Any:
         """A pixel position (origin top-left, y down) as a scene point."""
         return np.array([(x - self.fmt.width / 2) * UNIT, (self.fmt.height / 2 - y) * UNIT, 0.0])
+
+    def pixel(self, point: Any) -> tuple[float, float]:
+        """A scene point as a pixel position: the inverse of `point`."""
+        return (float(point[0]) / UNIT + self.fmt.width / 2,
+                self.fmt.height / 2 - float(point[1]) / UNIT)
+
+    def bounds(self, mob: Any) -> Rect:
+        """The pixel box a drawable occupies."""
+        x0, y0 = self.pixel(mob.get_corner(np.array([-1.0, 1.0, 0.0])))
+        x1, y1 = self.pixel(mob.get_corner(np.array([1.0, -1.0, 0.0])))
+        return Rect(x0, y0, x1, y1)
 
     def add(self, *mobjects: Any) -> None:
         """Queue mobjects for the scene, bottom-most first."""
@@ -123,9 +156,12 @@ class Canvas:
         the value behind "Hg" gives every label the same tall line box; those two glyphs are
         then removed. `max_width` (pixels) shrinks a label that would overflow its slot.
         """
+        family = font or self.mono
+        use_font(family, weight)
         size = px * self.fmt.text_scale * FONT_UNITS_PER_PX
-        label = Text("Hg" + value, font=font or self.mono, weight=weight, font_size=size,
-                     color=colour)
+        label = Text("Hg" + value, font=family, weight=weight, font_size=RASTER_FONT_SIZE,
+                     color=WHITE)
+        label.scale(size / RASTER_FONT_SIZE).set_color(colour)
         line_y = label.get_center()[1]
         for glyph in list(label.submobjects[:2]):
             label.remove(glyph)

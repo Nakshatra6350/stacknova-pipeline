@@ -13,8 +13,8 @@ from typing import Any
 import av
 from manim import Scene, VMobject, tempconfig
 
-from channel_os.scenes.flow_model import Format
-from channel_os.scenes.kit import FPS, Canvas, register_fonts
+from channel_os.scenes.formats import FPS, Format
+from channel_os.scenes.kit import Canvas
 from channel_os.scenes.theme import Theme, Themes
 
 Update = Callable[[float], None]
@@ -23,10 +23,6 @@ Build = Callable[[Canvas], Update]
 
 class RenderError(RuntimeError):
     """A clip that did not come out as asked."""
-
-
-def frame_count(duration: float, fps: int = FPS) -> int:
-    return max(1, round(duration * fps))
 
 
 def count_frames(path: Path) -> int:
@@ -51,9 +47,8 @@ def render_scene(build: Build, fmt: Format, theme: Theme, fonts: Themes, frames:
 
     `quality` scales the pixel size (0.5 gives a quick half-size check). `cache_dir` holds
     Manim's rasterised text; keeping it stable between runs matters, because rasterising a
-    new label is slow.
+    new label is slow on Windows.
     """
-    register_fonts()
 
     class _Clip(Scene):  # type: ignore[misc]
         def construct(self) -> None:
@@ -78,7 +73,10 @@ def render_scene(build: Build, fmt: Format, theme: Theme, fonts: Themes, frames:
 
     landscape = fmt.width >= fmt.height
     frame_height = 8.0 if landscape else 8.0 * fmt.height / fmt.width
+    # Manim keeps a clip's partial files in a folder named after the scene class. A unique name
+    # lets two renders share one cache folder.
     name = f"clip-{uuid.uuid4().hex}"
+    _Clip.__name__ = name
     settings = {
         "pixel_width": round(fmt.width * quality),
         "pixel_height": round(fmt.height * quality),
@@ -98,7 +96,7 @@ def render_scene(build: Build, fmt: Format, theme: Theme, fonts: Themes, frames:
         produced = Path(clip.renderer.file_writer.movie_file_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(produced), str(out_path))
-    shutil.rmtree(produced.parent / "partial_movie_files" / "_Clip", ignore_errors=True)
+    shutil.rmtree(produced.parent / "partial_movie_files" / name, ignore_errors=True)
     actual = count_frames(out_path)
     if actual != frames:
         raise RenderError(f"{out_path.name} has {actual} frames, expected {frames}")

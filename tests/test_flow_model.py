@@ -5,7 +5,8 @@ from typing import Any
 
 import pytest
 
-from channel_os.scenes.flow_model import LANDSCAPE, PORTRAIT, Format, layout, problems
+from channel_os.scenes.flow_model import layout, problems
+from channel_os.scenes.formats import LANDSCAPE, PORTRAIT, Format
 
 PHONE = {"id": "you", "kind": "phone", "label": "you"}
 SERVER = {"id": "server", "kind": "service", "label": "server"}

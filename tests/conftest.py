@@ -1,6 +1,7 @@
 """Shared fixtures: a minimal valid episode, generated audio and a fake voice model."""
 
 import math
+import shutil
 import struct
 import wave
 from collections.abc import Callable
@@ -8,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 LANGUAGES = ["hi", "es", "pt", "id", "vi", "ar"]
@@ -131,8 +133,32 @@ def repo_root() -> Path:
 
 
 @pytest.fixture
+def cache(repo_root: Path) -> Path:
+    """Manim's label cache. Shared with real renders on purpose: a new label is slow to draw."""
+    return repo_root / ".cache" / "manim"
+
+
+@pytest.fixture
 def audio() -> AudioWriter:
     return write_audio
+
+
+@pytest.fixture
+def project(tmp_path: Path) -> Callable[[dict[str, Any]], tuple[Path, Path]]:
+    """Build a throwaway repo root holding one episode, plus a voice reference beside it."""
+
+    def build(episode: dict[str, Any]) -> tuple[Path, Path]:
+        root = tmp_path / "repo"
+        shutil.copytree(REPO_ROOT / "schemas", root / "schemas")
+        shutil.copytree(REPO_ROOT / "config", root / "config")
+        folder = root / "content" / "episodes" / episode["id"]
+        folder.mkdir(parents=True)
+        text = yaml.safe_dump(episode, allow_unicode=True, sort_keys=False)
+        (folder / "episode.yaml").write_text(text, encoding="utf-8")
+        reference = write_audio(tmp_path / "reference.wav", [(8.0, 0.05)], rate=44100, channels=2)
+        return root, reference
+
+    return build
 
 
 @pytest.fixture
