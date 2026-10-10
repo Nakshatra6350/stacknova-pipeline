@@ -284,6 +284,70 @@ shorts:
       random ID per payment, reused on every retry. The server stores it with a unique constraint,
       so the second attempt can't charge again; it just replays the first response. Same key,
       same result. That's why your retry should be harmless. Unless someone forgot the key.
+    visual:
+      # Scene 1: the double charge, then the two stories a timeout cannot tell apart.
+      - layout: flow
+        header: ["PAYMENT / RETRY", "REQ #4171"]
+        nodes:
+          - {id: you, kind: phone, label: you, amount: "$100.00", button: Pay}
+          - {id: server, kind: service, label: server, title: api}
+          - {id: bank, kind: ledger, label: bank, title: ledger}
+        lanes:
+          title: "no reply. two possible stories:"
+          rows:
+            - {id: a, label: "1  never arrived"}
+            - {id: b, label: "2  charged, reply lost"}
+        steps:
+          - {at: "tapped Pay", action: press, target: you}
+          - {at: "tapped Pay", action: send, target: "you->bank", params: {row: {text: "$100", status: ok}}}
+          - {at: "got an error", action: send, target: "server->you", params: {role: reply, lost: 0.55, chip: {text: error, status: bad}}}
+          - {at: "tapped again", action: chip, target: you, params: {clear: true}}
+          - {at: "tapped again", action: press, target: you}
+          - {at: "tapped again", action: send, target: "you->bank", params: {role: retry, row: {text: "$100", status: bad}}}
+          - {at: "charged twice", action: badge, target: bank, params: {text: "CHARGED TWICE", status: bad}}
+          - {at: "Here's why", action: dim, target: main}
+          - {at: "Here's why", action: title, target: lanes}
+          - {at: "request times out", action: timeout, target: lanes}
+          - {at: "you can't tell", action: send, target: "a:you->server", params: {lost: 0.62}}
+          - {at: "or charged you", action: send, target: "b:you->bank", params: {mark: ok}}
+          - {at: "lost the reply", action: send, target: "b:server->you", params: {role: reply, lost: 0.5}}
+          - {at: "A retry", action: dim, target: a}
+          - {at: "A retry", action: send, target: "b:you->bank", params: {role: retry, mark: "x2"}}
+          - {at: "second charge", action: focus, target: main}
+          - {at: "second charge", action: highlight, target: bank}
+      # Scene 2: the same payment with a key. The retry stops at the server's table.
+      - layout: flow
+        from: "The fix"
+        header: ["WITH AN IDEMPOTENCY KEY", "REQ #4172"]
+        nodes:
+          - {id: you, kind: phone, label: you, amount: "$100.00", button: Pay}
+          - {id: server, kind: service, label: server, title: api}
+          - {id: bank, kind: ledger, label: bank, title: ledger}
+        table: {title: idempotency_keys, owner: server}
+        steps:
+          - {at: "idempotency key", action: tag, target: you, params: {text: "key 7f3c"}}
+          - {at: "one random ID", action: press, target: you}
+          - {at: "one random ID", action: send, target: "you->bank", params: {tag: "7f3c", row: {text: "$100", status: ok}}}
+          - {at: "reused on every retry", action: send, target: "server->you", params: {role: reply, lost: 0.55, chip: {text: error, status: bad}}}
+          - {at: "The server stores", action: title, target: table}
+          - {at: "The server stores", action: row, target: table, params: {id: k, cells: ["7f3c", "paid"]}}
+          - {at: "unique constraint", action: badge, target: table, params: {text: UNIQUE, status: info}}
+          - {at: "second attempt", action: chip, target: you, params: {clear: true}}
+          - {at: "second attempt", action: press, target: you}
+          - {at: "second attempt", action: send, target: "you->server", params: {role: retry, tag: "7f3c"}}
+          - {at: "can't charge again", action: highlight, target: "table:k"}
+          - {at: "can't charge again", action: block, target: "server->bank"}
+          - {at: "replays the first response", action: send, target: "server->you", params: {role: reply, chip: {text: paid, status: ok}}}
+          - {at: "Same key", action: badge, target: bank, params: {text: "CHARGED ONCE", status: ok}}
+          - {at: "your retry", action: press, target: you}
+          - {at: "your retry", action: send, target: "you->server", params: {role: retry, tag: "7f3c"}}
+          - {at: "harmless", action: highlight, target: "table:k"}
+          - {at: "harmless", action: send, target: "server->you", params: {role: reply, chip: {text: paid, status: ok}}}
+          - {at: "Unless someone", action: tag, target: you, params: {text: "no key", status: bad}}
+          - {at: "Unless someone", action: chip, target: you, params: {clear: true}}
+          - {at: "Unless someone", action: press, target: you}
+          - {at: "Unless someone", action: send, target: "you->bank", params: {role: retry, row: {text: "$100", status: bad}}}
+          - {at: "forgot the key", action: badge, target: bank, params: {text: "CHARGED TWICE", status: bad}}
     youtube_title: "Why Your Retry Charged You Twice #Shorts"
     instagram_caption: |
       Tapped Pay twice and got charged twice? 💸

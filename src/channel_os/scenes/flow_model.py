@@ -170,8 +170,8 @@ def layout(fmt: Format, decl: Mapping[str, Any]) -> FlowLayout:
     shrink = min(1.0, (span - gaps * MIN_RAIL) / sum(widths))
     glyph = s * shrink
     rail = (span - sum(widths) * shrink) / gaps
-    header_y = area.y0 + 40
-    row_y = header_y + 200 * s
+    header_y = area.y0 + 22  # high enough that a badge or tag above a node clears it
+    row_y = area.y0 + 40 + 200 * s
     rects: dict[str, Rect] = {}
     x = area.x0 + 20
     for node in nodes:

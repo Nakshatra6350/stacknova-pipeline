@@ -519,6 +519,9 @@ class _Stage:
         edge = parse_edge(step.target)
         assert edge is not None
         lane, source, target = edge
+        order = self.plan.order
+        if abs(order.index(source) - order.index(target)) != 1:
+            raise SceneError("a block sits on one rail, so it needs two neighbouring nodes")
         start, end = self._ends(lane, source, target)
         middle = along(start, end, 0.5)
         g, th = self.g, self.th

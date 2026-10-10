@@ -158,13 +158,40 @@ def test_a_lost_packet_writes_no_row(tmp_path: Path, themes: Any, cache: Path) -
     assert seen[0] > seen[1] + 3, "only the packet that arrives may write to the ledger"
 
 
+def test_a_lost_reply_shows_its_chip_on_the_one_left_waiting(
+    tmp_path: Path, themes: Any, cache: Path
+) -> None:
+    chip = {"text": "error", "status": "bad"}
+    silent = scene(TABLE, [step(0.2, "send", "server->you", role="reply", lost=0.55)])
+    told = scene(TABLE, [step(0.2, "send", "server->you", role="reply", lost=0.55, chip=chip)])
+    plan = layout(PORTRAIT, TABLE)
+    phone, g = plan.nodes["you"], plan.glyph_scale
+    spot = Rect(phone.x0 + 20, phone.cy + 84 * g, phone.x1 - 20, phone.cy + 124 * g)
+    seen = [
+        brightness(render(spec, PORTRAIT, themes, tmp_path / name, cache), 59, PORTRAIT, spot)
+        for spec, name in ((silent, "silent.mp4"), (told, "told.mp4"))
+    ]
+    assert seen[1] > seen[0] + 3
+
+
+def test_a_part_outside_the_content_area_fails_the_render(
+    tmp_path: Path, themes: Any, cache: Path
+) -> None:
+    wide = "A HEADER MUCH TOO LONG TO FIT ACROSS A PORTRAIT FRAME, TWICE"
+    decl = {**TABLE, "header": [wide, "X"]}
+    spec = SceneSpec("flow", 0.0, 1.0, decl, ())
+    with pytest.raises(SceneError, match=r"the text 'A HEADER.*leaves the content area"):
+        render(spec, PORTRAIT, themes, tmp_path / "clip.mp4", cache, frames=2)
+
+
 @pytest.mark.parametrize(
     ("steps", "words"),
     [
         ([step(0.5, "highlight", "table:zz")], r"highlight on 'table:zz' \(at 't=0\.5'\).*no row"),
         ([step(0.1 * n, "row", "bank", text="$1") for n in range(4)], r"room for 3 rows"),
+        ([step(0.5, "block", "you->bank")], r"block on 'you->bank'.*two neighbouring nodes"),
     ],
-    ids=["unknown-row", "full-ledger"],
+    ids=["unknown-row", "full-ledger", "block-across-a-node"],
 )
 def test_a_step_that_cannot_be_drawn_says_which(
     tmp_path: Path, themes: Any, cache: Path, steps: list[Step], words: str

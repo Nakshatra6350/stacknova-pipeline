@@ -64,10 +64,13 @@ track sets one property from the clock. Steps from `episode.yaml` compile into t
 | `theme.py` | no | Loads `config/themes.yaml`; picks a theme for an asset |
 | `phrases.py` | no | Maps a phrase in the narration to a time, using measured pauses |
 | `spec.py` | no | Turns a `visual` block into scenes with timed steps; knows the stage registry |
-| `geometry.py` | no | Formats, safe zones, and where each part of a stage sits in both formats |
+| `formats.py` | no | The two formats, their safe content areas and the frame rate |
+| `flow_model.py` | no | The `flow` stage without drawing: what a declaration may say, where each part sits |
+| `plan.py` | no | Which clips make up a target and how many frames each gets |
 | `kit.py` | yes | Drawables: shapes, text, flows, packets, pings; the opacity registry |
 | `flow.py` | yes | The `flow` stage: a row of nodes, optional lanes and table, and its actions |
 | `render.py` | yes | Runs a scene with the clock driver first; verifies the frame count |
+| `preview.py` | yes | Renders a target's clips and joins them under its narration |
 
 Modules that need Manim are imported only when rendering, so validation and linting keep working
 in the light environment.
