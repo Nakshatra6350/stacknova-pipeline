@@ -3,7 +3,7 @@
 Usage: python -m channel_os.render --episode ID [--stage voice|scenes] [--only TARGET]
                                    [--out DIR] [--root DIR] [--allow-draft]
        voice:  --reference WAV [--model NAME] [--set KEY=VALUE ...] [--cache-dir DIR]
-       scenes: [--format portrait|landscape] [--theme NAME] [--quality N]
+       scenes: [--format portrait|landscape] [--theme NAME] [--quality N] [--jobs N]
 
 The two stages run in separate environments, because their dependency groups conflict. Voice
 runs first; the scenes stage reads the narration and timing.json it left in the output folder
@@ -94,6 +94,7 @@ def render_scenes(
     format_name: str | None = None,
     theme_name: str | None = None,
     quality: float = 1.0,
+    jobs: int = 1,
 ) -> None:
     """Animate each target to its narration and write out_dir/preview/<target>.mp4."""
     for target in targets:
@@ -108,7 +109,7 @@ def render_scenes(
         )
         name = target if fmt is natural else f"{target}.{fmt.name}"
         preview = renderer(clips, fmt, theme, themes, out_dir / entry["narration"],
-                           out_dir / "preview" / f"{name}.mp4", quality, cache_dir)
+                           out_dir / "preview" / f"{name}.mp4", quality, cache_dir, jobs=jobs)
         frames = sum(clip.frames for clip in clips)
         print(
             f"{target}: {frames} frames ({frames / FPS:.2f} s), {len(clips)} scene(s), "
@@ -145,6 +146,8 @@ def _parser() -> argparse.ArgumentParser:
     scenes.add_argument("--theme", default=None, help="override the theme for this run")
     scenes.add_argument("--quality", type=float, default=1.0,
                         help="picture size as a fraction of full size, e.g. 0.5 for a quick look")
+    scenes.add_argument("--jobs", type=int, default=1,
+                        help="scenes drawn at the same time, each in its own process (default 1)")
     return parser
 
 
@@ -186,6 +189,8 @@ def main(
                 raise InputError(f"unknown theme {args.theme!r}; config/themes.yaml has: {known}")
             if not 0.1 <= args.quality <= 1.0:
                 raise InputError(f"--quality must be between 0.1 and 1, not {args.quality}")
+            if not 1 <= args.jobs <= 8:
+                raise InputError(f"--jobs must be between 1 and 8, not {args.jobs}")
     except (InputError, OSError, ValueError, TypeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -209,7 +214,7 @@ def main(
             return 2
         try:
             render_scenes(episode, targets, timing, themes, out_dir, root / ".cache" / "manim",
-                          renderer, args.format, args.theme, args.quality)
+                          renderer, args.format, args.theme, args.quality, args.jobs)
         except (FfmpegError, ValueError, RuntimeError) as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 1

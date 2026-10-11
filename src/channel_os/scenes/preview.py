@@ -4,6 +4,7 @@ Previews are for the owner to judge the animation against the voice. Captions, t
 and the watermark belong to assembly (M3).
 """
 
+import multiprocessing
 import tempfile
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
@@ -31,22 +32,36 @@ BUILDERS: Mapping[str, Callable[[Canvas, SceneSpec], Update]] = {
 }
 
 
+Job = tuple[SceneSpec, Format, Theme, Themes, int, Path, float, Path]
+
+
+def _render_clip(job: Job) -> Path:
+    """Render one clip. Runs in a worker process; everything it needs comes in `job`."""
+    spec, fmt, theme, fonts, frames, part, quality, cache_dir = job
+    builder = BUILDERS[spec.layout]
+    return render_scene(lambda canvas: builder(canvas, spec), fmt, theme, fonts, frames, part,
+                        quality, cache_dir)
+
+
 def render_preview(clips: Sequence[Clip], fmt: Format, theme: Theme, fonts: Themes,
                    narration: Path, out_path: Path, quality: float = 1.0,
-                   cache_dir: Path = Path(".cache") / "manim") -> Path:
-    """Render every clip, join them in order and lay the narration under them."""
+                   cache_dir: Path = Path(".cache") / "manim", jobs: int = 1) -> Path:
+    """Render every clip, join them in order and lay the narration under them.
+
+    Each clip is drawn in a fresh process. Rasterising a label leaks memory inside Pango on
+    Windows (tens of megabytes each), and a long video has hundreds of labels: one process for
+    everything grew until the page file filled the disk. A process per clip gives the memory
+    back after every scene, and lets `jobs` clips be drawn at the same time.
+    """
     with tempfile.TemporaryDirectory() as work:
-        parts: list[Path] = []
-        for index, clip in enumerate(clips):
-            builder = BUILDERS[clip.spec.layout]
-            part = Path(work) / f"{index:03d}.mp4"
-
-            def build(canvas: Canvas, builder: Callable[[Canvas, SceneSpec], Update] = builder,
-                      spec: SceneSpec = clip.spec) -> Update:
-                return builder(canvas, spec)
-
-            render_scene(build, fmt, theme, fonts, clip.frames, part, quality, cache_dir)
-            parts.append(part)
+        parts = [Path(work) / f"{index:03d}.mp4" for index in range(len(clips))]
+        work_list: list[Job] = [
+            (clip.spec, fmt, theme, fonts, clip.frames, part, quality, cache_dir)
+            for clip, part in zip(clips, parts, strict=True)
+        ]
+        workers = max(1, min(jobs, len(work_list)))
+        with multiprocessing.get_context("spawn").Pool(workers, maxtasksperchild=1) as pool:
+            pool.map(_render_clip, work_list, chunksize=1)
         listing = Path(work) / "clips.txt"
         listing.write_text("".join(f"file '{part.as_posix()}'\n" for part in parts),
                            encoding="utf-8")

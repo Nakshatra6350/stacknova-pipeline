@@ -44,7 +44,8 @@ for ep in $episodes; do
   fi
   unzip -q -o "$RUNNER_TEMP/$archive" -d "$out"
 
-  args=(--episode "$ep" --stage scenes --only "$ONLY" --out "$out")
+  # Three scenes at a time: the runner has four cores, and each scene is its own process.
+  args=(--episode "$ep" --stage scenes --only "$ONLY" --out "$out" --jobs 3)
   if [ "${ALLOW_DRAFT:-false}" = "true" ]; then args+=(--allow-draft); fi
   uv run --no-sync python -m channel_os.render "${args[@]}" | tee "$RUNNER_TEMP/scenes.log"
   [ -d "$out/preview" ] || continue

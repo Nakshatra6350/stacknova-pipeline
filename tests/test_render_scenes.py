@@ -18,10 +18,10 @@ class Recorder:
         self.calls: list[Data] = []
 
     def __call__(self, clips: Any, fmt: Any, theme: Any, fonts: Any, narration: Path,
-                 out_path: Path, quality: float, cache_dir: Path) -> Path:
+                 out_path: Path, quality: float, cache_dir: Path, jobs: int = 1) -> Path:
         self.calls.append({"clips": list(clips), "format": fmt.name, "theme": theme.name,
                            "narration": narration, "out": out_path, "quality": quality,
-                           "cache": cache_dir})
+                           "cache": cache_dir, "jobs": jobs})
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_bytes(b"video")
         return out_path
@@ -80,9 +80,10 @@ def test_format_theme_and_quality_can_be_chosen_for_one_run(narrated: Any) -> No
     root = narrated()
     recorder = Recorder()
     assert scenes(root, recorder, "--format", "landscape", "--theme", "brand",
-                  "--quality", "0.5") == 0
+                  "--quality", "0.5", "--jobs", "3") == 0
     (call,) = recorder.calls
     assert (call["format"], call["theme"], call["quality"]) == ("landscape", "brand", 0.5)
+    assert call["jobs"] == 3
     # A format other than the target's own is kept beside the main preview, not over it.
     assert call["out"].name == "short-2.landscape.mp4"
 
@@ -133,8 +134,9 @@ def test_a_target_without_narration_fails_and_says_so(
     [
         (["--theme", "sepia"], "unknown theme 'sepia'; config/themes.yaml has: brand, navy"),
         (["--quality", "3"], "--quality must be between 0.1 and 1"),
+        (["--jobs", "0"], "--jobs must be between 1 and 8"),
     ],
-    ids=["theme", "quality"],
+    ids=["theme", "quality", "jobs"],
 )
 def test_a_bad_setting_exits_2(
     narrated: Any, capsys: pytest.CaptureFixture[str], extra: list[str], words: str
@@ -162,7 +164,7 @@ def test_a_draft_is_not_animated_unless_allowed(
 
 
 def test_a_failed_render_exits_1(narrated: Any, capsys: pytest.CaptureFixture[str]) -> None:
-    def broken(*args: Any) -> Path:
+    def broken(*args: Any, **options: Any) -> Path:
         raise RuntimeError("the text 'CHARGED TWICE' leaves the content area")
 
     argv = ["--root", str(narrated()), "--episode", "900-fixture", "--stage", "scenes",
