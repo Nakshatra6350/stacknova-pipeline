@@ -21,6 +21,8 @@ STATUSES = ("ok", "bad", "info")
 NODE_SIZES = {"phone": (170.0, 260.0), "service": (210.0, 150.0), "ledger": (230.0, 230.0)}
 MIN_RAIL = 90.0  # a packet needs room to be seen travelling
 LANE_LABEL_PX = 25.0
+COMPACT_FROM_LANES = 3  # from this many lanes on, the main row is drawn smaller
+COMPACT = 0.82
 
 
 @dataclass(frozen=True)
@@ -163,14 +165,19 @@ def layout(fmt: Format, decl: Mapping[str, Any]) -> FlowLayout:
     """Where every part of a flow sits in the given format."""
     area, s = fmt.content, fmt.scale
     nodes = decl["nodes"]
+    rows = (decl.get("lanes") or {}).get("rows", [])
+    # Three or more lanes need the height a full-size main row would take from them.
+    compact = COMPACT if len(rows) >= COMPACT_FROM_LANES else 1.0
     widths = [NODE_SIZES[node["kind"]][0] * s for node in nodes]
     span = area.w - 40
     gaps = len(nodes) - 1
-    shrink = min(1.0, (span - gaps * MIN_RAIL) / sum(widths))
+    shrink = min(1.0, (span - gaps * MIN_RAIL) / sum(widths)) * compact
     glyph = s * shrink
     rail = (span - sum(widths) * shrink) / gaps
     header_y = area.y0 + 22  # high enough that a badge or tag above a node clears it
-    row_y = area.y0 + 40 + 200 * s
+    row_y = area.y0 + 40 + 200 * s * compact
+    if not rows and not decl.get("table"):
+        row_y = area.cy - 20 * s  # nothing goes below the row, so it takes the middle
     rects: dict[str, Rect] = {}
     x = area.x0 + 20
     for node in nodes:
@@ -178,13 +185,14 @@ def layout(fmt: Format, decl: Mapping[str, Any]) -> FlowLayout:
         rects[node["id"]] = Rect(x, row_y - h / 2, x + w, row_y + h / 2)
         x += w + rail
     tallest = max(rect.h for rect in rects.values())
-    names_y = row_y + tallest / 2 + 42 * s
+    names_y = row_y + tallest / 2 + 42 * s * compact
 
     lanes: LanesLayout | None = None
-    rows = (decl.get("lanes") or {}).get("rows", [])
     if rows:
         title_y = names_y + 103 * s
-        first = title_y + 93 * s
+        # Close lanes carry their marks nearer the row above, so the first lane starts lower
+        # to keep its marks clear of the column names.
+        first = title_y + (110 if compact < 1 else 93) * s
         room = area.y1 - 30 * s - first
         spacing = min(117 * s, room / max(1, len(rows) - 1))
         widest = max(len(row["label"]) for row in rows)

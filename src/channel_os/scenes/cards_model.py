@@ -11,12 +11,15 @@ from itertools import pairwise
 from typing import Any
 
 from channel_os.scenes.flow_model import ROLES, STATUSES
-from channel_os.scenes.formats import Format, Rect
+from channel_os.scenes.formats import MONO_ADVANCE, Format, Rect
 
 ACTIONS = frozenset({"show", "set", "apply", "mark", "badge", "highlight", "dim", "focus"})
 ARRANGEMENTS = ("row", "column", "grid")
 MAX_CARDS = 4
 MAX_LINES = 4
+ZOOM_LIMIT = 1.6  # how far cards may grow beyond the format's own scale
+MIN_NEED = 240.0  # units: no card is laid out narrower than this at its own scale
+SANS_ADVANCE = 0.52  # average width of an Inter character, in ems
 
 
 @dataclass(frozen=True)
@@ -26,6 +29,7 @@ class CardsLayout:
     title: tuple[float, float] | None
     cards: Mapping[str, Rect]
     joins: tuple[tuple[float, float], ...]  # centre of the glyph after card i
+    unit: float  # pixels per unit inside a card: the format's scale, enlarged to fit
     pad: float
     title_h: float
     text_h: float
@@ -37,9 +41,17 @@ def arrangement(fmt: Format, decl: Mapping[str, Any]) -> str:
     if decl.get("arrange"):
         return str(decl["arrange"])
     count = len(decl["cards"])
-    if fmt.name == "landscape" or (count <= 2 and not decl.get("joins")):
+    four = count == 4 and not decl.get("joins")
+    if fmt.name == "landscape":
+        # Four cards read best in one row. Only when they are so wordy that a row leaves them
+        # no room to grow at all do they go two by two.
+        in_row = _unit(fmt, decl, "row")
+        if four and in_row <= 1.05 * fmt.scale and _unit(fmt, decl, "grid") > 1.1 * in_row:
+            return "grid"
         return "row"
-    return "grid" if count == 4 and not decl.get("joins") else "column"
+    if count <= 2 and not decl.get("joins"):
+        return "row"
+    return "grid" if four else "column"
 
 
 def _split(target: str) -> tuple[str, str | None]:
@@ -109,28 +121,68 @@ def problems(decl: Mapping[str, Any], steps: Sequence[Mapping[str, Any]]) -> lis
     return found
 
 
+def _need(card: Mapping[str, Any], text_scale: float) -> float:
+    """Width a card needs, in units, for its longest title, text or line to fit unshrunk."""
+    title = 84 + MONO_ADVANCE * 24 * text_scale * len(str(card.get("title", card["id"])))
+    body = 44 + SANS_ADVANCE * 22 * text_scale * len(str(card.get("text", "")))
+    lines = [
+        74 + MONO_ADVANCE * text_scale
+        * (20 * len(str(line.get("key", line["id"]))) + 22 * len(str(line.get("value", ""))))
+        for line in card.get("lines", [])
+    ]
+    return max(MIN_NEED, title, body, *lines)
+
+
+def _card_units(decl: Mapping[str, Any]) -> tuple[int, bool]:
+    """Height of a card in units (all cards share the tallest), and whether any has text."""
+    cards = decl["cards"]
+    most_lines = max(len(card.get("lines", [])) for card in cards)
+    has_text = any(card.get("text") for card in cards)
+    return 20 + 44 + (40 if has_text else 0) + most_lines * 44 + 18, has_text
+
+
+def _unit(fmt: Format, decl: Mapping[str, Any], arrange: str) -> float:
+    """Pixels per unit for an arrangement: the format's scale, enlarged as far as it fits."""
+    area, s = fmt.content, fmt.scale
+    cards = decl["cards"]
+    card_units, _ = _card_units(decl)
+    columns = {"row": len(cards), "column": 1, "grid": 2}[arrange]
+    rows = -(-len(cards) // columns)
+    gap_units = 84 if decl.get("joins") else 30
+    fixed_top = area.y0 + 62 + (70 * s if decl.get("title") else 0)
+    by_height = (area.y1 - fixed_top) / (card_units * rows + 78 * (rows - 1) + 62 + 34)
+    need = max(_need(card, fmt.text_scale) for card in cards)
+    by_width = (area.w - 20) / (columns * need + gap_units * (columns - 1))
+    return max(s, min(ZOOM_LIMIT * s, by_height, by_width))
+
+
 def layout(fmt: Format, decl: Mapping[str, Any]) -> CardsLayout:
-    """Where every card and join sits in the given format."""
+    """Where every card and join sits in the given format.
+
+    Everything inside a card is sized in units. One unit is the format's scale, enlarged as far
+    as the content allows (up to ZOOM_LIMIT), so two short cards fill a wide frame instead of
+    sitting small in the middle of it.
+    """
     area, s = fmt.content, fmt.scale
     cards = decl["cards"]
     joined = bool(decl.get("joins"))
-    pad, title_h, text_h, line_h = 20 * s, 44 * s, 40 * s, 44 * s
-    most_lines = max(len(card.get("lines", [])) for card in cards)
-    has_text = any(card.get("text") for card in cards)
-    height = pad + title_h + (text_h if has_text else 0) + most_lines * line_h + 18 * s
+    card_units, has_text = _card_units(decl)
     arrange = arrangement(fmt, decl)
     columns = {"row": len(cards), "column": 1, "grid": 2}[arrange]
     rows = -(-len(cards) // columns)
-    across_gap = (84 if joined else 30) * s
-    down_gap = 78 * s
-    limit = (640 if arrange == "column" else 520) * s
+    gap_units = 84 if joined else 30
+    title = (area.x0 + 10, area.y0 + 62 + 34 * s) if decl.get("title") else None
+    fixed_top = area.y0 + 62 + (70 * s if title else 0)
+    unit = _unit(fmt, decl, arrange)
+
+    height = card_units * unit
+    across_gap, down_gap = gap_units * unit, 78 * unit
+    limit = (640 if arrange == "column" else 520) * unit
     width = min(limit, (area.w - 20 - across_gap * (columns - 1)) / columns)
     block_w = width * columns + across_gap * (columns - 1)
     block_h = height * rows + down_gap * (rows - 1)
-    title = (area.x0 + 10, area.y0 + 62 + 34 * s) if decl.get("title") else None
-    top = area.y0 + 62 + (70 * s if title else 0) + 62 * s
-    room = area.y1 - 34 * s - top
-    top += max(0.0, (room - block_h) / 2)
+    top = fixed_top + 62 * unit
+    top += max(0.0, (area.y1 - 34 * unit - top - block_h) / 2)
     left = area.cx - block_w / 2
     rects: dict[str, Rect] = {}
     for index, card in enumerate(cards):
@@ -145,5 +197,5 @@ def layout(fmt: Format, decl: Mapping[str, Any]) -> CardsLayout:
             joins.append((before.cx, (before.y1 + after.y0) / 2))
         else:
             joins.append(((before.x1 + after.x0) / 2, before.cy))
-    return CardsLayout(fmt, area.y0 + 22, title, rects, tuple(joins) if joined else (), pad,
-                       title_h, text_h if has_text else 0.0, line_h)
+    return CardsLayout(fmt, area.y0 + 22, title, rects, tuple(joins) if joined else (), unit,
+                       20 * unit, 44 * unit, (40 if has_text else 0) * unit, 44 * unit)

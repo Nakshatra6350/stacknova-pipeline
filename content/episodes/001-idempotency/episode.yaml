@@ -517,9 +517,9 @@ segments:
         cards:
           - {id: delivery, title: "at-least-once", text: "delivery", hidden: true}
           - {id: processing, title: "idempotent", text: "processing", hidden: true}
-          - {id: effect, title: "exactly-once", text: "effect", hidden: true}
+          - {id: effect, title: "exactly-once", text: "effect"}
         steps:
-          - {at: "exactly-once effect", action: show, target: effect}
+          - {at: "exactly-once effect", action: highlight, target: effect}
           - {at: "at-least-once delivery plus", action: show, target: delivery}
           - {at: "idempotent processing", action: show, target: processing}
           - {at: "idempotency key gives you", action: mark, target: effect, params: {status: ok}}
@@ -565,12 +565,12 @@ segments:
         header: ["NEXT EPISODE", "002"]
         joins: ["+", "="]
         cards:
-          - {id: db, title: "update your database", text: "one transaction", hidden: true}
-          - {id: event, title: "publish an event", text: "another system", hidden: true}
+          - {id: db, title: "update your database", text: "one transaction"}
+          - {id: event, title: "publish an event", text: "another system"}
           - {id: next, title: "The Outbox Pattern", text: "next episode", hidden: true}
         steps:
-          - {at: "update your database", action: show, target: db}
-          - {at: "publish an event", action: show, target: event}
+          - {at: "update your database", action: highlight, target: db}
+          - {at: "publish an event", action: highlight, target: event}
           - {at: "can't share a transaction", action: mark, target: db, params: {status: bad}}
           - {at: "can't share a transaction", action: mark, target: event, params: {status: bad}}
           - {at: "the outbox pattern", action: show, target: next}

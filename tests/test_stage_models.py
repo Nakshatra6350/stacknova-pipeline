@@ -129,6 +129,28 @@ def test_cards_fit_their_format_without_touching(fmt: Format, count: int) -> Non
     assert plan.title[1] + 40 * fmt.scale < min(rect.y0 for rect in rects) - 44 * fmt.scale
 
 
+def test_cards_grow_as_far_as_their_content_allows() -> None:
+    # Two short cards in a wide frame were drawn at their plain size, small and lost in it.
+    short = cards_model.layout(LANDSCAPE, {"cards": CARDS})
+    assert short.unit == pytest.approx(LANDSCAPE.scale * cards_model.ZOOM_LIMIT)
+    widths = sum(rect.w for rect in short.cards.values())
+    assert widths > LANDSCAPE.content.w * 0.9, "they take the width"
+    wordy = [{"id": f"c{n}", "title": "saved responses", "text": "you replay what you kept",
+              "lines": [{"id": "v", "key": "per request", "value": "+1 write"}]}
+             for n in range(4)]
+    # Four wordy cards cannot grow side by side, so in a wide frame they go two by two.
+    assert cards_model.arrangement(LANDSCAPE, {"cards": wordy}) == "grid"
+    assert cards_model.layout(LANDSCAPE, {"cards": wordy}).unit > LANDSCAPE.scale * 1.1
+    tight = cards_model.layout(LANDSCAPE, {"cards": wordy, "arrange": "row"})
+    assert tight.unit == LANDSCAPE.scale, "in one row they have no room to grow"
+    tall = [{"id": f"c{n}", "title": "t",
+             "lines": [{"id": str(k), "key": "k", "value": "v"} for k in range(4)]}
+            for n in range(4)]
+    grid = cards_model.layout(PORTRAIT, {"cards": tall})
+    assert PORTRAIT.scale <= grid.unit < PORTRAIT.scale * cards_model.ZOOM_LIMIT
+    assert all(PORTRAIT.content.contains(rect) for rect in grid.cards.values())
+
+
 def test_how_cards_arrange_themselves() -> None:
     def cards(count: int, **extra: Any) -> dict[str, Any]:
         return {"cards": [{"id": f"c{n}", "title": "t"} for n in range(count)], **extra}

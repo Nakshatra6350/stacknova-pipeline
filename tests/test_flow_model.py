@@ -125,6 +125,33 @@ def test_the_table_sits_below_the_names_and_inside_the_content(fmt: Format) -> N
     assert owner.x0 < plan.table.connector_x < owner.x1
 
 
+@pytest.mark.parametrize("fmt", [PORTRAIT, LANDSCAPE])
+def test_a_row_with_nothing_below_it_takes_the_middle(fmt: Format) -> None:
+    alone = layout(fmt, decl(PHONE, SERVER, BANK))
+    with_table = layout(fmt, decl(PHONE, SERVER, BANK, table=TABLE))
+    assert abs(alone.row_y - fmt.content.cy) < 40 * fmt.scale
+    assert with_table.row_y < alone.row_y - 60, "a table needs the room, so the row stays up"
+    assert fmt.content.contains(alone.nodes["you"])
+    assert alone.names_y + 60 * fmt.scale < fmt.content.y1, "a chip still fits under a name"
+
+
+@pytest.mark.parametrize("fmt", [PORTRAIT, LANDSCAPE])
+def test_three_lanes_get_the_room_they_need(fmt: Format) -> None:
+    # Seen in episode 001, segment s02: at full size the main row left three lanes 51 px
+    # apart in landscape, and the marks above one lane landed on the lane before it.
+    three = {**LANES, "rows": [*LANES["rows"], {"id": "c", "label": "3  crashed first"}]}
+    two = layout(fmt, decl(PHONE, SERVER, BANK, lanes=LANES))
+    plan = layout(fmt, decl(PHONE, SERVER, BANK, lanes=three))
+    assert plan.lanes is not None
+    assert plan.glyph_scale < two.glyph_scale, "the main row gives way"
+    ys = [row.y for row in plan.lanes.rows.values()]
+    mini = 38 * plan.glyph_scale  # height of a lane's node
+    assert all(lower - upper >= 2.1 * mini for upper, lower in pairwise(ys))
+    assert ys[-1] + mini / 2 <= fmt.content.y1
+    assert ys[0] - plan.lanes.legend_y >= 60 * fmt.scale, "marks clear the column names"
+    assert two.glyph_scale == fmt.scale, "two lanes keep the full-size row the owner approved"
+
+
 def test_portrait_keeps_clear_of_captions_and_platform_ui() -> None:
     assert (PORTRAIT.content.x0, PORTRAIT.content.x1) == (60, 1020)
     assert (PORTRAIT.content.y0, PORTRAIT.content.y1) == (260, 1040)

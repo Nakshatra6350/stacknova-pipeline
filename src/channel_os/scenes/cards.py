@@ -26,7 +26,7 @@ class _Cards(Stage):
         super().__init__(canvas)
         self.decl = decl
         self.plan = layout(canvas.fmt, decl)
-        self.s = canvas.fmt.scale
+        self.s = self.plan.unit  # everything inside a card is sized in the layout's units
         self.card_parts: dict[str, list[Part]] = {}
         self.line_at: dict[tuple[str, str], float] = {}  # (card, line) -> y of the line
         self.glows: dict[tuple[str, str], list[float]] = {}  # when each line's band pulses
@@ -35,7 +35,7 @@ class _Cards(Stage):
         self.header(decl.get("header") or [], self.plan.header_y)
         if self.plan.title:
             x, y = self.plan.title
-            title = canvas.text(str(decl["title"]), x, y, 30 * self.s, self.th.ink,
+            title = canvas.text(str(decl["title"]), x, y, 30 * canvas.fmt.scale, self.th.ink,
                                 font=canvas.sans, weight="MEDIUM", anchor="l",
                                 max_width=canvas.fmt.content.w - 20)
             self.part(title, "details", ("frame",))
