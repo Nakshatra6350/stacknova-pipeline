@@ -111,14 +111,16 @@ def _step_anchor(episode: Episode, reach: Reach) -> Iterator[Finding]:
 
 
 def _visual_stage(episode: Episode, reach: Reach) -> Iterator[Finding]:
-    """A visual must name a stage that exists and steps that stage can draw, in spoken order."""
-    level = _gate_level(episode)
+    """A visual must name a stage that exists and steps that stage can draw, in spoken order.
+
+    An error at every status: a visual no stage can draw is wrong in a draft too.
+    """
     for owner, visual, text in _visual_units(episode):
         issues = stage_problems(visual)
         if not any(_unspoken(owner, visual, text)):  # step-anchor already reports those
             issues += order_problems(visual, text)
         for issue in issues:
-            yield Finding(level, "visual-stage", owner, issue)
+            yield Finding("error", "visual-stage", owner, issue)
 
 
 def _short_visual(episode: Episode, reach: Reach) -> Iterator[Finding]:

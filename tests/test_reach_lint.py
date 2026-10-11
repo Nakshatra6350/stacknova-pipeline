@@ -85,13 +85,14 @@ def test_standalone_short_without_a_script_is_an_error(
     assert found(lint_episode(episode, reach), "short-source") == [("error", "short-2")]
 
 
-def test_a_layout_without_a_stage_blocks_rendering_but_not_drafting(
+def test_a_layout_without_a_stage_is_an_error_even_in_a_draft(
     episode: Data, reach: Data
 ) -> None:
+    # Nothing can draw it, so waiting for ready_to_render to say so would only hide the mistake.
     episode["segments"][0]["visual"]["layout"] = "phone-and-bank"
     assert found(lint_episode(episode, reach), "visual-stage") == [("error", "s01")]
     episode["status"] = "draft"
-    assert found(lint_episode(episode, reach), "visual-stage") == [("warning", "s01")]
+    assert found(lint_episode(episode, reach), "visual-stage") == [("error", "s01")]
 
 
 def test_a_step_the_stage_cannot_draw_is_reported(episode: Data, reach: Data) -> None:

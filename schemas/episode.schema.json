@@ -7,11 +7,11 @@
   "additionalProperties": false,
   "$defs": {
     "scene": {
-      "description": "One stage and its timed steps. Stage-specific keys (nodes, lanes, table, header) sit beside these; docs/VISUAL_DSL.md lists them.",
+      "description": "One stage and its timed steps. Stage-specific keys (nodes, actors, cards, sources, lines, header, ...) sit beside these; docs/VISUAL_DSL.md lists them.",
       "type": "object",
       "required": ["layout", "steps"],
       "properties": {
-        "layout": {"type": "string", "description": "stage name, e.g. flow"},
+        "layout": {"type": "string", "description": "stage name: flow, sequence, cards, fanin or code"},
         "from": {"type": "string", "description": "phrase at which this scene takes over; required on every scene of a list except the first"},
         "steps": {
           "type": "array",
@@ -20,7 +20,10 @@
             "required": ["at", "action", "target"],
             "properties": {
               "at": {"type": "string", "description": "phrase in the narration that triggers the step, or 'start'. Steps are listed in spoken order; a repeated phrase means its next occurrence."},
-              "action": {"enum": ["add", "animate", "highlight", "arrow", "break_arrow", "crash", "label", "code", "move", "clear", "press", "send", "row", "chip", "badge", "tag", "block", "dim", "focus", "title", "timeout"]},
+              "action": {
+                "description": "what happens; each stage has its own list (docs/VISUAL_DSL.md)",
+                "enum": ["apply", "badge", "block", "chip", "dim", "divider", "fire", "focus", "highlight", "mark", "message", "note", "press", "row", "send", "set", "show", "tag", "timeout", "title"]
+              },
               "target": {"type": "string"},
               "params": {"type": "object"}
             }

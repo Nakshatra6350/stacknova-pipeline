@@ -10,11 +10,18 @@ from dataclasses import dataclass
 from itertools import pairwise
 from typing import Any
 
-from channel_os.scenes import flow_model
+from channel_os.scenes import cards_model, code_model, fanin_model, flow_model, sequence_model
 from channel_os.scenes.phrases import anchors, find_offset, normalise, time_at
 
-# layout name -> checker for its declaration and steps. Layouts not listed have no stage yet.
-STAGES: Mapping[str, Any] = {"flow": flow_model}
+# layout name -> the module that checks its declaration and steps (`problems`, `ACTIONS`).
+# Layouts not listed have no stage. scenes.preview.BUILDERS lists who draws each one.
+STAGES: Mapping[str, Any] = {
+    "flow": flow_model,
+    "sequence": sequence_model,
+    "cards": cards_model,
+    "fanin": fanin_model,
+    "code": code_model,
+}
 _RESERVED = frozenset({"layout", "from", "steps"})
 
 

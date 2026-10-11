@@ -9,16 +9,26 @@ from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
 from channel_os.assemble.ffmpeg import run_ffmpeg
+from channel_os.scenes.cards import build_cards
+from channel_os.scenes.code import build_code
+from channel_os.scenes.fanin import build_fanin
 from channel_os.scenes.flow import build_flow
 from channel_os.scenes.formats import Format
 from channel_os.scenes.kit import Canvas
 from channel_os.scenes.plan import Clip
 from channel_os.scenes.render import RenderError, Update, count_frames, render_scene
+from channel_os.scenes.sequence import build_sequence
 from channel_os.scenes.spec import SceneSpec
 from channel_os.scenes.theme import Theme, Themes
 
 # layout name -> the function that draws it. spec.STAGES lists the same names for validation.
-BUILDERS: Mapping[str, Callable[[Canvas, SceneSpec], Update]] = {"flow": build_flow}
+BUILDERS: Mapping[str, Callable[[Canvas, SceneSpec], Update]] = {
+    "flow": build_flow,
+    "sequence": build_sequence,
+    "cards": build_cards,
+    "fanin": build_fanin,
+    "code": build_code,
+}
 
 
 def render_preview(clips: Sequence[Clip], fmt: Format, theme: Theme, fonts: Themes,

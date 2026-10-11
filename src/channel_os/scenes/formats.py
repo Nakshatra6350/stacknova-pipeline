@@ -6,6 +6,7 @@ All geometry is in pixels of the final frame, origin top-left.
 from dataclasses import dataclass
 
 FPS = 30
+MONO_ADVANCE = 0.6  # width of one character of the mono face (JetBrains Mono), in ems
 
 
 @dataclass(frozen=True)

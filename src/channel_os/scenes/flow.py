@@ -43,6 +43,7 @@ class _Stage(Stage):
         self.buttons: dict[str, tuple[Any, tuple[float, float]]] = {}
         self.ledger_rows: dict[str, int] = {}
         self.table_pulses: dict[str, list[float]] = {}  # row id -> when its glow pulses
+        self.table_ys: dict[str, float] = {}
         self.bad_rows: dict[str, list[float]] = {}
         self.lower_parts: list[Part] = []
         self.lower_appear = math.inf
@@ -265,12 +266,16 @@ class _Stage(Stage):
     def _mark(self, lane: str, node_id: str, value: str, when: float) -> None:
         assert self.plan.lanes is not None
         row = self.plan.lanes.rows[lane]
-        x, y = row.xs[node_id], row.y - 46 * self.g
+        # Lanes that sit close together leave less room above a node, so the mark shrinks.
+        ys = sorted(other.y for other in self.plan.lanes.rows.values())
+        tight = len(ys) > 1 and ys[1] - ys[0] < 100 * self.g
+        x, y = row.xs[node_id], row.y - (36 if tight else 46) * self.g
         groups = ("lanes", f"lane:{lane}")
         if value == "ok":
-            mob = self.c.check(x, y, 20 * self.g, self.th.ok)
+            mob = self.c.check(x, y, (15 if tight else 20) * self.g, self.th.ok)
         else:
-            mob = self.c.text(value, x, y, 26 * self.g, self.th.bad, weight="BOLD")
+            mob = self.c.text(value, x, y, (19 if tight else 26) * self.g, self.th.bad,
+                              weight="BOLD")
             self.ping((x, row.y), 26 * self.g, self.th.bad, when, groups)
         made = self.part(mob, "marks", groups, when)
         self.replace((f"{lane}:{node_id}", "mark"), made, when)
@@ -328,23 +333,31 @@ class _Stage(Stage):
     def _table_row(self, params: Mapping[str, Any], when: float) -> None:
         c, th, g, table = self.c, self.th, self.g, self.plan.table
         assert table is not None
-        rect, index = table.rect, len(self.table_pulses)
-        if index >= TABLE_ROWS:
-            raise SceneError(f"the table has room for {TABLE_ROWS} rows")
-        y = rect.y0 + 78 * g + index * 46 * g
+        rect = table.rect
         cells = [str(cell) for cell in params.get("cells", [])]
-        glow = self.part(c.rrect(rect.cx, y, rect.w - 20 * g, 40 * g, 9 * g, th.accent, th.accent,
-                                 0.16, 2.5), "details", ("table",), when)
-        pulses = [when]
-        glow.gain = lambda t: max((bump(t, p, p + 1.2) for p in pulses), default=0.0)
-        self.table_pulses[str(params.get("id", index + 1))] = pulses
-        if cells:
-            self.part(c.text(cells[0], rect.x0 + 22 * g, y, 24 * g, th.ink, anchor="l"),
-                      "details", ("table",), when)
+        row_id = str(params.get("id", len(self.table_pulses) + 1))
+        if row_id in self.table_pulses:  # the row exists: its value changes in place
+            self.table_pulses[row_id].append(when)
+            y = self.table_ys[row_id]
+        else:
+            index = len(self.table_pulses)
+            if index >= TABLE_ROWS:
+                raise SceneError(f"the table has room for {TABLE_ROWS} rows")
+            y = rect.y0 + 78 * g + index * 46 * g
+            glow = self.part(c.rrect(rect.cx, y, rect.w - 20 * g, 40 * g, 9 * g, th.accent,
+                                     th.accent, 0.16, 2.5), "details", ("table",), when)
+            pulses = [when]
+            glow.gain = lambda t: max((bump(t, p, p + 1.2) for p in pulses), default=0.0)
+            self.table_pulses[row_id] = pulses
+            self.table_ys[row_id] = y
+            if cells:
+                self.part(c.text(cells[0], rect.x0 + 22 * g, y, 24 * g, th.ink, anchor="l",
+                                 max_width=rect.w * 0.5), "details", ("table",), when)
         if len(cells) > 1:
             colour = self.status_colour(params.get("status", "ok"))
-            self.part(c.text(cells[1], rect.x1 - 22 * g, y, 24 * g, colour, anchor="r"),
-                      "details", ("table",), when)
+            value = self.part(c.text(cells[1], rect.x1 - 22 * g, y, 24 * g, colour, anchor="r",
+                                     max_width=rect.w * 0.42), "details", ("table",), when)
+            self.replace((f"table:{row_id}", "value"), value, when)
 
     def _chip(self, node_id: str, params: Mapping[str, Any], when: float) -> None:
         slot = (node_id, "chip")

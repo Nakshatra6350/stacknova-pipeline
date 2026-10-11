@@ -13,7 +13,7 @@ import manimpango
 import numpy as np
 from manim import WHITE, Arc, Circle, Dot, Line, RoundedRectangle, Text, VGroup, VMobject
 
-from channel_os.scenes.formats import Format, Rect
+from channel_os.scenes.formats import MONO_ADVANCE, Format, Rect
 from channel_os.scenes.theme import Theme, Themes
 
 UNIT = 1 / 135  # scene units per pixel: the frame is 8 units across its short side
@@ -178,6 +178,34 @@ class Canvas:
             label.set_x(target[0] - label.width / 2)
         else:
             label.set_x(target[0])
+        return label
+
+
+    def mono_advance(self, px: float) -> float:
+        """Pixels from one character of the mono face to the next at size `px`."""
+        return MONO_ADVANCE * px * self.fmt.text_scale
+
+    def code_text(self, value: str, x: float, y: float, px: float, colour: str) -> Any:
+        """A stretch of code in the mono face whose first column is exactly at pixel `x`.
+
+        `text` places a label by its ink, which is right for labels and wrong for code: columns
+        must line up whatever the first letter is. Here the pen position is what is placed, so
+        a listing can be built from separately coloured stretches. Leading spaces count.
+        """
+        use_font(self.mono, "NORMAL")
+        body = value.lstrip(" ")
+        indent = len(value) - len(body)
+        label = Text("Hg" + body, font=self.mono, font_size=RASTER_FONT_SIZE, color=WHITE)
+        label.scale(px * self.fmt.text_scale * FONT_UNITS_PER_PX / RASTER_FONT_SIZE)
+        label.set_color(colour)
+        target = self.point(x, y)
+        # "H" sits two columns left of the text; putting it there puts the text at x.
+        anchor = label.submobjects[0]
+        columns = (indent - 2) * self.mono_advance(px) * UNIT
+        label.shift(np.array([target[0] + columns - anchor.get_left()[0],
+                              target[1] - label.get_center()[1], 0.0]))
+        for glyph in list(label.submobjects[:2]):
+            label.remove(glyph)
         return label
 
 

@@ -10,7 +10,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from channel_os.scenes.formats import Format, Rect
+from channel_os.scenes.formats import MONO_ADVANCE, Format, Rect
 
 ACTIONS = frozenset(
     {"press", "send", "row", "chip", "badge", "tag", "block", "dim", "focus", "title",
@@ -21,7 +21,6 @@ STATUSES = ("ok", "bad", "info")
 NODE_SIZES = {"phone": (170.0, 260.0), "service": (210.0, 150.0), "ledger": (230.0, 230.0)}
 MIN_RAIL = 90.0  # a packet needs room to be seen travelling
 LANE_LABEL_PX = 25.0
-MONO_ADVANCE = 0.6  # width of a JetBrains Mono character, in ems
 
 
 @dataclass(frozen=True)

@@ -111,12 +111,23 @@ class Stage:
 
     def pill(self, text: str, x: float, y: float, px: float, colour: str, height: float,
              groups: tuple[str, ...], when: float | None, weight: str = "NORMAL",
-             layer: str = "marks") -> Part:
+             layer: str = "marks", solid: bool = False, keep_inside: bool = False) -> Part:
+        """A rounded label. `solid` hides what is behind it; `keep_inside` nudges it sideways
+        so it does not leave the content area."""
         c = self.c
         label = c.text(text, x, y, px, colour, weight=weight)
         width = label.width / UNIT + 0.9 * height
+        if keep_inside:
+            area = c.fmt.content
+            inside = min(max(x, area.x0 + width / 2 + 2), area.x1 - width / 2 - 2)
+            label.shift(c.point(inside, y) - c.point(x, y))
+            x = inside
         box = c.rrect(x, y, width, height, height / 2, colour, colour, 0.14, 2.5)
-        return self.part(VGroup(box, label), layer, groups, when)
+        members = [box, label]
+        if solid:
+            members.insert(0, c.rrect(x, y, width, height, height / 2, self.th.bg, self.th.bg,
+                                      1.0, 0))
+        return self.part(VGroup(*members), layer, groups, when)
 
     def ping(self, at: tuple[float, float], radius: float, colour: str, when: float,
              groups: tuple[str, ...], grow: float = 1.4) -> None:

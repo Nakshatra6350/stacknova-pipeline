@@ -66,12 +66,27 @@ segments:
       to close it, and why "exactly-once delivery" is a promise no network can keep.
     emphasis: [two charges, exactly what it was told, exactly-once]
     visual:
-      layout: phone-and-bank
+      layout: flow
+      header: ["CHECKOUT", "ORDER #4171"]
+      nodes:
+        - {id: you, kind: phone, label: you, amount: "$100.00", button: Pay}
+        - {id: server, kind: service, label: server, title: api}
+        - {id: bank, kind: ledger, label: "your bank", title: statement}
       steps:
-        - {at: "tapped Pay", action: add, target: phone, params: {screen: pay_button}}
-        - {at: "spinner", action: animate, target: phone, params: {screen: spinner}}
-        - {at: "tried again", action: highlight, target: phone, params: {screen: retry}}
-        - {at: "two charges", action: add, target: bank_statement, params: {rows: 2, flash: true}}
+        - {at: "tapped Pay", action: press, target: you}
+        - {at: "tapped Pay", action: send, target: "you->bank", params: {row: {text: "$100", status: ok}}}
+        - {at: "The spinner", action: chip, target: you, params: {text: waiting, status: info}}
+        - {at: "Something went wrong", action: send, target: "server->you", params: {role: reply, lost: 0.5, chip: {text: "try again", status: bad}}}
+        - {at: "tried again", action: chip, target: you, params: {clear: true}}
+        - {at: "tried again", action: press, target: you}
+        - {at: "tried again", action: send, target: "you->bank", params: {role: retry, row: {text: "$100", status: bad}}}
+        - {at: "two charges", action: badge, target: bank, params: {text: "TWO CHARGES", status: bad}}
+        - {at: "Nobody wrote", action: highlight, target: server}
+        - {at: "exactly what it was told", action: tag, target: server, params: {text: "no bug here"}}
+        - {at: "the exact gap", action: block, target: "server->you", params: {text: "the gap"}}
+        - {at: "the one pattern", action: tag, target: you, params: {text: "one key"}}
+        - {at: "exactly-once delivery", action: tag, target: server, params: {text: "exactly-once?", status: bad}}
+        - {at: "no network can keep", action: highlight, target: bank}
 
   - id: s02
     title: Silence has three causes
@@ -87,14 +102,41 @@ segments:
       retry means a second charge.
     emphasis: [three possibilities, silence, second charge]
     visual:
-      layout: client-server-db
+      layout: flow
+      header: ["ONE API CALL", "NO RESPONSE"]
+      nodes:
+        - {id: client, kind: phone, label: client, amount: "$100.00", button: Pay}
+        - {id: server, kind: service, label: server, title: api}
+        - {id: bank, kind: ledger, label: bank, title: ledger}
+      lanes:
+        title: "no response. three possible stories:"
+        rows:
+          - {id: a, label: "1  never arrived"}
+          - {id: b, label: "2  crashed first"}
+          - {id: c, label: "3  charged, reply lost"}
       steps:
-        - {at: "client sends a request", action: arrow, target: client->server}
-        - {at: "never reached", action: break_arrow, target: client->server, params: {label: "1"}}
-        - {at: "crashed", action: crash, target: server, params: {label: "2"}}
-        - {at: "charged the card", action: arrow, target: server->db, params: {label: "3"}}
-        - {at: "got lost", action: break_arrow, target: server->client}
-        - {at: "all three look identical", action: label, target: client, params: {text: "?"}}
+        - {at: "The client sends a request", action: press, target: client}
+        - {at: "The client sends a request", action: send, target: "client->server"}
+        - {at: "the server does the work", action: send, target: "server->bank", params: {row: {text: "$100", status: ok}}}
+        - {at: "the server sends a response", action: send, target: "bank->client", params: {role: reply, chip: {text: paid, status: ok}}}
+        - {at: "the client retries", action: highlight, target: client}
+        - {at: "hides a question", action: chip, target: client, params: {clear: true}}
+        - {at: "hides a question", action: dim, target: main}
+        - {at: "gets no response", action: timeout, target: lanes}
+        - {at: "three possibilities", action: title, target: lanes}
+        - {at: "never reached the server", action: send, target: "a:client->server", params: {lost: 0.6}}
+        - {at: "a retry is safe", action: send, target: "a:client->bank", params: {role: retry, mark: ok}}
+        - {at: "crashed before", action: send, target: "b:client->server", params: {mark: crash}}
+        - {at: "Also safe", action: send, target: "b:client->bank", params: {role: retry, mark: ok}}
+        - {at: "charged the card", action: send, target: "c:client->bank", params: {mark: ok}}
+        - {at: "got lost on the way back", action: send, target: "c:server->client", params: {role: reply, lost: 0.5}}
+        - {at: "From the client's side", action: focus, target: main}
+        - {at: "all three look identical", action: chip, target: client, params: {text: silence, status: bad}}
+        - {at: "property of networks", action: tag, target: server, params: {text: "not a bug"}}
+        - {at: "in case three", action: dim, target: a}
+        - {at: "in case three", action: dim, target: b}
+        - {at: "a retry means", action: send, target: "c:client->bank", params: {role: retry, mark: x2}}
+        - {at: "second charge", action: badge, target: bank, params: {text: "SECOND CHARGE", status: bad}}
 
   - id: s03
     title: Retries are guaranteed
@@ -108,14 +150,31 @@ segments:
       do I stop duplicates from arriving?" It's "how do I make a duplicate harmless?"
     emphasis: [at-least-once, harmless]
     visual:
-      layout: retry-sources
+      layout: fanin
+      header: ["WHO RETRIES?", "EVERYONE"]
+      sources:
+        - {id: http, label: "HTTP client"}
+        - {id: mesh, label: "service mesh"}
+        - {id: app, label: "mobile app"}
+        - {id: user, label: "the user"}
+        - {id: queue, label: "message queue"}
+      target: {id: api, label: "your service", title: api}
+      counter: "copies of one request"
       steps:
-        - {at: "HTTP client", action: add, target: chip, params: {text: "HTTP client"}}
-        - {at: "service mesh", action: add, target: chip, params: {text: "service mesh"}}
-        - {at: "mobile app", action: add, target: chip, params: {text: "mobile app"}}
-        - {at: "user retries", action: add, target: chip, params: {text: "user"}}
-        - {at: "message queue", action: add, target: chip, params: {text: "queue redelivery"}}
-        - {at: "at-least-once", action: label, target: center, params: {text: "at-least-once"}}
+        - {at: "never retry", action: tag, target: api, params: {text: "never retry?"}}
+        - {at: "lost payments", action: badge, target: api, params: {text: "LOST PAYMENTS", status: bad}}
+        - {at: "retries happen", action: tag, target: api, params: {text: "retries happen anyway"}}
+        - {at: "Your HTTP client", action: fire, target: http}
+        - {at: "Your service mesh", action: fire, target: mesh}
+        - {at: "The mobile app retries", action: fire, target: app}
+        - {at: "The user retries", action: fire, target: user}
+        - {at: "A message queue redelivers", action: fire, target: queue}
+        - {at: "assume every request", action: fire, target: http}
+        - {at: "more than once", action: fire, target: user}
+        - {at: "at-least-once delivery", action: badge, target: api, params: {text: "AT-LEAST-ONCE", status: info}}
+        - {at: "stop duplicates", action: fire, target: mesh}
+        - {at: "make a duplicate harmless", action: badge, target: api, params: {text: "MAKE IT HARMLESS", status: ok}}
+        - {at: "make a duplicate harmless", action: highlight, target: api}
 
   - id: s04
     title: What idempotent means
@@ -128,11 +187,46 @@ segments:
       ourselves.
     emphasis: [idempotency, twice, once, POST]
     visual:
-      layout: two-columns
-      steps:
-        - {at: "Setting a user's email", action: add, target: left, params: {text: "SET email = x  ✓"}}
-        - {at: "Add a hundred dollars", action: add, target: right, params: {text: "balance += 100  ✗"}}
-        - {at: "GET, PUT and DELETE", action: add, target: table, params: {rows: [GET ✓, PUT ✓, DELETE ✓, POST ✗]}}
+      - layout: cards
+        header: ["IDEMPOTENT?", "DO IT TWICE"]
+        title: "twice has the same effect as once"
+        cards:
+          - id: set
+            title: "SET email = x"
+            lines: [{id: state, key: email, value: "old"}]
+          - id: add
+            title: "balance += 100"
+            lines: [{id: state, key: balance, value: "$0"}]
+        steps:
+          - {at: "doing it twice", action: highlight, target: set}
+          - {at: "doing it twice", action: highlight, target: add}
+          - {at: "Setting a user's email", action: dim, target: add}
+          - {at: "Setting a user's email", action: apply, target: set, params: {line: state, value: "x", status: ok}}
+          - {at: "do it ten times", action: apply, target: set, params: {line: state, value: "x", status: ok}}
+          - {at: "you end in", action: apply, target: set, params: {line: state, value: "x", status: ok}}
+          - {at: "the same state", action: mark, target: set, params: {status: ok}}
+          - {at: "the same state", action: badge, target: set, params: {text: IDEMPOTENT, status: ok}}
+          - {at: "Add a hundred dollars", action: focus, target: add}
+          - {at: "Add a hundred dollars", action: apply, target: add, params: {line: state, value: "$100"}}
+          - {at: "do it twice and", action: apply, target: add, params: {line: state, value: "$200", status: bad}}
+          - {at: "added two hundred", action: mark, target: add, params: {status: bad}}
+          - {at: "added two hundred", action: badge, target: add, params: {text: "NOT IDEMPOTENT", status: bad}}
+      - layout: cards
+        from: "HTTP already defines"
+        header: ["HTTP METHODS", "SAFE TO REPEAT?"]
+        title: "what HTTP itself promises"
+        cards:
+          - {id: get, title: GET, text: "read"}
+          - {id: put, title: PUT, text: "replace"}
+          - {id: delete, title: DELETE, text: "remove"}
+          - {id: post, title: POST, text: "create"}
+        steps:
+          - {at: "GET, PUT and DELETE", action: mark, target: get, params: {status: ok}}
+          - {at: "PUT and DELETE", action: mark, target: put, params: {status: ok}}
+          - {at: "DELETE as idempotent", action: mark, target: delete, params: {status: ok}}
+          - {at: "POST is not", action: mark, target: post, params: {status: bad}}
+          - {at: "create a payment", action: badge, target: post, params: {text: "create a payment", status: bad}}
+          - {at: "make it idempotent ourselves", action: highlight, target: post}
 
   - id: s05
     title: The idempotency key
@@ -146,13 +240,32 @@ segments:
       exactly like a successful first attempt. The duplicate became harmless.
     emphasis: [Idempotency-Key, same key, saved response]
     visual:
-      layout: client-server-db
+      layout: flow
+      header: ["IDEMPOTENCY-KEY", "REQ #4172"]
+      nodes:
+        - {id: client, kind: phone, label: client, amount: "$100.00", button: Pay}
+        - {id: server, kind: service, label: server, title: api}
+        - {id: bank, kind: ledger, label: bank, title: ledger}
+      table: {title: idempotency_keys, owner: server}
       steps:
-        - {at: "generates a unique ID", action: label, target: client, params: {text: "key = 7f3c…"}}
-        - {at: "sends it in a header", action: arrow, target: client->server, params: {label: "Idempotency-Key: 7f3c…"}}
-        - {at: "look the key up", action: arrow, target: server->db, params: {label: "seen 7f3c?"}}
-        - {at: "save the response", action: add, target: db_row, params: {text: "7f3c | completed | 201 {...}"}}
-        - {at: "return the saved response", action: arrow, target: server->client, params: {label: "201 (replayed)"}}
+        - {at: "generates a unique ID", action: tag, target: client, params: {text: "key 7f3c"}}
+        - {at: "sends it in a header", action: press, target: client}
+        - {at: "sends it in a header", action: send, target: "client->server", params: {tag: "7f3c"}}
+        - {at: "Every retry", action: highlight, target: client}
+        - {at: "we look the key up", action: title, target: table}
+        - {at: "Never seen it", action: highlight, target: table}
+        - {at: "Record it", action: row, target: table, params: {id: k, cells: ["7f3c", "in progress"], status: info}}
+        - {at: "do the work", action: send, target: "server->bank", params: {tag: "7f3c", row: {text: "$100", status: ok}}}
+        - {at: "save the response", action: row, target: table, params: {id: k, cells: ["7f3c", "201 saved"], status: ok}}
+        - {at: "save the response", action: send, target: "server->client", params: {role: reply, lost: 0.5, chip: {text: timeout, status: bad}}}
+        - {at: "Seen it", action: chip, target: client, params: {clear: true}}
+        - {at: "Seen it", action: press, target: client}
+        - {at: "Seen it", action: send, target: "client->server", params: {role: retry, tag: "7f3c"}}
+        - {at: "the work is finished", action: highlight, target: "table:k"}
+        - {at: "Don't charge again", action: block, target: "server->bank", params: {text: "no second charge"}}
+        - {at: "return the saved response", action: send, target: "server->client", params: {role: reply, chip: {text: "201", status: ok}}}
+        - {at: "successful first attempt", action: highlight, target: client}
+        - {at: "became harmless", action: badge, target: bank, params: {text: "CHARGED ONCE", status: ok}}
 
   - id: s06
     title: The race most tutorials miss
@@ -168,14 +281,64 @@ segments:
       "completed" with the stored response, and every later retry gets that response back.
     emphasis: [Both charge, database decide, unique constraint, 409 Conflict]
     visual:
-      layout: race-timeline
-      steps:
-        - {at: "still running", action: add, target: lane_a, params: {text: "request #1"}}
-        - {at: "retry arrives", action: add, target: lane_b, params: {text: "request #2"}}
-        - {at: "Both charge", action: crash, target: both, params: {text: "$ $"}}
-        - {at: "unique constraint", action: code, target: code, params: {sample: go, lines: "50-62"}}
-        - {at: "database refuses", action: highlight, target: lane_b, params: {text: "INSERT … conflict"}}
-        - {at: "409 Conflict", action: label, target: lane_b, params: {text: "409 retry later"}}
+      # Scene 1: check, then charge. Both requests pass the check.
+      - layout: sequence
+        header: ["THE RACE", "CHECK, THEN CHARGE"]
+        actors:
+          - {id: r1, label: "request #1", kind: client}
+          - {id: db, label: "keys table", kind: store}
+          - {id: r2, label: "the retry", kind: client}
+        steps:
+          - {at: "first request is still running", action: message, target: "r1->db", params: {text: "seen 7f3c?"}}
+          - {at: "the card network is slow", action: message, target: "db->r1", params: {text: "no", role: reply}}
+          - {at: "the retry arrives", action: highlight, target: r2}
+          - {at: "Both requests check", action: message, target: "r2->db", params: {text: "seen 7f3c?", role: retry}}
+          - {at: "Neither finds", action: message, target: "db->r2", params: {text: "no", role: reply}}
+          - {at: "Both charge", action: note, target: r1, params: {text: "charge $100", status: bad}}
+          - {at: "Both charge", action: note, target: r2, params: {text: "charge $100", status: bad, same_row: true}}
+          - {at: "two charges", action: badge, target: db, params: {text: "TWO CHARGES", status: bad}}
+      # Scene 2: the constraint that lets the database pick one winner.
+      - layout: code
+        from: "The fix is to let"
+        header: ["THE FIX", "LET THE DATABASE DECIDE"]
+        title: claim_key.sql
+        language: sql
+        reveal: true
+        lines:
+          - "CREATE TABLE idempotency_keys ("
+          - "  key      text PRIMARY KEY,"
+          - "  status   text NOT NULL,"
+          - "  response jsonb"
+          - ");"
+          - ""
+          - "INSERT INTO idempotency_keys (key, status)"
+          - "VALUES ($1, 'in_progress')"
+          - "ON CONFLICT (key) DO NOTHING;"
+        steps:
+          - {at: "The fix is to let", action: show, target: "1-5"}
+          - {at: "Make the key a primary key", action: highlight, target: "2"}
+          - {at: "unique constraint", action: note, target: "2", params: {text: "one row per key, enforced by the database", status: ok}}
+          - {at: "The first request inserts", action: show, target: "7-9"}
+          - {at: "The first request inserts", action: highlight, target: "7-9"}
+          - {at: "in progress", action: note, target: "8", params: {text: "the first INSERT wins the key", status: info}}
+      # Scene 3: the same race again, now with the constraint.
+      - layout: sequence
+        from: "The second request tries"
+        header: ["THE RACE", "WITH A UNIQUE KEY"]
+        actors:
+          - {id: r1, label: "request #1", kind: client}
+          - {id: db, label: "keys table", kind: store}
+          - {id: r2, label: "the retry", kind: client}
+        steps:
+          - {at: start, action: message, target: "r1->db", params: {text: "INSERT 7f3c"}}
+          - {at: start, action: note, target: db, params: {text: "7f3c in progress", status: info}}
+          - {at: "tries to insert the same key", action: message, target: "r2->db", params: {text: "INSERT 7f3c", role: retry}}
+          - {at: "the database refuses", action: message, target: "db->r2", params: {text: "conflict", role: reply, status: bad}}
+          - {at: "It must not charge", action: note, target: r2, params: {text: "no charge", status: ok}}
+          - {at: "409 Conflict", action: badge, target: r2, params: {text: "409 RETRY LATER", status: info}}
+          - {at: "the first request finishes", action: message, target: "r1->db", params: {text: "UPDATE completed"}}
+          - {at: "every later retry", action: message, target: "db->r2", params: {text: "saved 201", role: reply, status: ok}}
+          - {at: "gets that response back", action: badge, target: db, params: {text: "ONE WINNER", status: ok}}
 
   - id: s07
     title: Same key, different request
@@ -188,12 +351,37 @@ segments:
       so the bug shows up loudly instead of silently.
     emphasis: [fingerprint, reject]
     visual:
-      layout: compare-cards
+      layout: cards
+      header: ["SAME KEY", "DIFFERENT REQUEST"]
+      title: "one key, two different payments"
+      cards:
+        - id: first
+          title: "request A"
+          lines:
+            - {id: key, key: key, value: "7f3c"}
+            - {id: amount, key: amount, value: "$100"}
+            - {id: hash, key: fingerprint, value: "-"}
+        - id: second
+          title: "request B"
+          hidden: true
+          lines:
+            - {id: key, key: key, value: "7f3c"}
+            - {id: amount, key: amount, value: "$500"}
+            - {id: hash, key: fingerprint, value: "-"}
       steps:
-        - {at: "Same key", action: add, target: card_a, params: {text: "key 7f3c · $100"}}
-        - {at: "five hundred dollars", action: add, target: card_b, params: {text: "key 7f3c · $500"}}
-        - {at: "fingerprint", action: label, target: both, params: {text: "sha256(body)"}}
-        - {at: "reject it", action: highlight, target: card_b, params: {text: "422 key reused"}}
+        - {at: "reuses a key", action: show, target: second}
+        - {at: "Same key", action: highlight, target: first.key}
+        - {at: "Same key", action: highlight, target: second.key}
+        - {at: "five hundred dollars", action: set, target: second.amount, params: {value: "$500", status: bad}}
+        - {at: "blindly replay", action: badge, target: second, params: {text: "replayed as paid?", status: bad}}
+        - {at: "store a fingerprint", action: set, target: first.hash, params: {value: "9a1f", status: info}}
+        - {at: "a hash of its body", action: set, target: second.hash, params: {value: "c04e", status: info}}
+        - {at: "compare fingerprints", action: highlight, target: first.hash}
+        - {at: "compare fingerprints", action: highlight, target: second.hash}
+        - {at: "Same fingerprint", action: mark, target: first, params: {status: ok}}
+        - {at: "Same fingerprint", action: badge, target: first, params: {text: REPLAY, status: ok}}
+        - {at: "Different fingerprint", action: mark, target: second, params: {status: bad}}
+        - {at: "reject it", action: badge, target: second, params: {text: "422 KEY REUSED", status: bad}}
 
   - id: s08
     title: The chain downstream
@@ -208,11 +396,34 @@ segments:
       holds if every link holds.
     emphasis: [downstream, chain, every link]
     visual:
-      layout: chain
+      layout: flow
+      header: ["DOWNSTREAM", "THE SAME PROBLEM AGAIN"]
+      nodes:
+        - {id: client, kind: phone, label: client, amount: "$100.00", button: Pay}
+        - {id: server, kind: service, label: "your server", title: api}
+        - {id: gateway, kind: service, label: "payment gateway", title: gateway}
+        - {id: bank, kind: ledger, label: bank, title: ledger}
       steps:
-        - {at: "calls a payment gateway", action: arrow, target: server->gateway}
-        - {at: "pass an idempotency key downstream", action: label, target: server->gateway, params: {text: "Idempotency-Key: pay-7f3c…"}}
-        - {at: "every link holds", action: highlight, target: chain, params: {}}
+        - {at: "Now zoom out", action: tag, target: client, params: {text: "key 7f3c"}}
+        - {at: "Now zoom out", action: send, target: "client->server", params: {tag: "7f3c"}}
+        - {at: "calls a payment gateway", action: send, target: "server->bank", params: {row: {text: "$100", status: ok}}}
+        - {at: "that call times out", action: send, target: "gateway->server", params: {role: reply, lost: 0.5, chip: {text: timeout, status: bad}}}
+        - {at: "you are now the client", action: highlight, target: server}
+        - {at: "pass an idempotency key downstream", action: tag, target: server, params: {text: "key pay-7f3c"}}
+        - {at: "Derive it from your own key", action: highlight, target: client}
+        - {at: "a retry of your operation", action: chip, target: server, params: {clear: true}}
+        - {at: "a retry of your operation", action: send, target: "server->gateway", params: {role: retry, tag: "pay-7f3c"}}
+        - {at: "never a new charge", action: block, target: "gateway->bank", params: {text: "seen it"}}
+        - {at: "never a new charge", action: send, target: "gateway->server", params: {role: reply, chip: {text: paid, status: ok}}}
+        - {at: "unknown outcome", action: chip, target: server, params: {text: unknown, status: bad}}
+        - {at: "don't release the key", action: highlight, target: server}
+        - {at: "ask the gateway what happened", action: send, target: "server->gateway", params: {tag: "pay-7f3c"}}
+        - {at: "Idempotency isn't", action: send, target: "gateway->server", params: {role: reply, chip: {text: paid, status: ok}}}
+        - {at: "It's a chain", action: highlight, target: client}
+        - {at: "It's a chain", action: highlight, target: server}
+        - {at: "every link holds", action: highlight, target: gateway}
+        - {at: "every link holds", action: highlight, target: bank}
+        - {at: "every link holds", action: badge, target: bank, params: {text: "CHARGED ONCE", status: ok}}
 
   - id: s09
     title: From production
@@ -221,10 +432,12 @@ segments:
       owner's story bank (content/stories/), 60–90 seconds, framed as experience. Episode stays in
       draft until then.
     emphasis: []
-    visual:
-      layout: story-card
+    visual:              # placeholder until the story is written; this segment is not rendered
+      layout: cards
+      cards:
+        - {id: story, title: "From production", text: "the story goes here"}
       steps:
-        - {at: "start", action: add, target: card, params: {text: "From production"}}
+        - {at: start, action: highlight, target: story}
 
   - id: s10
     title: The trade-offs
@@ -237,12 +450,43 @@ segments:
       every retry. Generate a fresh key on each retry and you've built nothing.
     emphasis: [expiry, latency, once per operation]
     visual:
-      layout: checklist
+      layout: cards
+      header: ["THE TRADE-OFFS", "WHAT IT COSTS"]
+      title: "this isn't free"
+      cards:
+        - id: storage
+          title: storage
+          text: "every key is a row"
+          hidden: true
+          lines: [{id: v, key: "keep for", value: "?"}]
+        - id: latency
+          title: latency
+          text: "a write before the work"
+          hidden: true
+          lines: [{id: v, key: "per request", value: "+1 write"}]
+        - id: stored
+          title: "saved responses"
+          text: "you replay what you kept"
+          hidden: true
+          lines: [{id: v, key: contents, value: review}]
+        - id: client
+          title: "the client"
+          text: "one key per operation"
+          hidden: true
+          lines: [{id: v, key: "on a retry", value: "same key"}]
       steps:
-        - {at: "expiry", action: add, target: item, params: {text: "Expire keys (≥ 24 h)"}}
-        - {at: "latency", action: add, target: item, params: {text: "+1 write per request"}}
-        - {at: "storing responses", action: add, target: item, params: {text: "Mind what you store"}}
-        - {at: "fresh key on each retry", action: add, target: item, params: {text: "Same key on every retry"}}
+        - {at: "Every key is a row", action: show, target: storage}
+        - {at: "give keys an expiry", action: set, target: storage.v, params: {value: "a TTL", status: info}}
+        - {at: "twenty-four hours", action: set, target: storage.v, params: {value: ">= 24 h", status: ok}}
+        - {at: "You add a database write", action: show, target: latency}
+        - {at: "costs latency", action: highlight, target: latency.v}
+        - {at: "You're storing responses", action: show, target: stored}
+        - {at: "what's in them", action: highlight, target: stored.v}
+        - {at: "keys only work", action: show, target: client}
+        - {at: "reused on every retry", action: mark, target: client, params: {status: ok}}
+        - {at: "fresh key on each retry", action: set, target: client.v, params: {value: "new key", status: bad}}
+        - {at: "built nothing", action: mark, target: client, params: {status: bad}}
+        - {at: "built nothing", action: badge, target: client, params: {text: "BUILT NOTHING", status: bad}}
 
   - id: s11
     title: Exactly-once, honestly
@@ -253,9 +497,35 @@ segments:
       idempotency key gives you. Not fewer duplicates. Duplicates that don't matter.
     emphasis: [at-least-once, exactly-once effect, don't matter]
     visual:
-      layout: equation
-      steps:
-        - {at: "at-least-once delivery plus", action: add, target: eq, params: {text: "at-least-once + idempotent = exactly-once effect"}}
+      # Scene 1: what a real network does to "exactly-once delivery".
+      - layout: flow
+        header: ["EXACTLY-ONCE?", "OVER A REAL NETWORK"]
+        nodes:
+          - {id: sender, kind: service, label: sender, title: producer}
+          - {id: receiver, kind: service, label: receiver, title: consumer}
+          - {id: effects, kind: ledger, label: effects, title: applied}
+        steps:
+          - {at: "exactly-once delivery", action: tag, target: receiver, params: {text: "exactly-once?"}}
+          - {at: "Over a real network", action: send, target: "sender->effects", params: {tag: "msg 1", row: {text: "msg 1", status: ok}}}
+          - {at: "at-least-once", action: badge, target: receiver, params: {text: "AT-LEAST-ONCE", status: info}}
+          - {at: "arrive twice", action: send, target: "sender->effects", params: {role: retry, tag: "msg 1", row: {text: "msg 1", status: bad}}}
+      # Scene 2: the sum that does hold.
+      - layout: cards
+        from: "What you can build"
+        header: ["WHAT YOU CAN BUILD", "AN EFFECT, NOT A DELIVERY"]
+        joins: ["+", "="]
+        cards:
+          - {id: delivery, title: "at-least-once", text: "delivery", hidden: true}
+          - {id: processing, title: "idempotent", text: "processing", hidden: true}
+          - {id: effect, title: "exactly-once", text: "effect", hidden: true}
+        steps:
+          - {at: "exactly-once effect", action: show, target: effect}
+          - {at: "at-least-once delivery plus", action: show, target: delivery}
+          - {at: "idempotent processing", action: show, target: processing}
+          - {at: "idempotency key gives you", action: mark, target: effect, params: {status: ok}}
+          - {at: "Not fewer duplicates", action: apply, target: delivery, params: {role: retry}}
+          - {at: "Duplicates that don't matter", action: apply, target: delivery, params: {role: retry}}
+          - {at: "Duplicates that don't matter", action: highlight, target: effect}
 
   - id: s12
     title: Recap and next
@@ -268,10 +538,44 @@ segments:
       pattern. See you there.
     emphasis: [one winner, outbox pattern]
     visual:
-      layout: recap
-      steps:
-        - {at: "Recap", action: add, target: summary_diagram, params: {}}
-        - {at: "outbox pattern", action: add, target: next_card, params: {text: "Next: The Outbox Pattern"}}
+      # Scene 1: the whole chain, each move lighting up as it is named.
+      - layout: flow
+        header: ["RECAP", "IDEMPOTENCY IN FOUR MOVES"]
+        nodes:
+          - {id: client, kind: phone, label: client, amount: "$100.00", button: Pay}
+          - {id: server, kind: service, label: "your server", title: api}
+          - {id: gateway, kind: service, label: gateway, title: gateway}
+          - {id: bank, kind: ledger, label: bank, title: ledger}
+        table: {title: idempotency_keys, owner: server}
+        steps:
+          - {at: "Silence after a request", action: send, target: "server->client", params: {role: reply, lost: 0.5, chip: {text: "no reply", status: bad}}}
+          - {at: "Retries are guaranteed", action: press, target: client}
+          - {at: "Retries are guaranteed", action: send, target: "client->server", params: {role: retry}}
+          - {at: "a client-generated key", action: chip, target: client, params: {clear: true}}
+          - {at: "a client-generated key", action: tag, target: client, params: {text: "key 7f3c"}}
+          - {at: "a unique constraint", action: title, target: table}
+          - {at: "a unique constraint", action: badge, target: table, params: {text: UNIQUE, status: info}}
+          - {at: "one winner", action: row, target: table, params: {id: k, cells: ["7f3c", "completed"], status: ok}}
+          - {at: "a request fingerprint", action: row, target: table, params: {id: f, cells: ["fingerprint", "9a1f"], status: info}}
+          - {at: "keys passed downstream", action: tag, target: server, params: {text: "key pay-7f3c"}}
+          - {at: "keys passed downstream", action: send, target: "server->bank", params: {tag: "pay-7f3c", row: {text: "$100", status: ok}}}
+      # Scene 2: what the next episode is about.
+      - layout: cards
+        from: "Next episode"
+        header: ["NEXT EPISODE", "002"]
+        joins: ["+", "="]
+        cards:
+          - {id: db, title: "update your database", text: "one transaction", hidden: true}
+          - {id: event, title: "publish an event", text: "another system", hidden: true}
+          - {id: next, title: "The Outbox Pattern", text: "next episode", hidden: true}
+        steps:
+          - {at: "update your database", action: show, target: db}
+          - {at: "publish an event", action: show, target: event}
+          - {at: "can't share a transaction", action: mark, target: db, params: {status: bad}}
+          - {at: "can't share a transaction", action: mark, target: event, params: {status: bad}}
+          - {at: "the outbox pattern", action: show, target: next}
+          - {at: "the outbox pattern", action: mark, target: next, params: {status: ok}}
+          - {at: "See you there", action: highlight, target: next}
 
 shorts:
   - id: short-1
@@ -392,6 +696,39 @@ shorts:
       out. Create a payment twice and you've created two payments. So when your API takes a POST
       that moves money, you need an idempotency key to make the retry safe. GET, PUT, DELETE
       are safe by design. POST is safe only if you build it that way.
+    visual:
+      layout: cards
+      header: ["QUICK TEST", "SAFE TO RETRY?"]
+      title: "which of these is safe to retry?"
+      cards:
+        - {id: get, title: GET, lines: [{id: v, key: result, value: "?"}]}
+        - {id: put, title: PUT, lines: [{id: v, key: value, value: "?"}]}
+        - {id: delete, title: DELETE, lines: [{id: v, key: row, value: "?"}]}
+        - {id: post, title: POST, lines: [{id: v, key: payments, value: "?"}]}
+      steps:
+        - {at: "GET, PUT, DELETE, POST", action: highlight, target: get}
+        - {at: "PUT, DELETE, POST", action: highlight, target: put}
+        - {at: "DELETE, POST", action: highlight, target: delete}
+        - {at: "POST. HTTP", action: highlight, target: post}
+        - {at: "the first three as idempotent", action: mark, target: get, params: {status: ok}}
+        - {at: "the first three as idempotent", action: mark, target: put, params: {status: ok}}
+        - {at: "the first three as idempotent", action: mark, target: delete, params: {status: ok}}
+        - {at: "do them twice", action: apply, target: get, params: {line: v, value: same, status: ok}}
+        - {at: "doing them once", action: apply, target: get, params: {line: v, value: same, status: ok}}
+        - {at: "Setting a value twice", action: apply, target: put, params: {line: v, value: "x", status: ok}}
+        - {at: "changes nothing", action: apply, target: put, params: {line: v, value: "x", status: ok}}
+        - {at: "Deleting twice", action: apply, target: delete, params: {line: v, value: gone, status: ok}}
+        - {at: "still leaves it deleted", action: apply, target: delete, params: {line: v, value: gone, status: ok}}
+        - {at: "POST is the odd one out", action: highlight, target: post}
+        - {at: "Create a payment twice", action: apply, target: post, params: {line: v, value: "1"}}
+        - {at: "created two payments", action: apply, target: post, params: {line: v, value: "2", status: bad}}
+        - {at: "created two payments", action: mark, target: post, params: {status: bad}}
+        - {at: "you need an idempotency key", action: badge, target: post, params: {text: "+ IDEMPOTENCY KEY", status: info}}
+        - {at: "GET, PUT, DELETE are safe", action: highlight, target: get}
+        - {at: "GET, PUT, DELETE are safe", action: highlight, target: put}
+        - {at: "GET, PUT, DELETE are safe", action: highlight, target: delete}
+        - {at: "POST is safe only if", action: mark, target: post, params: {status: ok}}
+        - {at: "build it that way", action: highlight, target: post}
     youtube_title: "Which HTTP Method Is Safe to Retry? #Shorts"
     instagram_caption: |
       GET ✅ PUT ✅ DELETE ✅ POST ❌
