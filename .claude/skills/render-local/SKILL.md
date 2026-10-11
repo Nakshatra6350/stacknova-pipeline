@@ -18,7 +18,10 @@ description: Render an episode or a single asset (long video, a Short, a Reel, c
    writes `out/<id>/preview/<target>.mp4`. `--quality 0.5` is a quick half-size look,
    `--format landscape|portrait` shows the other format, `--theme brand|navy` the other theme.
    The first render of new labels is slow on Windows (seconds per label); `.cache/manim` makes
-   later renders fast, so do not delete it.
+   later renders fast, so do not delete it. The owner's PC has little free disk and 16 GB of
+   memory: check free space first, use at most `--jobs 2`, and do not run the test suite at
+   the same time. When only the result matters, download `preview.<target>.mp4` from the draft
+   Release instead of rendering.
 5. Inspect results: report durations and frame counts, and grab frames across the whole
    timeline (`ffmpeg -ss <t> -i file -frames:v 1 frame.png`), not just the start. Check that
    nothing touches the edge of the content area and, from M3 on, that captions are inside the

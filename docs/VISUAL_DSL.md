@@ -149,6 +149,9 @@ and a `badge` share the spot above a node.
 The lower area stays hidden until a `title` or `timeout` step reveals it. A lane's label appears
 when the lane is first used. If no step reveals the lower area, it is simply there from the start.
 
+A row with neither lanes nor a table sits in the middle of the frame. With three or more lanes
+the main row is drawn smaller to give the lanes room.
+
 ### Limits
 
 - 2 to 4 nodes; a ledger holds 3 rows; the table holds 3 rows.
@@ -220,9 +223,12 @@ this-versus-that, checklists, quizzes and `a + b = c` statements.
 | `highlight` | a card or `card.line` | | An outline pulse, or a glow on the line |
 | `dim` / `focus` | a card or `all` | | Fade back / bring back |
 
-Arrangement is automatic: a row in landscape; in portrait a row for two cards, a column for
-three or for anything with `joins`, a two-by-two grid for four. `arrange: row | column | grid`
-overrides it. An `apply` whose value does not change is how an idempotent operation looks.
+Arrangement is automatic: a row in landscape (two by two for four cards too wordy to share a
+row); in portrait a row for two cards, a column for three or for anything with `joins`, a
+two-by-two grid for four. `arrange: row | column | grid` overrides it. Cards grow to fill the
+frame as far as their longest title, text and line allow (up to 1.6 times), so short labels
+make big, readable cards. An `apply` whose value does not change is how an idempotent
+operation looks.
 
 ## 6. Stage `fanin`
 
@@ -302,8 +308,12 @@ uv run --group scenes python -m channel_os.render --episode 001-idempotency --st
 
 writes `out/001-idempotency/preview/short-1.mp4`: the animation with the narration under it.
 Add `--quality 0.5` for a quick half-size look, `--format landscape` to see the other format
-(saved beside it as `short-1.landscape.mp4`), `--theme brand` to try the other theme. Previews
-have no captions, hook card or watermark; those are added in assembly (M3).
+(saved beside it as `short-1.landscape.mp4`), `--theme brand` to try the other theme, `--jobs 2`
+to draw two scenes at a time. Previews have no captions, hook card or watermark; those are
+added in assembly (M3).
+
+On GitHub the `render` workflow does both stages (voice, then scenes) and stores
+`preview.<target>.mp4` in the episode's draft Release.
 
 ## 10. Adding a stage
 

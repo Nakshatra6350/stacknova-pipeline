@@ -6,6 +6,7 @@ opacity so parts can be faded as a function of time.
 """
 
 import math
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -45,20 +46,25 @@ class SceneError(RuntimeError):
 
 
 def use_font(family: str, weight: str, font_dir: Path = FONT_DIR) -> None:
-    """Make one bundled face visible to Pango. Safe to call again.
+    """Make a bundled face visible to Pango. Safe to call again.
 
-    Faces are registered only when first used: on Windows each registered file adds most of a
-    second to every label that has to be rasterised.
+    The two platforms want opposite things. On Windows every registered file adds most of a
+    second to every label that has to be rasterised, so a face is registered only when first
+    used. Elsewhere registering costs nothing, but Pango only sees the fonts that were
+    registered before it laid out its first text: a face added later is silently replaced by
+    a system font. So there every bundled face is registered at the first call.
     """
     name = FONT_FILES.get((family, weight))
     if name is None:
         known = ", ".join(f"{face} {style}" for face, style in sorted(FONT_FILES))
         raise SceneError(f"no bundled font for {family} {weight}; assets/fonts has: {known}")
-    font_file = font_dir / name
-    if font_file not in _registered:
-        if not manimpango.register_font(str(font_file)):
-            raise SceneError(f"could not register font {name}")
-        _registered.add(font_file)
+    wanted = [name] if sys.platform == "win32" else sorted(set(FONT_FILES.values()))
+    for file_name in wanted:
+        font_file = font_dir / file_name
+        if font_file not in _registered:
+            if not manimpango.register_font(str(font_file)):
+                raise SceneError(f"could not register font {file_name}")
+            _registered.add(font_file)
 
 
 class Canvas:

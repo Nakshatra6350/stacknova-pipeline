@@ -1,5 +1,6 @@
 """The render harness: exact frame counts, a clock that really redraws, text that fits."""
 
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
@@ -9,7 +10,7 @@ pytest.importorskip("manim", reason="needs the scenes dependency group")
 
 from channel_os.scenes.easing import bump, lin, smooth, window
 from channel_os.scenes.formats import LANDSCAPE, PORTRAIT, frame_count
-from channel_os.scenes.kit import Canvas, SceneError
+from channel_os.scenes.kit import FONT_FILES, Canvas, SceneError
 from channel_os.scenes.render import RenderError, count_frames, read_frame, render_scene
 from channel_os.scenes.theme import load_themes
 
@@ -76,6 +77,39 @@ def test_a_wrong_frame_count_is_an_error(
     with pytest.raises(RenderError, match="7 frames"):
         render_scene(lambda canvas: (lambda t: None), LANDSCAPE, themes.themes["navy"], themes,
                      10, tmp_path / "clip.mp4", quality=QUALITY, cache_dir=cache)
+
+
+def test_every_bundled_face_is_the_one_drawn(tmp_path: Path, themes: Any, cache: Path) -> None:
+    # Seen on GitHub on 11 October 2026: Inter Medium and SemiBold were registered after
+    # Pango's first label, so Linux drew a system font in their place and nothing failed.
+    # Each face sets this sentence to its own width; a substitute is about 10% wider, and a
+    # weight faked from another one lands on that one's width.
+    probe = "Why illicit waves move"
+    measured = {  # pixels at 40 px in portrait, from the faces themselves
+        ("Inter", "NORMAL"): 517.7,
+        ("Inter", "MEDIUM"): 524.8,
+        ("Inter", "SEMIBOLD"): 531.9,
+        ("Inter", "BOLD"): 538.9,
+        ("Inter Display", "ULTRABOLD"): 520.7,
+        ("JetBrains Mono", "NORMAL"): 639.5,
+        ("JetBrains Mono", "BOLD"): 640.4,
+    }
+    assert set(measured) == set(FONT_FILES)
+    seen: dict[tuple[str, str], float] = {}
+
+    def build(canvas: Canvas) -> Any:
+        # Mono first, as in every real scene: the other faces are asked for after it.
+        for family, weight in sorted(measured, key=lambda face: face[0] != "JetBrains Mono"):
+            label = canvas.text(probe, 540, 600, 40, canvas.theme.ink, font=family, weight=weight)
+            seen[(family, weight)] = label.width / canvas.unit
+        return lambda t: None
+
+    render_scene(build, PORTRAIT, themes.themes["brand"], themes, 1, tmp_path / "clip.mp4",
+                 quality=QUALITY, cache_dir=cache)
+    for face, width in measured.items():
+        assert seen[face] == pytest.approx(width, rel=0.02), f"{face} is not the bundled face"
+    inter = [seen[("Inter", weight)] for weight in ("NORMAL", "MEDIUM", "SEMIBOLD", "BOLD")]
+    assert all(heavier > lighter * 1.008 for lighter, heavier in pairwise(inter)), inter
 
 
 def test_text_is_fitted_to_its_slot_and_sits_on_a_shared_baseline(
