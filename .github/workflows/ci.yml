@@ -35,6 +35,28 @@ jobs:
       - name: Validate every episode
         run: uv run python -m channel_os.validate content/episodes/*/episode.yaml
 
+  # The scene tests draw real frames, so they need Manim: its own job, with the scenes group.
+  scenes:
+    name: scene render tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+      - name: Install ffmpeg and what Manim builds against
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends \
+            ffmpeg libcairo2-dev libpango1.0-dev pkg-config
+      - name: Install
+        run: uv sync --locked --group scenes
+      - name: Scene tests
+        run: >-
+          uv run --group scenes pytest tests/test_scene_render.py tests/test_flow_stage.py
+          tests/test_stages.py tests/test_preview.py
+
   samples:
     name: code samples compile
     runs-on: ubuntu-latest

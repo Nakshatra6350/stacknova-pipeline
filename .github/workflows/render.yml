@@ -1,8 +1,9 @@
 name: render
 
-# Renders narration in the owner's cloned voice. Handles a secret and writes Releases, so:
-# it never runs on pull requests, every action is pinned to a commit, and inputs reach the
-# shell only through environment variables. Rendered audio goes only into a draft Release.
+# Renders narration in the owner's cloned voice, then animates it. Handles a secret and writes
+# Releases, so: it never runs on pull requests, every action is pinned to a commit, and inputs
+# reach the shell only through environment variables. Rendered audio and video go only into a
+# draft Release.
 
 on:
   push:
@@ -99,3 +100,37 @@ jobs:
           test "$(head -c 4 "$RUNNER_TEMP/reference.wav")" = "RIFF"
       - name: Render voice
         run: bash scripts/render-voice.sh
+
+  # A second job, not a second step: the voice and scenes dependency groups cannot share one
+  # environment. It reads the narration the voice job put in the draft Release.
+  scenes:
+    name: scenes
+    needs: voice
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      EPISODE: ${{ inputs.episode }}
+      ONLY: ${{ inputs.only || 'all' }}
+      MODELS: ${{ inputs.models }}
+      ALLOW_DRAFT: ${{ inputs.allow_draft }}
+      LABEL: ${{ inputs.label }}
+      BEFORE: ${{ github.event.before }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+      - name: Install ffmpeg and what Manim builds against
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends \
+            ffmpeg libcairo2-dev libpango1.0-dev pkg-config
+      - name: Install scenes dependencies
+        run: uv sync --locked --no-default-groups --group scenes
+      - name: Render scenes
+        run: bash scripts/render-scenes.sh
