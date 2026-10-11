@@ -14,71 +14,42 @@ from collections.abc import Callable, Mapping
 from itertools import pairwise
 from typing import Any
 
-from manim import UP, ManimColor, VGroup, interpolate_color
+from manim import ManimColor, interpolate_color
 
-from channel_os.scenes.easing import bump, lin, smooth, window
+from channel_os.scenes.easing import bump, lin, smooth
 from channel_os.scenes.flow_model import layout, parse_edge
-from channel_os.scenes.formats import Rect
-from channel_os.scenes.kit import STROKE, UNIT, Canvas, Flow, SceneError, along
+from channel_os.scenes.kit import STROKE, UNIT, Canvas, SceneError, along
 from channel_os.scenes.spec import SceneSpec, Step
+from channel_os.scenes.stage import DIM_LEVEL, FADE, Part, Stage, Track, Update, build
 
 LEG_SECONDS = 0.40  # a packet crossing one rail of the main row
 LANE_LEG_SECONDS = 0.45
-FADE = 0.15
-DIM_LEVEL = 0.28
 BLOCK_SECONDS = 2.5
 LEDGER_ROWS = 3  # what fits inside a ledger node
 TABLE_ROWS = 3
-EDGE_TOLERANCE = 4.0  # pixels a stroke may reach past the content area
-LAYERS = ("rails", "flows", "bodies", "details", "marks", "packets")
-Track = Callable[[float], None]
 
 
-class _Part:
-    """A drawable whose opacity is a product of time functions."""
+class _Stage(Stage):
+    NAME = "flow"
 
-    def __init__(self, mob: Any, groups: tuple[str, ...], appear: float | None) -> None:
-        self.mob, self.groups = mob, groups
-        self.appear = appear  # None: there from the start; math.inf: hidden until triggered
-        self.vanish: float | None = None
-        self.gain: Callable[[float], float] | None = None
-
-    def alpha(self, t: float, level: Callable[[tuple[str, ...], float], float]) -> float:
-        value = level(self.groups, t)
-        if self.appear is not None:
-            value *= smooth(t, self.appear, self.appear + FADE)
-        if self.vanish is not None:
-            value *= 1 - smooth(t, self.vanish, self.vanish + FADE)
-        if self.gain is not None:
-            value *= self.gain(t)
-        return value
-
-
-class _Stage:
     def __init__(self, canvas: Canvas, decl: Mapping[str, Any]) -> None:
-        self.c, self.decl = canvas, decl
-        self.th = canvas.theme
+        super().__init__(canvas)
+        self.decl = decl
         self.plan = layout(canvas.fmt, decl)
         self.g = self.plan.glyph_scale
         self.kinds = {node["id"]: node["kind"] for node in decl["nodes"]}
-        self.layers: dict[str, list[Any]] = {name: [] for name in LAYERS}
-        self.parts: list[_Part] = []
-        self.tracks: list[Track] = []
-        self.levels: dict[str, list[tuple[float, float]]] = {}
-        self.flows: dict[tuple[str | None, str, str, bool], tuple[Flow, list[tuple[float, float]]]]
-        self.flows = {}
+        self.flows: dict[tuple[str | None, str, str, bool], list[tuple[float, float]]] = {}
         self.presses: dict[str, list[float]] = {}
         self.buttons: dict[str, tuple[Any, tuple[float, float]]] = {}
-        self.slots: dict[tuple[str, str], _Part] = {}  # what currently fills a chip/badge/tag slot
         self.ledger_rows: dict[str, int] = {}
         self.table_pulses: dict[str, list[float]] = {}  # row id -> when its glow pulses
         self.bad_rows: dict[str, list[float]] = {}
-        self.lower_parts: list[_Part] = []
+        self.lower_parts: list[Part] = []
         self.lower_appear = math.inf
-        self.lane_labels: dict[str, _Part] = {}
+        self.lane_labels: dict[str, Part] = {}
         self.flashes: dict[tuple[str, str], list[float]] = {}
         self.ring_start: float | None = None
-        self._header()
+        self.header(decl.get("header") or [], self.plan.header_y)
         for node in decl["nodes"]:
             self._node(node)
         self._main_rails()
@@ -87,50 +58,7 @@ class _Stage:
         if self.plan.table:
             self._table()
 
-    # ---- bookkeeping -----------------------------------------------------------------------
-
-    def part(self, mob: Any, layer: str, groups: tuple[str, ...] = ("main",),
-             appear: float | None = None) -> _Part:
-        made = _Part(self.c.reg(mob), groups, appear)
-        self.parts.append(made)
-        self.layers[layer].append(mob)
-        return made
-
-    def level(self, groups: tuple[str, ...], t: float) -> float:
-        value = 1.0
-        for group in groups:
-            current = 1.0
-            for when, target in self.levels.get(group, []):
-                current += (target - current) * smooth(t, when, when + 0.45)
-            value *= current
-        return value
-
-    def replace(self, slot: tuple[str, str], new: _Part | None, when: float) -> None:
-        """Whatever filled `slot` fades as `new` arrives (or simply fades, for a clear)."""
-        old = self.slots.get(slot)
-        if old is not None and old.vanish is None:
-            old.vanish = when
-        if new is not None:
-            self.slots[slot] = new
-
-    def status_colour(self, status: str | None) -> str:
-        return {"ok": self.th.ok, "bad": self.th.bad, "info": self.th.accent}.get(
-            status or "info", self.th.accent)
-
     # ---- construction ----------------------------------------------------------------------
-
-    def _header(self) -> None:
-        header = self.decl.get("header") or []
-        area = self.c.fmt.content
-        px = 24 * self.c.fmt.scale
-        if len(header) > 0:
-            left = self.c.text(str(header[0]), area.x0 + 10, self.plan.header_y, px, self.th.muted,
-                               anchor="l")
-            self.part(left, "details", ("frame",))
-        if len(header) > 1:
-            right = self.c.text(str(header[1]), area.x1 - 10, self.plan.header_y, px,
-                                self.th.muted, anchor="r")
-            self.part(right, "details", ("frame",))
 
     def _node(self, node: Mapping[str, Any]) -> None:
         c, th, g = self.c, self.th, self.g
@@ -277,22 +205,16 @@ class _Stage:
         if key not in self.flows:
             start, end = self._ends(lane, source, target)
             colour = self.th.reply if reply else self.th.accent
-            flow = Flow(start, end, colour, dashes=6 if lane else 7)
-            busy: list[tuple[float, float]] = []
-            self.flows[key] = (flow, busy)
-            self.layers["flows"].append(flow.lines)
             groups: tuple[str, ...] = ("lanes", f"lane:{lane}") if lane else ("main",)
-            idle = 0.0 if reply or lane else 0.18
+            self.flows[key] = self.flow(
+                start, end, colour, groups, dashes=6 if lane else 7,
+                idle=0.0 if reply or lane else 0.18,
+                gate=self._lower_shown if lane else None,
+            )
+        return self.flows[key]
 
-            def track(t: float) -> None:
-                active = max((window(t, a, b) for a, b in busy), default=0.0)
-                shown = self.level(groups, t) * (idle + (0.9 - idle) * active)
-                if lane is not None:
-                    shown *= smooth(t, self.lower_appear, self.lower_appear + FADE)
-                flow.update(t, shown)
-
-            self.tracks.append(track)
-        return self.flows[key][1]
+    def _lower_shown(self, t: float) -> float:
+        return smooth(t, self.lower_appear, self.lower_appear + FADE)
 
     def _send(self, step: Step) -> None:
         edge = parse_edge(step.target)
@@ -300,7 +222,6 @@ class _Stage:
         lane, source, target = edge
         c, th, g, params = self.c, self.th, self.g, step.params
         role = params.get("role", "request")
-        colour = {"request": th.packet, "reply": th.reply, "retry": th.retry}[role]
         order = list(self.plan.order)
         i, j = order.index(source), order.index(target)
         way = 1 if j > i else -1
@@ -314,32 +235,8 @@ class _Stage:
         lost = params.get("lost")
         done = spans[-1][1]
         groups: tuple[str, ...] = ("lanes", f"lane:{lane}") if lane else ("main",)
-        dot = c.dot(9 * g, colour)
-        self.layers["packets"].append(dot)
-        label = None
-        if params.get("tag"):
-            label = c.reg(c.text(str(params["tag"]), 0, 0, 17 * g, colour))
-            self.layers["packets"].append(label)
-        linger = 0.25 if lost is not None else 0.0
-
-        def track(t: float) -> None:
-            position = ends[0][0]
-            for index, ((p, q), (begin, finish)) in enumerate(zip(ends, spans, strict=True)):
-                last = index == len(ends) - 1
-                if t < finish or last:
-                    fraction = smooth(t, begin, finish)
-                    if last and lost is not None:
-                        fraction *= float(lost)
-                    position = along(p, q, fraction)
-                    break
-            shown = window(t, start, done + linger, 0.06) * self.level(groups, t)
-            dot.move_to(position)
-            dot.set_fill(opacity=shown)
-            if label is not None:
-                label.move_to(position + UP * (24 * g * UNIT))
-                c.show(label, shown)
-
-        self.tracks.append(track)
+        tag = str(params["tag"]) if params.get("tag") else None
+        self.packet(ends, spans, self.role_colour(role), 9 * g, groups, lost, tag, 17 * g)
         if lane is not None:
             self._use_lane(lane, step.time)
             for (_, via), (_, arrive) in zip(hops[:-1], spans[:-1], strict=True):
@@ -374,30 +271,16 @@ class _Stage:
             mob = self.c.check(x, y, 20 * self.g, self.th.ok)
         else:
             mob = self.c.text(value, x, y, 26 * self.g, self.th.bad, weight="BOLD")
-            self._ping((x, row.y), 26 * self.g, self.th.bad, when, groups)
+            self.ping((x, row.y), 26 * self.g, self.th.bad, when, groups)
         made = self.part(mob, "marks", groups, when)
         self.replace((f"{lane}:{node_id}", "mark"), made, when)
-
-    def _ping(self, at: tuple[float, float], radius: float, colour: str, when: float,
-              groups: tuple[str, ...], grow: float = 1.4) -> None:
-        ring = self.c.ring(at[0], at[1], radius, colour)
-        self.layers["marks"].append(ring)
-        centre = self.c.point(*at)
-
-        def track(t: float) -> None:
-            progress = lin(t, when, when + 0.65)
-            active = when <= t <= when + 0.65
-            ring.scale_to_fit_width(2 * radius * UNIT * (1 + grow * progress)).move_to(centre)
-            ring.set_stroke(opacity=(1 - progress) * 0.9 * self.level(groups, t) if active else 0)
-
-        self.tracks.append(track)
 
     # ---- actions ---------------------------------------------------------------------------
 
     def _press(self, step: Step) -> None:
         self.presses[step.target].append(step.time)
         _, (x, y) = self.buttons[step.target]
-        self._ping((x, y), 30 * self.g, self.th.accent, step.time, ("main",))
+        self.ping((x, y), 30 * self.g, self.th.accent, step.time, ("main",))
 
     def _button_track(self, node_id: str) -> Track:
         button, _ = self.buttons[node_id]
@@ -463,14 +346,6 @@ class _Stage:
             self.part(c.text(cells[1], rect.x1 - 22 * g, y, 24 * g, colour, anchor="r"),
                       "details", ("table",), when)
 
-    def _pill(self, text: str, x: float, y: float, px: float, colour: str, height: float,
-              layer_groups: tuple[str, ...], when: float, weight: str = "NORMAL") -> _Part:
-        c = self.c
-        label = c.text(text, x, y, px, colour, weight=weight)
-        width = label.width / UNIT + 0.9 * height
-        box = c.rrect(x, y, width, height, height / 2, colour, colour, 0.14, 2.5)
-        return self.part(VGroup(box, label), "marks", layer_groups, when)
-
     def _chip(self, node_id: str, params: Mapping[str, Any], when: float) -> None:
         slot = (node_id, "chip")
         if params.get("clear"):
@@ -481,7 +356,7 @@ class _Stage:
         on_screen = self.kinds[node_id] == "phone"
         y = rect.cy + 104 * g if on_screen else self.plan.names_y + 44 * g
         colour = self.status_colour(params.get("status"))
-        made = self._pill(str(params.get("text", "")), rect.cx, y, 20 * g, colour, 34 * g,
+        made = self.pill(str(params.get("text", "")), rect.cx, y, 20 * g, colour, 34 * g,
                           ("main",), when)
         self.replace(slot, made, when)
 
@@ -494,7 +369,7 @@ class _Stage:
             rect = self.plan.table.rect
             probe = self.c.text(text, 0, 0, 18 * g, colour, weight="BOLD")
             x = rect.x1 - 18 * g - (probe.width / UNIT + 27 * g) / 2
-            made = self._pill(text, x, rect.y0 + 22 * g, 18 * g, colour, 30 * g, ("table",),
+            made = self.pill(text, x, rect.y0 + 22 * g, 18 * g, colour, 30 * g, ("table",),
                               step.time, weight="BOLD")
         else:
             x, y = self.plan.badge(step.target)
@@ -502,16 +377,16 @@ class _Stage:
             probe = self.c.text(text, 0, 0, 21 * g, colour, weight="BOLD")
             half = (probe.width / UNIT + 45 * g) / 2
             x = min(max(x, area.x0 + half), area.x1 - half)
-            made = self._pill(text, x, y, 21 * g, colour, 50 * g, ("main",), step.time,
+            made = self.pill(text, x, y, 21 * g, colour, 50 * g, ("main",), step.time,
                               weight="BOLD")
-            self._ping((x, y), 34 * g, colour, step.time + 0.05, ("main",), grow=1.1)
+            self.ping((x, y), 34 * g, colour, step.time + 0.05, ("main",), grow=1.1)
         self.replace((step.target, "above"), made, step.time)
 
     def _tag(self, step: Step) -> None:
         rect, g = self.plan.nodes[step.target], self.g
         status = step.params.get("status")
         colour = self.th.reply if status is None else self.status_colour(status)
-        made = self._pill(str(step.params.get("text", "")), rect.cx, rect.y0 - 28 * g, 19 * g,
+        made = self.pill(str(step.params.get("text", "")), rect.cx, rect.y0 - 28 * g, 19 * g,
                           colour, 34 * g, ("main",), step.time)
         self.replace((step.target, "above"), made, step.time)  # a tag and a badge share the spot
 
@@ -530,7 +405,7 @@ class _Stage:
         x, y = self.c.pixel(middle)
         bar = self.c.seg(x, y - 17 * g, x, y + 17 * g, th.bad, STROKE + 2)
         self.part(bar, "marks", groups, step.time).vanish = step.time + BLOCK_SECONDS
-        self._ping((x, y), 16 * g, th.bad, step.time, groups)
+        self.ping((x, y), 16 * g, th.bad, step.time, groups)
         if step.params.get("text"):
             note = self.c.text(str(step.params["text"]), x, y - 34 * g, 17 * g, th.bad,
                                max_width=abs(end[0] - start[0]) / UNIT + 40 * g)
@@ -538,7 +413,7 @@ class _Stage:
 
     def _dim(self, step: Step, to: float) -> None:
         group = step.target if step.target in ("main", "lanes", "table") else f"lane:{step.target}"
-        self.levels.setdefault(group, []).append((step.time, to))
+        self.set_level(group, step.time, to)
 
     def _title(self, step: Step) -> None:
         self.lower_appear = min(self.lower_appear, step.time)
@@ -549,15 +424,8 @@ class _Stage:
         self.lower_appear = min(self.lower_appear, step.time)
         self.ring_start = step.time
 
-    def _outline(self, rect: Rect, colour: str, when: float, groups: tuple[str, ...]) -> None:
-        g = self.g
-        frame = self.c.rrect(rect.cx, rect.cy, rect.w + 14 * g, rect.h + 14 * g, 20 * g, colour,
-                             colour, 0.0, STROKE + 1.5)
-        made = self.part(frame, "marks", groups, when)
-        made.gain = lambda t: bump(t, when, when + 1.0)
-
     def _highlight(self, step: Step) -> None:
-        target = step.target
+        target, g = step.target, self.g
         if target.startswith("table:"):
             row_id = target.split(":", 1)[1]
             if row_id not in self.table_pulses:
@@ -565,54 +433,36 @@ class _Stage:
             self.table_pulses[row_id].append(step.time)
         elif target == "table":
             assert self.plan.table is not None
-            self._outline(self.plan.table.rect, self.th.accent, step.time, ("table",))
+            self.outline(self.plan.table.rect, self.th.accent, step.time, ("table",), 14 * g,
+                         20 * g)
         elif target in self.plan.nodes:
             bad = self.bad_rows.get(target)
             if bad:
                 bad.append(step.time)
             colour = self.th.bad if bad else self.th.accent
-            self._outline(self.plan.nodes[target], colour, step.time, ("main",))
+            self.outline(self.plan.nodes[target], colour, step.time, ("main",), 14 * g, 20 * g)
         else:
             self._use_lane(target, step.time)
 
-    def add_step(self, step: Step) -> None:
-        action = step.action
-        try:
-            if action == "press":
-                self._press(step)
-            elif action == "send":
-                self._send(step)
-            elif action == "row":
-                self._row(step.target, step.params, step.time)
-            elif action == "chip":
-                self._chip(step.target, step.params, step.time)
-            elif action == "badge":
-                self._badge(step)
-            elif action == "tag":
-                self._tag(step)
-            elif action == "block":
-                self._block(step)
-            elif action == "dim":
-                self._dim(step, DIM_LEVEL)
-            elif action == "focus":
-                self._dim(step, 1.0)
-            elif action == "title":
-                self._title(step)
-            elif action == "timeout":
-                self._timeout(step)
-            elif action == "highlight":
-                self._highlight(step)
-            else:
-                raise SceneError(f"the flow stage has no action {action!r}")
-        except (KeyError, AssertionError, SceneError) as exc:
-            reason = str(exc) if isinstance(exc, SceneError) else repr(exc)
-            raise SceneError(
-                f"cannot draw step {action} on {step.target!r} (at {step.at!r}): {reason}"
-            ) from exc
+    def handlers(self) -> Mapping[str, Callable[[Step], None]]:
+        return {
+            "press": self._press,
+            "send": self._send,
+            "row": lambda step: self._row(step.target, step.params, step.time),
+            "chip": lambda step: self._chip(step.target, step.params, step.time),
+            "badge": self._badge,
+            "tag": self._tag,
+            "block": self._block,
+            "dim": lambda step: self._dim(step, DIM_LEVEL),
+            "focus": lambda step: self._dim(step, 1.0),
+            "title": self._title,
+            "timeout": self._timeout,
+            "highlight": self._highlight,
+        }
 
     # ---- finish ----------------------------------------------------------------------------
 
-    def finish(self) -> Callable[[float], None]:
+    def finish(self) -> None:
         if math.isinf(self.lower_appear):
             self.lower_appear = 0.0  # declared but never introduced: simply there
         for part in self.lower_parts:
@@ -624,34 +474,6 @@ class _Stage:
         if self.plan.lanes:
             self.tracks.append(self._ring_track())
             self.tracks.append(self._flash_track())
-        self._check_inside()
-        for name in LAYERS:
-            self.c.add(*self.layers[name])
-        parts, tracks, canvas, level = self.parts, self.tracks, self.c, self.level
-
-        def update(t: float) -> None:
-            for part in parts:
-                canvas.show(part.mob, part.alpha(t, level))
-            for track in tracks:
-                track(t)
-
-        return update
-
-    def _check_inside(self) -> None:
-        """Captions and platform UI own everything outside the content area."""
-        area, slack = self.c.fmt.content, EDGE_TOLERANCE
-        allowed = Rect(area.x0 - slack, area.y0 - slack, area.x1 + slack, area.y1 + slack)
-        for part in self.parts:
-            box = self.c.bounds(part.mob)
-            if not allowed.contains(box):
-                text = next((member.original_text[2:] for member in part.mob.get_family()
-                             if hasattr(member, "original_text")), None)
-                what = f"the text {text!r}" if text else "a shape"
-                raise SceneError(
-                    f"{what} leaves the content area: it spans x {box.x0:.0f}-{box.x1:.0f}, "
-                    f"y {box.y0:.0f}-{box.y1:.0f}, and {self.c.fmt.name} content is "
-                    f"x {area.x0:.0f}-{area.x1:.0f}, y {area.y0:.0f}-{area.y1:.0f}"
-                )
 
     def _ring_track(self) -> Track:
         x, y = self.ring_at
@@ -681,9 +503,6 @@ class _Stage:
         return track
 
 
-def build_flow(canvas: Canvas, spec: SceneSpec) -> Callable[[float], None]:
+def build_flow(canvas: Canvas, spec: SceneSpec) -> Update:
     """Queue a flow scene on the canvas and return its update function."""
-    stage = _Stage(canvas, spec.decl)
-    for step in spec.steps:
-        stage.add_step(step)
-    return stage.finish()
+    return build(_Stage, canvas, spec)
