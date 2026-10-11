@@ -33,6 +33,32 @@ VISUAL = [
 ]
 
 
+def test_workers_hand_their_labels_back_without_sharing_a_folder(
+    tmp_path: Path, repo_root: Path, audio: Any
+) -> None:
+    # Seen on GitHub on 11 October 2026: three workers on one text folder, and one of them
+    # found a label file missing while another was rewriting it.
+    themes = load_themes(repo_root / "config" / "themes.yaml")
+    card = {"layout": "cards", "cards": [{"id": "a", "title": "one"}],
+            "steps": [{"at": "start", "action": "highlight", "target": "a"}]}
+    episode = {"id": "001-test", "segments": [], "shorts": [
+        {"id": "short-1", "source": "standalone", "script": SCRIPT,
+         "visual": [card, {**card, "from": "The fix"}]}]}
+    entry = {"duration": 2.0, "segments": [
+        {"id": "short-1", "start": 0.0, "duration": 2.0, "pauses": []}]}
+    clips = plan_clips(episode, "short-1", entry)
+    shared = tmp_path / "labels"
+
+    out = render_preview(clips, PORTRAIT, themes.themes["brand"], themes,
+                         audio(tmp_path / "narration.wav", [(2.0, 0.1)]), tmp_path / "out.mp4",
+                         quality=QUALITY, cache_dir=shared, jobs=2)
+
+    assert count_frames(out) == 60
+    assert [path.name for path in shared.iterdir()] == ["texts"], "only labels come back"
+    labels = list((shared / "texts").iterdir())
+    assert labels and all(path.suffix == ".svg" and path.stat().st_size > 0 for path in labels)
+
+
 def test_clips_are_joined_in_order_under_the_narration(
     tmp_path: Path, repo_root: Path, cache: Path, audio: Any
 ) -> None:
@@ -45,8 +71,11 @@ def test_clips_are_joined_in_order_under_the_narration(
     assert [clip.frames for clip in clips] == [60, 30]
 
     narration = audio(tmp_path / "narration.wav", [(3.0, 0.1)])
+    # Two scenes at once, as the workflow does: both draw "you", "server" and "bank", and each
+    # worker must be able to use those labels without tripping over the other.
     out = render_preview(clips, PORTRAIT, themes.themes["navy"], themes, narration,
-                         tmp_path / "preview" / "short-1.mp4", quality=QUALITY, cache_dir=cache)
+                         tmp_path / "preview" / "short-1.mp4", quality=QUALITY, cache_dir=cache,
+                         jobs=2)
 
     assert count_frames(out) == 90
     with av.open(str(out)) as container:

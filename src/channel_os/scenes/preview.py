@@ -5,6 +5,8 @@ and the watermark belong to assembly (M3).
 """
 
 import multiprocessing
+import os
+import shutil
 import tempfile
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
@@ -35,12 +37,38 @@ BUILDERS: Mapping[str, Callable[[Canvas, SceneSpec], Update]] = {
 Job = tuple[SceneSpec, Format, Theme, Themes, int, Path, float, Path]
 
 
+def _copy_labels(source: Path, target: Path) -> None:
+    """Copy rasterised labels that `target` lacks, so that no reader ever sees half a file."""
+    if not source.is_dir():
+        return
+    target.mkdir(parents=True, exist_ok=True)
+    for label in source.glob("*.svg"):
+        final = target / label.name
+        if final.exists():
+            continue
+        partial = final.with_name(f"{label.name}.{os.getpid()}.part")
+        try:
+            shutil.copyfile(label, partial)
+            os.replace(partial, final)
+        except OSError:
+            # The cache only saves time. A label another process holds is drawn again later.
+            partial.unlink(missing_ok=True)
+
+
 def _render_clip(job: Job) -> Path:
-    """Render one clip. Runs in a worker process; everything it needs comes in `job`."""
+    """Render one clip. Runs in a worker process; everything it needs comes in `job`.
+
+    Manim rewrites a cached label file every time it is used, so two processes must not share
+    its text folder. Each worker takes a private copy of the labels and hands back the new ones.
+    """
     spec, fmt, theme, fonts, frames, part, quality, cache_dir = job
     builder = BUILDERS[spec.layout]
-    return render_scene(lambda canvas: builder(canvas, spec), fmt, theme, fonts, frames, part,
-                        quality, cache_dir)
+    with tempfile.TemporaryDirectory() as private:
+        _copy_labels(cache_dir / "texts", Path(private) / "texts")
+        render_scene(lambda canvas: builder(canvas, spec), fmt, theme, fonts, frames, part,
+                     quality, Path(private))
+        _copy_labels(Path(private) / "texts", cache_dir / "texts")
+    return part
 
 
 def render_preview(clips: Sequence[Clip], fmt: Format, theme: Theme, fonts: Themes,
