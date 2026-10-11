@@ -52,6 +52,14 @@ def test_an_unknown_target_is_an_error(episode: Data) -> None:
         select_units(episode, "short-9")
 
 
+def test_a_story_placeholder_is_left_out_of_a_draft_preview(episode: Data) -> None:
+    episode["segments"][1]["narration"] = "[STORY:duplicate-callback] To be written by the owner."
+    assert [unit.id for unit in select_units(episode, "long")] == ["s01", "s03"]
+    # short-1 is cut from that one segment, so there is nothing left to say.
+    with pytest.raises(ValueError, match="short-1: nothing to narrate yet"):
+        select_units(episode, "short-1")
+
+
 def test_all_targets_lists_the_long_video_then_the_shorts(episode: Data) -> None:
     assert all_targets(episode) == ["long", "short-1", "short-2"]
 

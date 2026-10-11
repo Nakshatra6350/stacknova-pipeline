@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from channel_os.reach.lint import STORY_PLACEHOLDER
 from channel_os.voice.chunking import chunk_text
 from channel_os.voice.loudness import Loudness, Target, detect_pauses, measure, normalize
 from channel_os.voice.polish import polish
@@ -36,16 +37,27 @@ def all_targets(episode: Mapping[str, Any]) -> list[str]:
 
 
 def select_units(episode: Mapping[str, Any], only: str) -> list[Unit]:
-    """Units for one target: 'long' is every segment; a Short is its script or its segments."""
+    """Units for one target: 'long' is every segment; a Short is its script or its segments.
+
+    A unit that is still a [STORY:...] placeholder is left out: there is nothing to say yet.
+    Only a draft can hold one (the validator refuses it at ready_to_render), so this is what
+    lets a draft be previewed before the owner's story is written.
+    """
     narrations = {segment["id"]: segment["narration"] for segment in episode["segments"]}
     if only == "long":
-        return [Unit(segment_id, text) for segment_id, text in narrations.items()]
-    for short in episode["shorts"]:
-        if short["id"] == only:
-            if short["source"] == "standalone":
-                return [Unit(only, short["script"])]
-            return [Unit(segment_id, narrations[segment_id]) for segment_id in short["segments"]]
-    raise ValueError(f"unknown target {only!r}: use 'long' or a Short id")
+        chosen = [Unit(segment_id, text) for segment_id, text in narrations.items()]
+    else:
+        short = next((short for short in episode["shorts"] if short["id"] == only), None)
+        if short is None:
+            raise ValueError(f"unknown target {only!r}: use 'long' or a Short id")
+        if short["source"] == "standalone":
+            chosen = [Unit(only, short["script"])]
+        else:
+            chosen = [Unit(segment_id, narrations[segment_id]) for segment_id in short["segments"]]
+    units = [unit for unit in chosen if STORY_PLACEHOLDER not in unit.text]
+    if not units:
+        raise ValueError(f"{only}: nothing to narrate yet, it is all story placeholders")
+    return units
 
 
 def _raw_unit(
