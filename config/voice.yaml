@@ -7,7 +7,7 @@ temperature: 0.8
 max_chunk_chars: 280         # one model call yields at most ~40 s of speech; stay well below it
 sentence_gap_ms: 150         # pause between synthesised chunks inside a segment
 segment_gap_ms: 250          # pause between segments (docs/BUILD_PLAN.md M1)
-max_pause_ms: 800            # the model sometimes stalls (29 s of silence, once); longer gaps are cut to this. 0 = off
+max_pause_ms: 800            # the model sometimes stalls (29 s of silence, once); a segment with a longer gap has its gaps cut to this. 0 = off
 target_lufs: -14.0
 true_peak_ceiling_db: -1.5   # aim below the -1 dBTP limit so rounding never crosses it
 loudness_range: 11.0

@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 
 from channel_os.voice.loudness import detect_pauses, measure
-from channel_os.voice.polish import polish, polish_filters
+from channel_os.voice.polish import has_stall, polish, polish_filters
 from channel_os.voice.settings import VoiceSettings, load_settings
 from channel_os.voice.wavio import duration_seconds
 
@@ -53,7 +53,8 @@ def test_a_stalled_gap_is_cut_down_and_a_real_pause_is_left_alone(
     # speech, a 6 s stall, speech: only the stall may shrink, to the 0.8 s cap.
     src = audio(tmp_path / "in.wav", [(1.0, 0.2), (0.5, 0.0), (1.0, 0.2), (6.0, 0.0), (1.0, 0.2)])
     capped = replace(neutral, max_pause_ms=800)
-    assert polish_filters(capped) == [
+    assert has_stall(src, capped)
+    assert polish_filters(capped, stalled=True) == [
         "silenceremove=stop_periods=-1:stop_duration=0.4:stop_threshold=-50dB:stop_silence=0.4"
     ]
     out = polish(src, tmp_path / "out.wav", capped)
@@ -61,12 +62,17 @@ def test_a_stalled_gap_is_cut_down_and_a_real_pause_is_left_alone(
     assert [round(end - start, 1) for start, end in detect_pauses(out)] == [0.5, 0.8]
 
 
-def test_the_pause_cap_changes_nothing_when_no_gap_is_too_long(
+def test_audio_without_a_stall_is_not_touched_by_the_pause_cap(
     tmp_path: Path, audio: Any, neutral: VoiceSettings
 ) -> None:
-    src = audio(tmp_path / "in.wav", [(1.0, 0.2), (0.6, 0.0), (1.0, 0.2)])
-    out = polish(src, tmp_path / "out.wav", replace(neutral, max_pause_ms=800))
-    assert duration_seconds(out) == pytest.approx(duration_seconds(src), abs=0.001)
+    # The owner approved narration made before the cap existed. The filter shifts ordinary
+    # pauses by a few milliseconds, so it must not run at all unless there is a stall.
+    src = audio(tmp_path / "in.wav", [(1.0, 0.2), (0.7, 0.0), (1.0, 0.2)])
+    capped = replace(neutral, max_pause_ms=800)
+    assert not has_stall(src, capped)
+    assert polish_filters(capped) == []
+    assert polish(src, tmp_path / "out.wav", capped) == src
+    assert not has_stall(src, replace(neutral, max_pause_ms=0))
 
 
 def test_a_slower_tempo_lengthens_the_audio(

@@ -7,6 +7,7 @@ cache key, so changing them never re-synthesises anything.
 from pathlib import Path
 
 from channel_os.assemble.ffmpeg import run_ffmpeg
+from channel_os.voice.loudness import detect_pauses
 from channel_os.voice.settings import VoiceSettings
 
 HEADROOM = "volume=-6dB"  # taken before any boost; loudness normalisation gives it back
@@ -15,11 +16,25 @@ HEADROOM = "volume=-6dB"  # taken before any boost; loudness normalisation gives
 STALL_THRESHOLD_DB = -50
 
 
-def polish_filters(settings: VoiceSettings) -> list[str]:
-    """ffmpeg audio filters for the pause cap, clarity EQ and tempo; empty when all are off."""
+def has_stall(src: Path, settings: VoiceSettings) -> bool:
+    """Whether the audio holds a true silence longer than max_pause_ms."""
+    limit = settings.max_pause_ms / 1000
+    if limit <= 0:
+        return False
+    gaps = detect_pauses(src, noise_db=STALL_THRESHOLD_DB, min_seconds=limit)
+    return any(end - start > limit for start, end in gaps)
+
+
+def polish_filters(settings: VoiceSettings, stalled: bool = False) -> list[str]:
+    """ffmpeg audio filters for the pause cap, clarity EQ and tempo; empty when all are off.
+
+    The pause cap is added only for audio that `has_stall`. The filter nudges ordinary pauses
+    by a few milliseconds, and narration without a stall must come out exactly as it did
+    before the cap existed: the owner approved that audio.
+    """
     clarity = settings.clarity
     filters: list[str] = []
-    if settings.max_pause_ms > 0:
+    if stalled and settings.max_pause_ms > 0:
         # silenceremove keeps stop_duration + stop_silence of each gap, so give each half.
         half = settings.max_pause_ms / 2000
         filters.append(
@@ -41,7 +56,7 @@ def polish_filters(settings: VoiceSettings) -> list[str]:
 
 def polish(src: Path, dst: Path, settings: VoiceSettings) -> Path:
     """Apply the configured filters to src; return src untouched when nothing is switched on."""
-    filters = polish_filters(settings)
+    filters = polish_filters(settings, has_stall(src, settings))
     if not filters:
         return src
     dst.parent.mkdir(parents=True, exist_ok=True)
