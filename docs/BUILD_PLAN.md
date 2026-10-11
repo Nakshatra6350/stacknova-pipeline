@@ -43,6 +43,15 @@ the TTS model.
 **Goal:** Manim theme + reusable components; one scene per segment, timed to narration.
 **Acceptance:** `long.mp4` (1920×1080, 30 fps) and a 1080×1920 variant for shorts render for episode 001; each scene's duration = its segment audio ± 1 frame; dark theme from `config/brand.yaml`.
 
+> **As built (2026-10).** The owner asked for animated, concept-specific schematics like their
+> portfolio rather than boxes and arrows, in a mixture of two colour themes. So: themes live in
+> `config/themes.yaml` and rotate per asset; the components became five stages (`flow`,
+> `sequence`, `cards`, `fanin`, `code`) driven by the `visual` DSL in `docs/VISUAL_DSL.md`;
+> standalone Shorts carry their own `visual`. A scene's clip is its audio plus the pause that
+> follows it, so the clips add up to the narration frame for frame. M2 writes
+> `preview/<target>.mp4` (picture and voice); captions, hook card and final cuts stay in M3.
+> Design: `docs/superpowers/specs/2026-10-09-m2-scenes-design.md`.
+
 ```text
 Implement M2. Create src/channel_os/scenes/theme.py (colours/fonts from config/brand.yaml),
 components (Box, Arrow, Lane, Timeline, CodeBlock with line highlight, Callout, KeyTermLabel),

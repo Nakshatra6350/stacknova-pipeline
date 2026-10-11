@@ -155,22 +155,143 @@ when the lane is first used. If no step reveals the lower area, it is simply the
 - `press` needs a phone; `row` needs a ledger or the table.
 - A step the stage cannot draw fails the render and names the step and its phrase.
 
-## 4. A worked example
+A `row` on the table with an `id` that already exists changes that row's value in place
+(`in progress` becoming `completed`).
 
-Episode 001, `short-1`, is the reference: two scenes over a 33-second script, cut at "The fix".
-Scene 1 shows the double charge and then two lanes for what a timeout hides; scene 2 replays the
-payment with a key and a table that stops the retry. Read it in
-`content/episodes/001-idempotency/episode.yaml`.
+## 4. Stage `sequence`
 
-## 5. Checking and previewing
+Who tells whom what, in which order. Two to four actors stand side by side, each with a
+lifeline under it; time runs down. Use it for races, handshakes, retries, transactions.
+
+```yaml
+- layout: sequence
+  header: ["THE RACE", "CHECK, THEN CHARGE"]
+  actors:
+    - {id: r1, label: "request #1", kind: client}
+    - {id: db, label: "keys table", kind: store}
+    - {id: r2, label: "the retry", kind: client}
+  steps:
+    - {at: "still running", action: message, target: "r1->db", params: {text: "seen 7f3c?"}}
+    - {at: "Both charge", action: note, target: r1, params: {text: "charge $100", status: bad}}
+```
+
+Actor `kind` is `client` (a pill with a ring), `service` (a panel with status lights, the
+default) or `store` (a panel with a stack mark).
+
+| Action | Target | Params | What you see |
+|---|---|---|---|
+| `message` | `a->b` | `text`, `role`, `status`, `lost`, `same_row` | An arrow grows from one lifeline to the other behind a packet and stays. `lost` stops it short with a cross. |
+| `note` | an actor | `text`, `status`, `same_row` | A pill on that actor's lifeline: what it does or decides |
+| `divider` | `all` | `text` | A dashed rule across every lifeline, for "later" or a change of phase |
+| `badge` | an actor | `text`, `status` | A bold pill above the actor |
+| `highlight` | an actor | | The actor's head pulses |
+
+Each message, note and divider takes the next row down; `same_row: true` keeps a step on the
+row above (two things at the same moment). **A sequence has 7 rows.** The validator counts them;
+for a longer story cut to a second scene with `from`.
+
+## 5. Stage `cards`
+
+One to four panels compared side by side. A card has a `title`, an optional line of `text`
+and up to four `lines` (`key`, `value`) whose values can change. Use it for before/after and
+this-versus-that, checklists, quizzes and `a + b = c` statements.
+
+```yaml
+- layout: cards
+  title: "twice has the same effect as once"      # optional line above the cards
+  joins: ["+", "="]                                # optional glyph between neighbours
+  cards:
+    - id: add
+      title: "balance += 100"
+      hidden: true                                 # stays out of sight until a `show`
+      lines: [{id: state, key: balance, value: "$0"}]
+  steps:
+    - {at: "Add a hundred", action: show, target: add}
+    - {at: "do it twice", action: apply, target: add, params: {line: state, value: "$200", status: bad}}
+```
+
+| Action | Target | Params | What you see |
+|---|---|---|---|
+| `show` | a card | | A `hidden` card (and the join before it) fades in |
+| `apply` | a card | `role`, and optionally `line`, `value`, `status` | A packet drops into the card and its `x1, x2, ...` tally ticks up; the named line takes the new value as it lands |
+| `set` | `card.line` | `value`, `status` | The line's value changes with a glow |
+| `mark` | a card | `status` | A tick or a cross in the card's corner and a frame in that colour |
+| `badge` | a card | `text`, `status` | A bold pill above the card |
+| `highlight` | a card or `card.line` | | An outline pulse, or a glow on the line |
+| `dim` / `focus` | a card or `all` | | Fade back / bring back |
+
+Arrangement is automatic: a row in landscape; in portrait a row for two cards, a column for
+three or for anything with `joins`, a two-by-two grid for four. `arrange: row | column | grid`
+overrides it. An `apply` whose value does not change is how an idempotent operation looks.
+
+## 6. Stage `fanin`
+
+Many senders, one receiver. Two to six `sources` stack on the left, each with a rail to one
+`target`; a counter under the target counts arrivals. Use it for retry storms, many producers,
+many clients.
+
+```yaml
+- layout: fanin
+  sources:
+    - {id: http, label: "HTTP client"}
+    - {id: user, label: "the user"}
+  target: {id: api, label: "your service", title: api}
+  counter: "copies of one request"                 # caption under the count
+  steps:
+    - {at: "Your HTTP client", action: fire, target: http}
+```
+
+| Action | Target | Params | What you see |
+|---|---|---|---|
+| `fire` | a source | `role` (default `retry`) | The source appears the first time, its packet runs into the target and the count ticks up |
+| `badge` | the target | `text`, `status` | A bold pill above the target |
+| `tag` | the target | `text`, `status` | A light pill above the target (shares the badge's spot) |
+| `highlight` | a source or the target | | An outline pulse |
+
+## 7. Stage `code`
+
+A short listing in an editor panel. Write it for the screen: **at most 10 lines of at most 60
+characters**, original to the episode, and true to the sample under `samples/`. Keywords,
+strings, numbers and comments are coloured for `language: sql | go | java | js | python | text`.
+
+```yaml
+- layout: code
+  title: claim_key.sql
+  language: sql
+  reveal: true                    # lines stay hidden until a `show`
+  lines:
+    - "INSERT INTO idempotency_keys (key, status)"
+    - "VALUES ($1, 'in_progress')"
+    - "ON CONFLICT (key) DO NOTHING;"
+  steps:
+    - {at: "inserts a row", action: show, target: "1-3"}
+    - {at: "the database refuses", action: highlight, target: "3"}
+    - {at: "the database refuses", action: note, target: "3", params: {text: "0 rows: someone else owns it", status: bad}}
+```
+
+| Action | Target | Params | What you see |
+|---|---|---|---|
+| `show` | lines `3`, `2-4` or `all` | | Those lines arrive one after another (only with `reveal: true`) |
+| `highlight` | lines | | A band behind those lines; the others fade |
+| `note` | lines | `text`, `status` | A pill under the panel saying what the line means |
+| `focus` | `all` | | Every line back to full strength, the band gone |
+
+## 8. A worked example
+
+Episode 001 uses every stage. `short-1` is two `flow` scenes over a 33-second script, cut at
+"The fix". Segment `s06` is a `sequence` (the race), a `code` scene (the constraint) and a
+second `sequence` (the race again, now with one winner). `s04` and `short-5` are `cards`, `s03`
+is a `fanin`. Read them in `content/episodes/001-idempotency/episode.yaml`.
+
+## 9. Checking and previewing
 
 ```bash
 uv run python -m channel_os.validate content/episodes/001-idempotency/episode.yaml
 ```
 
-reports an unknown layout, action or target, a phrase that is not spoken, steps out of spoken
-order, and a standalone Short without a visual (warnings on a draft, errors at
-`ready_to_render`).
+reports an unknown layout, action or target, a phrase that is not spoken and steps out of spoken
+order (errors at every status), and a standalone Short without a visual (a warning on a draft,
+an error at `ready_to_render`).
 
 Previews need the narration first (the voice stage writes `out/<episode>/timing.json` and the
 audio), then:
@@ -184,9 +305,11 @@ Add `--quality 0.5` for a quick half-size look, `--format landscape` to see the 
 (saved beside it as `short-1.landscape.mp4`), `--theme brand` to try the other theme. Previews
 have no captions, hook card or watermark; those are added in assembly (M3).
 
-## 6. Layouts that have no stage yet
+## 10. Adding a stage
 
-`layout` names other than `flow` are accepted by the schema but cannot be rendered. The
-validator reports them as `visual-stage`. New stages are added in `src/channel_os/scenes/`
-(a pure model for validation and geometry, and a Manim module that draws it) and registered in
-`spec.STAGES` and `preview.BUILDERS`.
+The stages are `flow`, `sequence`, `cards`, `fanin` and `code`; any other `layout` is an error
+(`visual-stage`). When a topic needs a picture none of them can draw, add a stage rather than
+bending one: a pure `<name>_model.py` in `src/channel_os/scenes/` (its `ACTIONS`, `problems`
+for the validator, `layout` for both formats) and a `<name>.py` that draws it on the shared
+`Stage` base. Register both in `spec.STAGES` and `preview.BUILDERS`, add its actions to the
+schema's enum (a test keeps the two in step), and document it here.

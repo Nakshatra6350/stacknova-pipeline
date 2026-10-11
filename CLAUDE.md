@@ -57,7 +57,8 @@ from the owner's own notes. Never commit the voice sample or secrets here.
 ## 5. Layout
 
 ```
-config/            brand.yaml, platforms.yaml, schedule.yaml, reach.yaml, voice.yaml
+config/            brand.yaml, platforms.yaml, schedule.yaml, reach.yaml, voice.yaml, themes.yaml
+assets/fonts/      Inter and JetBrains Mono (OFL), the only faces scenes are drawn in
 content/
   backlog.yaml     ranked topic queue (night agent reads/writes)
   episodes/<id>/   episode.yaml (+ scenes/*.py, generated assets manifest)
@@ -65,7 +66,10 @@ schemas/           episode.schema.json  (validate every episode.yaml against it)
 src/channel_os/
   voice/           tts.py (chatterbox), loudness.py, reference.py, chunking.py, narrate.py,
                    polish.py (pace + clarity), wavio.py, settings.py
-  scenes/          shared Manim theme + components (Box, Arrow, Timeline, CodeBlock)
+  scenes/          episode.yaml `visual` -> animation (docs/VISUAL_DSL.md). No Manim: theme.py,
+                   formats.py, phrases.py, spec.py, plan.py and each stage's <name>_model.py.
+                   Manim: kit.py, stage.py, render.py, preview.py and the stages flow.py,
+                   sequence.py, cards.py, fanin.py, code.py
   assemble/        timeline.py, ffmpeg.py, cuts.py (shorts/reels), thumbnails.py, carousel.py
   captions/        align.py (whisper→script words), ass.py (burned-in), srt.py (upload track)
   publish/         youtube.py, instagram.py, pages_host.py (temporary public URLs)
@@ -74,8 +78,10 @@ src/channel_os/
   report/          weekly.py
   reach/           lint.py (mechanical content + reach rules, run by validate)
   validate.py      CLI: python -m channel_os.validate <episode.yaml> (schema + reach lint)
-  render.py        CLI: python -m channel_os.render --episode <id> --reference <wav> (voice stage)
-scripts/           render-voice.sh (the loop render.yml runs), install-skills.ps1, update-skills.ps1
+  render.py        CLI: python -m channel_os.render --episode <id> --stage voice|scenes
+                   (voice needs --reference <wav>; scenes reads the voice stage's output)
+scripts/           render-voice.sh and render-scenes.sh (the two jobs of render.yml),
+                   install-skills.ps1, update-skills.ps1
 .github/workflows/ render.yml, notify.yml, watch-approvals.yml, publish.yml,
                    refresh-tokens.yml, weekly-report.yml, ci.yml
 docs/              specs — the source of truth for behaviour

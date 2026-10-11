@@ -4,7 +4,7 @@
 
 | # | Component | Runs on | Trigger | Input | Output |
 |---|---|---|---|---|---|
-| 1 | Night agent | Claude scheduled task (cloud) | cron 01:00 IST daily | backlog, analytics, rejects, private content repo | `content/episodes/<id>/episode.yaml`, `scenes/*.py`, updated `backlog.yaml`, git push |
+| 1 | Night agent | Claude scheduled task (cloud) | cron 01:00 IST daily | backlog, analytics, rejects, private content repo | `content/episodes/<id>/episode.yaml` (script and its `visual` blocks, see `docs/VISUAL_DSL.md`; no Manim code), updated `backlog.yaml`, git push |
 | 2 | `render.yml` | GitHub Actions `ubuntu-latest` | push touching `content/episodes/**/episode.yaml` with `status: ready_to_render` | episode.yaml, voice reference (from private repo via deploy key) | `out/<id>/` long.mp4, short-*.mp4, reel-*.mp4, carousel-*/NN.jpg, thumb-*.jpg, en.srt, *.vtt translations, manifest.json → uploaded to a **draft** GitHub Release `ep-<id>` (assets ≤ 2 GB each); no media goes into workflow artifacts |
 | 3 | `notify.yml` | Actions | `workflow_run` of render (success) | manifest.json | Telegram previews, `state/queue.json` entries → `pending_approval` |
 | 4 | `watch-approvals.yml` | Actions | cron `*/10 * * * *` | Telegram `getUpdates` (offset in state) | state transitions → `approved` / `rejected`; dispatches `publish.yml` |

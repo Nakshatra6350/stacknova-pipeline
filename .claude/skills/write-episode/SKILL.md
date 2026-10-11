@@ -18,6 +18,12 @@ revisions, the reject reason from `state/queue.json` or the owner's message.
 4. Write `segments` in the 6-part shape: hook → naive model → real mechanism → production story
    → trade-offs → recap + next. 1,100–2,200 words. Every segment gets a `visual` with steps whose
    `at` phrases appear verbatim in its narration, and `emphasis` words that appear verbatim.
+   **Read `docs/VISUAL_DSL.md` before writing any visual.** Pick the stage that fits what is
+   being said (`flow` for a request's journey, `sequence` for who-tells-whom and races, `cards`
+   for comparisons, checklists and a + b = c, `fanin` for many senders, `code` for a short
+   listing), list steps in spoken order, and let something change every few seconds: a
+   visual with one step for forty seconds of narration is a slide, not an animation. Every
+   standalone Short needs its own `visual` too. Never write Manim code for an episode.
 5. Production story: use only a story file from the private repo `stories/` with
    `approved_by_owner: true`. If none fits, leave `[STORY:<slug>]` and keep `status: draft`.
 6. Global audience: US dollars or neutral numbers in examples, metric units, no region-only
@@ -28,7 +34,9 @@ revisions, the reject reason from `state/queue.json` or the owner's message.
 9. Packaging: 5 titles ≤ 60 chars (keyword in first 40), 3 thumbnail texts that don't repeat the
    title, description template, 10–15 tags, pinned comment question.
 10. Localizations for every language in `config/reach.yaml`, keeping `keep_in_english` terms.
-11. Code samples: write fresh code under `samples/<lang>/`, make it compile/run, reference lines in visuals.
+11. Code samples: write fresh code under `samples/<lang>/` and make it compile/run. A `code`
+    visual shows its own short listing (at most 10 lines of 60 characters, written for the
+    screen); keep it true to the sample.
 12. Fact-check pass as a sceptical senior engineer: every claim in `fact_check` has a URL or
     "derived from code sample". Delete unsourced claims.
 13. Validate: `uv run python -m channel_os.validate content/episodes/<id>/episode.yaml`
