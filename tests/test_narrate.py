@@ -12,6 +12,7 @@ from channel_os.voice.chunking import chunk_text
 from channel_os.voice.loudness import Loudness
 from channel_os.voice.narrate import (
     LoudnessError,
+    SilenceError,
     Unit,
     all_targets,
     narrate,
@@ -58,6 +59,38 @@ def test_a_story_placeholder_is_left_out_of_a_draft_preview(episode: Data) -> No
     # short-1 is cut from that one segment, so there is nothing left to say.
     with pytest.raises(ValueError, match="short-1: nothing to narrate yet"):
         select_units(episode, "short-1")
+
+
+class Stalling:
+    """A voice model that leaves twelve seconds of silence in the middle of a sentence."""
+
+    identity = "stalls-v1"
+
+    def __init__(self, audio: Any) -> None:
+        self.audio = audio
+
+    def synthesize(self, text: str, out_path: Path) -> None:
+        self.audio(out_path, [(1.0, 0.1), (12.0, 0.0), (1.0, 0.1)])
+
+
+def test_a_stall_in_the_voice_is_cut_out_of_the_narration(
+    tmp_path: Path, settings: VoiceSettings, audio: Any
+) -> None:
+    # Seen for real on 11 October 2026: 29 s of silence inside segment s06 of episode 001.
+    entry = narrate([Unit("s06", "One sentence.")], "long", Stalling(audio), settings,
+                    tmp_path / "out", tmp_path / "cache")
+    (segment,) = entry["segments"]
+    assert segment["duration"] < 4.0
+    assert max(end - start for start, end in segment["pauses"]) < 1.0
+
+
+def test_a_silence_that_survives_stops_the_render(
+    tmp_path: Path, settings: VoiceSettings, audio: Any
+) -> None:
+    uncapped = replace(settings, max_pause_ms=0)
+    with pytest.raises(SilenceError, match=r"s06: 1\d\.\d s of silence at"):
+        narrate([Unit("s06", "One sentence.")], "long", Stalling(audio), uncapped,
+                tmp_path / "out", tmp_path / "cache")
 
 
 def test_all_targets_lists_the_long_video_then_the_shorts(episode: Data) -> None:

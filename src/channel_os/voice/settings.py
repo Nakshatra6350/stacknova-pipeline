@@ -38,6 +38,7 @@ class VoiceSettings:
     max_chunk_chars: int
     sentence_gap_ms: int
     segment_gap_ms: int
+    max_pause_ms: int
     target_lufs: float
     true_peak_ceiling_db: float
     loudness_range: float

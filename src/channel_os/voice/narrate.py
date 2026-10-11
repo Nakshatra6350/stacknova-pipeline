@@ -20,8 +20,17 @@ LUFS_TOLERANCE = 1.0
 TRUE_PEAK_LIMIT_DB = -1.0
 
 
+# No sentence holds a silence this long. One that does is the voice model stalling, and the
+# pause cap in polish should have cut it; if it is still here, the render must not go on.
+MAX_SILENCE_SECONDS = 3.0
+
+
 class LoudnessError(RuntimeError):
     """A rendered narration is outside the loudness acceptance limits."""
+
+
+class SilenceError(RuntimeError):
+    """A rendered segment holds a silence no speaker would leave."""
 
 
 @dataclass(frozen=True)
@@ -118,13 +127,20 @@ def narrate(
             segment = voice_dir / f"seg-{unit.id}.wav"
             normalize(polished, segment, target)
             duration = duration_seconds(segment)
+            pauses = detect_pauses(segment)
+            for start, end in pauses:
+                if end - start > MAX_SILENCE_SECONDS:
+                    raise SilenceError(
+                        f"{unit.id}: {end - start:.1f} s of silence at {start:.1f} s; "
+                        "the voice model stalled and the pause cap did not catch it"
+                    )
             segments.append(
                 {
                     "id": unit.id,
                     "file": segment.relative_to(out_dir).as_posix(),
                     "start": round(cursor, 3),
                     "duration": round(duration, 3),
-                    "pauses": [list(pause) for pause in detect_pauses(segment)],
+                    "pauses": [list(pause) for pause in pauses],
                 }
             )
             cursor += duration + gap
