@@ -16,10 +16,10 @@ Run `/skills` inside Claude Code to see what's loaded; run `/reload-skills` afte
 | `render-local` | ours | — | Previewing an episode/asset on your PC, never publishing |
 | `fix-pipeline-failure` | ours | — | Turning a Telegram failure alert into a diagnosis and fix |
 | `add-skill` | ours | — | Adding/updating skills safely and recording them here |
-| `manim-composer` | [adithya-s-k/manim_skill](https://github.com/adithya-s-k/manim_skill) @ cef0450 | MIT | Planning an explainer video scene by scene before writing Manim code |
-| `manimce-best-practices` | same | MIT | Writing correct Manim Community scenes (our animation engine) |
-| `frontend-design` | [anthropics/skills](https://github.com/anthropics/skills) @ 683bc88 | Apache-2.0 | HTML/CSS templates for thumbnails, carousel slides, guide covers |
-| `webapp-testing` | same | Apache-2.0 | Playwright scripts — we use Playwright to render thumbnails/carousels to images |
+| `manim-composer` | [adithya-s-k/manim_skill](https://github.com/adithya-s-k/manim_skill) @ cef0450 | MIT | **No longer used.** Scenes stopped being drawn with Manim on 12 October 2026 (look v2). Still vendored; removing it is the owner's call. |
+| `manimce-best-practices` | same | MIT | **No longer used**, for the same reason. |
+| `frontend-design` | [anthropics/skills](https://github.com/anthropics/skills) @ 683bc88 | Apache-2.0 | The page scenes are drawn on (`src/channel_os/scenes/web/`), and HTML/CSS templates for thumbnails, carousel slides, guide covers |
+| `webapp-testing` | same | Apache-2.0 | Playwright scripts — we use Playwright to draw scenes frame by frame and to render thumbnails/carousels to images |
 | `skill-creator` | same | Apache-2.0 | Creating and testing new skills of our own |
 
 ## 2. Install once as plugins (run these inside Claude Code)
@@ -38,14 +38,14 @@ For the night agent (cloud), the vendored project skills are what it can rely on
 
 | Skill | Why not |
 |---|---|
-| Remotion skills (remotion-dev/skills) | Excellent for React-based video and captions, but our engine is Manim (Python); mixing two engines doubles maintenance. Revisit only if we move to Remotion. |
-| `manimgl-best-practices` | We use Manim Community, not ManimGL. |
+| Remotion skills (remotion-dev/skills) | Excellent for React-based video and captions, but our scenes are plain HTML/CSS/JS with no framework and no build step, driven from Python; adding React and a bundler for the same result doubles maintenance. Revisit only if we move to Remotion. |
+| `manimgl-best-practices` | We do not use Manim of either kind any more. |
 | Generic "YouTube growth" skills from unknown authors | Unverified advice and unknown scripts; our reach rules live in `docs/REACH_PLAYBOOK.md`. |
 
 ## 4. When Claude Code should use which skill
 
-- Building pipeline code → Superpowers workflow (plan → TDD → verify), plus `manimce-best-practices` for anything in `src/channel_os/scenes/`, `frontend-design` + `webapp-testing` for `assemble/thumbnails.py` and `assemble/carousel.py`.
-- Planning a new visual explanation → `manim-composer`, then encode the plan into `episode.yaml` visuals.
+- Building pipeline code → Superpowers workflow (plan → TDD → verify), plus `frontend-design` + `webapp-testing` for the scene page (`src/channel_os/scenes/web/`), `assemble/thumbnails.py` and `assemble/carousel.py`.
+- Planning a new visual explanation → pick stages from `docs/VISUAL_DSL.md`, then encode the plan into `episode.yaml` visuals.
 - Content → `write-episode`, then `review-episode`.
 - Paid guides / PDFs (Phase 2) → `pdf` (document-skills plugin).
 - Failures → `fix-pipeline-failure`.

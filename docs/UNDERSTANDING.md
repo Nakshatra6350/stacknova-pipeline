@@ -7,8 +7,8 @@ Nothing is built yet; this is what I think we are building and where the plan is
 
 StackNova is a faceless backend-engineering channel run by a pipeline with one human checkpoint.
 A nightly Claude task writes and fact-checks an episode as data (`episode.yaml`). GitHub Actions
-turn that data into finished media: narration in the owner's cloned voice, Manim diagrams timed
-to the narration, word-accurate captions, and the Shorts, Reels, carousels and thumbnails cut
+turn that data into finished media: narration in the owner's cloned voice, animated scenes timed
+to the narration (an HTML page drawn frame by frame; Manim until October 2026), word-accurate captions, and the Shorts, Reels, carousels and thumbnails cut
 from it. A Telegram bot shows each asset to the owner. Only what the owner approves is posted,
 at a UTC slot chosen for a global audience. Rejections come back as reasons the next night's run
 must address, and weekly analytics re-rank the backlog. Phase 1 is content only: no selling, no
@@ -45,7 +45,8 @@ M8 night agent and end-to-end dry run. Each starts only when the previous one's 
 - `kind: guide` (APPROVAL_FLOW) is Phase 2 and stays out of Phase 1 code.
 - Trial Reels, the Community quiz and YouTube title/thumbnail A/B tests (REACH_PLAYBOOK) have no
   milestone and no API path here, so they stay manual.
-- Heavy dependencies (torch, chatterbox, manim) go in optional groups so M0 CI stays fast.
+- Heavy dependencies (torch, chatterbox, the browser driver for scenes) go in optional groups so
+  M0 CI stays fast.
   chatterbox on Python 3.12 is a known install risk to settle in M1.
 - Lint blocks `ready_to_render`, not `draft`, so episode 001 can validate with its story placeholder.
 

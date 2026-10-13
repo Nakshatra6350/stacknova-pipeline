@@ -19,11 +19,15 @@ revisions, the reject reason from `state/queue.json` or the owner's message.
    → trade-offs → recap + next. 1,100–2,200 words. Every segment gets a `visual` with steps whose
    `at` phrases appear verbatim in its narration, and `emphasis` words that appear verbatim.
    **Read `docs/VISUAL_DSL.md` before writing any visual.** Pick the stage that fits what is
-   being said (`flow` for a request's journey, `sequence` for who-tells-whom and races, `cards`
-   for comparisons, checklists and a + b = c, `fanin` for many senders, `code` for a short
-   listing), list steps in spoken order, and let something change every few seconds: a
-   visual with one step for forty seconds of narration is a slide, not an animation. Every
-   standalone Short needs its own `visual` too. Never write Manim code for an episode.
+   being said (`console` for a request's journey between systems, `sequence` for
+   who-tells-whom and races, `cards` for comparisons, checklists and a + b = c, `fanin` for
+   many senders, `code` for a short listing), list steps in spoken order, and let something
+   change every few seconds: a visual with one step for forty seconds of narration is a slide,
+   not an animation. Every standalone Short needs its own `visual` too. Never write page code
+   for an episode, and never describe captions, the intro, the outro or transitions: the
+   planner adds those. Add top-level `next: {title, teaser}` so the outro can name the next
+   episode. A scene that must also work as a Short has to fit a phone screen; the render says
+   when it does not.
 5. Production story: use only a story file from the private repo `stories/` with
    `approved_by_owner: true`. If none fits, leave `[STORY:<slug>]` and keep `status: draft`.
 6. Global audience: US dollars or neutral numbers in examples, metric units, no region-only

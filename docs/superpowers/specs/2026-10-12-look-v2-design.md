@@ -174,6 +174,10 @@ is unchanged: long video of episode n gets `rotation[(n-1) mod k]`, Short j gets
    cannot be drawn until step 2.
 2. **The other four stages**, episode 001 rewritten, workflow and CI updated, acceptance run on
    GitHub. Owner approves; `m2-scenes` and this work merge together.
+   *Built on 13 October 2026*, after the owner approved the look: `cards`, `fanin`, `sequence`
+   and `code` are drawn by the page, `flow` is gone, and every scene of episode 001 (the long
+   video and the five Shorts) draws. Still open: the owner's pick of intro sound and transition
+   style, and the acceptance run on GitHub, which needs the branch pushed.
 
 ## Acceptance
 

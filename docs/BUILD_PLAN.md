@@ -52,6 +52,14 @@ the TTS model.
 > `preview/<target>.mp4` (picture and voice); captions, hook card and final cuts stay in M3.
 > Design: `docs/superpowers/specs/2026-10-09-m2-scenes-design.md`.
 
+> **Look v2 (2026-10-12 and 13).** The owner rated that first look 5/10 against a reference film
+> and chose a second one, so the paragraph above describes history. Scenes are now an HTML page
+> drawn frame by frame in a headless browser (Manim is gone), in two looks, `control` and `nova`.
+> The stages are `console`, `sequence`, `cards`, `fanin` and `code`. Around them the planner adds
+> captions, the logo intro after the hook, the outro, the Instagram handle, the Shorts prompt and
+> the transitions between scenes, all from `config/brand.yaml`. The prompt below is the original
+> one and is kept for the record. Design: `docs/superpowers/specs/2026-10-12-look-v2-design.md`.
+
 ```text
 Implement M2. Create src/channel_os/scenes/theme.py (colours/fonts from config/brand.yaml),
 components (Box, Arrow, Lane, Timeline, CodeBlock with line highlight, Callout, KeyTermLabel),

@@ -1,11 +1,11 @@
 # Visual DSL — how an episode describes its animation
 
 Every narrated unit of an episode (a segment, or a standalone Short's `script`) carries a
-`visual`. The renderer turns it into animation timed to the voice. Nobody writes Manim code for
+`visual`. The renderer turns it into animation timed to the voice. Nobody writes page code for
 an episode: you describe **what happens when a phrase is spoken**, and the stage draws it.
 
 This is the reference for whoever writes `episode.yaml` (the night agent, or a person).
-Design background: `docs/superpowers/specs/2026-10-09-m2-scenes-design.md`.
+Design background: `docs/superpowers/specs/2026-10-12-look-v2-design.md`.
 
 ## 1. Shape of a `visual`
 
@@ -13,19 +13,19 @@ A `visual` is one scene, or a list of scenes.
 
 ```yaml
 visual:
-  - layout: flow            # which stage draws this scene
-    nodes: [...]            # stage-specific keys sit beside layout/steps
+  - layout: console         # which stage draws this scene
+    systems: [...]          # stage-specific keys sit beside layout/steps
     steps:
-      - {at: "tapped Pay", action: press, target: you}
-  - layout: flow
-    from: "The fix"         # this scene takes over, with a hard cut, when the phrase is spoken
-    nodes: [...]
+      - {at: "tapped Pay", action: tap, target: phone}
+  - layout: console
+    from: "The fix"         # this scene takes over when the phrase is spoken
+    systems: [...]
     steps: [...]
 ```
 
 - The first scene starts with the narration. Every later scene needs `from`.
 - Use a second scene when the picture must start again from a clean state (before / after,
-  problem / fix). Keep the same nodes in the same order and the cut reads as a reset, not a jump.
+  problem / fix), or when another stage tells the next part better.
 
 ### Steps
 
@@ -40,126 +40,128 @@ Rules:
 
 1. **Steps are listed in spoken order.** A phrase is searched from where the previous step's
    phrase was found, so a repeated word means its *next* occurrence. Several steps may share
-   one phrase; they fire together.
+   one phrase.
 2. Phrases are matched ignoring case and line breaks; punctuation must be as in the script.
    Pick 2-4 words that occur where you mean.
-3. Motion takes time. A packet needs about 0.4 s per rail, so anchor a `send` to the phrase
-   that *starts* the idea, and let its result (`row`, `chip`, `mark`) land by itself.
-4. Something should change at least every 4 seconds in a Short (`docs/REACH_PLAYBOOK.md`).
+3. `params.delay` (0 to 5 seconds) makes a step wait that long after its phrase. Use it to
+   order steps that share a phrase: the tap, then the packet, then the row it writes.
+4. Motion takes time. A packet needs half a second per hop, so anchor a `send` to the phrase
+   that *starts* the idea and give what it causes a `delay`.
+5. Something should change at least every 4 seconds in a Short (`docs/REACH_PLAYBOOK.md`).
 
 ### How a phrase becomes a time
 
 The voice stage measures the pauses in each narration and stores them in `timing.json`. Clause
 ends in the text are matched to those pauses; a phrase's time is interpolated between them. A
 phrase right after a pause is exact; one in the middle of a long clause can be a few tenths of
-a second off. Word-level alignment arrives with captions in M3 and needs no change here.
+a second off.
 
-## 2. Formats, safe area and themes
+## 2. Formats, safe area and looks
 
 | | Size | Content area (pixels) |
 |---|---|---|
 | Shorts / Reels (portrait) | 1080 x 1920 | x 60-1020, y 260-1040 |
-| Long video (landscape) | 1920 x 1080 | x 160-1760, y 110-970 |
+| Long video (landscape) | 1920 x 1080 | x 40-1880, y 0-1040 |
 
 The same `visual` renders in both. In portrait, everything above y 260 and below y 1040 belongs
-to the hook, the burned-in captions (M3) and the platform's own buttons, so scenes stay out of
-it. **A part that leaves the content area fails the render** and the error names it. Text is
-shrunk to fit its slot down to 60% and fails below that: shorten the label.
+to the captions and the platform's own buttons, so scenes stay out of it.
 
-Colours and fonts come from `config/themes.yaml`. With no `theme` in the episode, the long video
-of episode *n* uses `rotation[(n - 1) mod k]` and its Short *j* uses
-`rotation[(n - 1 + j) mod k]`, so neighbouring assets differ. Set `theme: navy` (or `brand`) on
-the episode or on one Short to pin it. A scene never names a colour: it says `status: ok | bad |
-info` or `role: request | reply | retry` and the theme decides.
+**The page refuses what it cannot draw well, and the render fails with the reason:**
 
-## 3. Stage `flow`
+- a block that leaves the content area (a scene too tall for a phone screen, for example);
+- a panel, card or listing with more in it than fits **at any moment of the story**;
+- a caption too long for its bar.
 
-A row of 2-4 nodes joined by rails, with requests travelling along them. Below the row there is
-room for **lanes** (the same journey replayed as alternative stories) or a **table** owned by one
-node. Not both in one scene.
+Fix those in the episode: shorter labels, fewer rows, a second scene.
+
+Colours come from `config/themes.yaml`, which holds two looks: `control` (a neutral control
+room) and `nova` (the same room in the StackNova colours). With no `theme` in the episode, the
+long video of episode *n* uses `rotation[(n - 1) mod k]` and its Short *j* uses
+`rotation[(n - 1 + j) mod k]`, so neighbouring assets differ. Set `theme: nova` (or `control`)
+on the episode or on one Short to pin it. A scene never names a colour: it says
+`status: ok | bad | info` or `role: request | reply | retry | error` and the look decides.
+Text is drawn only in the bundled faces (Inter, Inter Display, JetBrains Mono).
+
+### What you do not write
+
+The planner adds these from `config/brand.yaml`; an episode never describes them:
+
+- the top bar (logo, part number, the segment's `title`, the episode);
+- captions, from the narration, with the segment's `emphasis` words coloured;
+- the progress bar;
+- on a long video: the logo intro after the first segment (the hook always comes first), the
+  outro, and the Instagram handle sliding in twice;
+- on a Short: like, comment, share, subscribe over the last 3 seconds;
+- the transition from one scene to the next.
+
+Top-level `next: {title, teaser}` in `episode.yaml` names the next episode on the outro.
+
+## 3. Stage `console`
+
+A control room for one request's journey: a row of systems, packets that carry their own label
+along a track, an optional phone with an app screen, the request and response on the wire, and
+up to two panels of state. Use it whenever something travels between systems.
 
 ```yaml
-- layout: flow
-  header: ["PAYMENT / RETRY", "REQ #4171"]     # optional: small text top-left and top-right
-  nodes:
-    - {id: you, kind: phone, label: you, amount: "$100.00", button: Pay}
-    - {id: server, kind: service, label: server, title: api}
-    - {id: bank, kind: ledger, label: bank, title: ledger}
-  lanes:                                        # optional
-    title: "no reply. two possible stories:"
-    rows:
-      - {id: a, label: "1  never arrived"}
-      - {id: b, label: "2  charged, reply lost"}
-  # table: {title: idempotency_keys, owner: server}   # optional, instead of lanes
+- layout: console
+  phone:                                   # optional: a checkout screen on the left
+    title: Checkout
+    total: "$100.00"
+    method: "Visa •••• 4242"
+    items: [["Headphones", "$89.00"], ["Shipping", "$11.00"]]
+  systems:                                 # 1 to 4, left to right
+    - {id: api, name: "API server", sub: "POST /v1/payments", idle: "listening on :8080"}
+    - {id: store, name: "Key store", sub: "PostgreSQL · idempotency_keys"}
+    - {id: gateway, name: "Payment gateway", sub: "moves the money"}
+  panels:                                  # 0 to 2, beside the wire
+    - {id: keys, kind: table, title: idempotency_keys, columns: [key, status, response], unique: key, lane: store}
+    - {id: charges, kind: list, title: "gateway · charges", unit: charged, empty: "No money has moved.", lane: gateway}
   steps: [...]
 ```
 
-### Node kinds
-
-| `kind` | Looks like | Keys |
-|---|---|---|
-| `phone` | A handset with an amount and a button | `label`, `amount`, `button` (default `Pay`) |
-| `service` | A panel with a title bar and blinking status lights | `label`, `title` |
-| `ledger` | A panel that collects numbered rows (up to 3) | `label`, `title` |
-
-`label` is the name under the node. Nodes are laid out left to right in the order listed.
-
-### Targets
-
-| Target | Means |
-|---|---|
-| `you` | A node, by id |
-| `you->bank` | The path from one node to another along the main row. It may pass through nodes in between. |
-| `b:you->bank` | The same path on lane `b` |
-| `main`, `lanes`, `table` | A whole group |
-| `a` | One lane, by id |
-| `table:k` | The table row whose `id` is `k` |
-
-### Actions
+- A system has a `name`, a `sub` line and an `idle` line shown until it logs something.
+- A panel is a `table` (`columns`, and `unique` to mark one of them) or a `list` (`unit` for
+  its counter, `empty` for what it says before anything arrives). `lane` gives it the colour
+  of a system.
+- In portrait there is no room for the phone or for every panel: the phone becomes a small
+  card that says what its screen would show, and **one panel is on screen at a time**, the one
+  the latest step was about. Four cards in a row (the phone and three systems) show names and
+  the latest log line only.
 
 | Action | Target | Params | What you see |
 |---|---|---|---|
-| `press` | a phone | | The button flashes and a ring spreads from it |
-| `send` | a path | `role`, `tag`, `lost`, `row`, `chip`, `mark` | A packet travels the path; dashes march along the rails it uses |
-| `row` | a ledger, or `table` | ledger: `text`, `status`; table: `id`, `cells: [key, value]`, `status` | A row is written |
-| `chip` | a node | `text`, `status`, or `clear: true` | A small status pill on a phone's screen (under the name of other nodes) |
-| `badge` | a node, or `table` | `text`, `status` | A bold pill above the node, with a ring; on a table, in its title bar |
-| `tag` | a node | `text`, `status` | A light pill above the node (what it is carrying) |
-| `block` | a path between neighbours | `text` | A red bar across the rail for about 2.5 s: this attempt stops here |
-| `dim` | a group or a lane | | Fades it back so the eye goes elsewhere |
-| `focus` | a group or a lane | | Brings it back to full strength |
-| `title` | `lanes` or `table` | | Reveals the lower area |
-| `timeout` | `lanes` | | A ring next to the lanes title sweeps round like a clock running out |
-| `highlight` | a node, `table`, `table:<id>`, a lane | | A pulse: an outline on a node or table, a glow on a table row. On a ledger with a bad row it pulses that row too. On a lane it brings in the lane's label. |
+| `tap` | `phone` | | The button is pressed; the phone shows "Processing…" and adds an attempt |
+| `send` | `from->to` | `label` (required), `role`, `lost`, `wire`, `response` | A packet with its label travels the track, through the systems in between |
+| `log` | a system | `text` | A line in the system's log (the last two stay) |
+| `row` | a table panel | `key`, `cells`, `status`, `conflict`, `message` | A row is written; the same `key` again changes it in place |
+| `item` | a list panel | `text`, `value`, `status` | A line is added to the list |
+| `stamp` | a panel | `text`, `status` | A verdict stamped on the panel: `CHARGED TWICE` |
+| `screen` | `phone` | `state`, `title`, `text`, `warn`, `attempt`, `chip` | What the phone's screen shows |
+| `note` | `wire` | `text`, `status` | A remark under the request on the wire |
+| `highlight` | a system, a panel, `panel.unique`, `phone` | | A glow, about a second and a half |
 
 `send` params:
 
-- `role: request | reply | retry` picks the packet's colour (default `request`).
-- `tag: "7f3c"` writes a small label that rides with the packet.
-- `lost: 0.55` makes the packet die that far along its last rail, with a red cross. Nothing
-  arrives, so `row` and `mark` are ignored; a `chip` is what the receiver shows instead (for
-  example `{text: error, status: bad}` when a reply never comes).
-- `row: {text: "$100", status: ok}` writes a ledger row when the packet arrives.
-- `chip: {text: paid, status: ok}` shows a chip on the receiver when it arrives.
-- `mark: ok` (a tick) or any short text such as `x2` appears above the receiver. Lanes only.
+- `role: request | reply | retry | error` picks the packet's colour; a reply is drawn dashed.
+- `lost: 0.8` makes the packet die that far along its way, marked "✕ lost".
+- `wire: {title, tag, bad, method, path, headers, hi, body}` puts the request on the wire
+  panel, with its body typed out. A header whose value is `null` is shown as not sent. `hi`
+  lists the headers to pick out (default `Idempotency-Key`); `tag` is a note in the corner
+  (`RETRY · SAME KEY`), red when `bad: true`.
+- `response: {status, body, bad}` puts the answer under the request it belongs to. If that
+  packet is `lost`, the wire says it never reached its receiver.
 
-Things that share a place replace each other: a new chip replaces the node's chip, and a `tag`
-and a `badge` share the spot above a node.
+`row` params: `cells` are the values after the key, one per remaining column. `status` colours
+the first of them. `conflict: true` with a `message` shows an insert being refused: the row
+stays as it was and flashes.
 
-The lower area stays hidden until a `title` or `timeout` step reveals it. A lane's label appears
-when the lane is first used. If no step reveals the lower area, it is simply there from the start.
+`screen` params: `state: idle | error | success`. An error shows a toast (`title`, `text`) and
+turns the button into "Try again"; a success shows a tick with `text`, and `warn` in red under
+it. `attempt` is what the attempts list says about the last tap (`no reply`, `paid`).
+`chip: {label, value, status}` shows a value the phone holds, such as its idempotency key.
 
-A row with neither lanes nor a table sits in the middle of the frame. With three or more lanes
-the main row is drawn smaller to give the lanes room.
-
-### Limits
-
-- 2 to 4 nodes; a ledger holds 3 rows; the table holds 3 rows.
-- `press` needs a phone; `row` needs a ledger or the table.
-- A step the stage cannot draw fails the render and names the step and its phrase.
-
-A `row` on the table with an `id` that already exists changes that row's value in place
-(`in progress` becoming `completed`).
+Limits: 1 to 4 systems (one system alone needs the phone); 2 panels; ids must differ, and
+`phone` and `wire` are taken.
 
 ## 4. Stage `sequence`
 
@@ -168,7 +170,7 @@ lifeline under it; time runs down. Use it for races, handshakes, retries, transa
 
 ```yaml
 - layout: sequence
-  header: ["THE RACE", "CHECK, THEN CHARGE"]
+  header: ["THE RACE", "CHECK, THEN CHARGE"]     # optional label line above the scene
   actors:
     - {id: r1, label: "request #1", kind: client}
     - {id: db, label: "keys table", kind: store}
@@ -178,16 +180,15 @@ lifeline under it; time runs down. Use it for races, handshakes, retries, transa
     - {at: "Both charge", action: note, target: r1, params: {text: "charge $100", status: bad}}
 ```
 
-Actor `kind` is `client` (a pill with a ring), `service` (a panel with status lights, the
-default) or `store` (a panel with a stack mark).
+Actor `kind` is `client`, `service` (the default) or `store`; it is written under the name.
 
 | Action | Target | Params | What you see |
 |---|---|---|---|
-| `message` | `a->b` | `text`, `role`, `status`, `lost`, `same_row` | An arrow grows from one lifeline to the other behind a packet and stays. `lost` stops it short with a cross. |
+| `message` | `a->b` | `text`, `role`, `status`, `same_row` | An arrow grows from one lifeline to the other, its words riding on it. A reply is dashed. |
 | `note` | an actor | `text`, `status`, `same_row` | A pill on that actor's lifeline: what it does or decides |
-| `divider` | `all` | `text` | A dashed rule across every lifeline, for "later" or a change of phase |
-| `badge` | an actor | `text`, `status` | A bold pill above the actor |
-| `highlight` | an actor | | The actor's head pulses |
+| `divider` | `all` | `text` | A rule across every lifeline, for "later" or a change of phase |
+| `badge` | an actor | `text`, `status` | A verdict under the actor's name |
+| `highlight` | an actor | | The actor's head glows |
 
 Each message, note and divider takes the next row down; `same_row: true` keeps a step on the
 row above (two things at the same moment). **A sequence has 7 rows.** The validator counts them;
@@ -195,13 +196,14 @@ for a longer story cut to a second scene with `from`.
 
 ## 5. Stage `cards`
 
-One to four panels compared side by side. A card has a `title`, an optional line of `text`
+One to four things compared side by side. A card has a `title`, an optional line of `text`
 and up to four `lines` (`key`, `value`) whose values can change. Use it for before/after and
 this-versus-that, checklists, quizzes and `a + b = c` statements.
 
 ```yaml
 - layout: cards
-  title: "twice has the same effect as once"      # optional line above the cards
+  header: ["IDEMPOTENT?", "DO IT TWICE"]           # optional label line
+  title: "twice has the same effect as once"       # optional statement above the cards
   joins: ["+", "="]                                # optional glyph between neighbours
   cards:
     - id: add
@@ -215,29 +217,30 @@ this-versus-that, checklists, quizzes and `a + b = c` statements.
 
 | Action | Target | Params | What you see |
 |---|---|---|---|
-| `show` | a card | | A `hidden` card (and the join before it) fades in |
-| `apply` | a card | `role`, and optionally `line`, `value`, `status` | A packet drops into the card and its `x1, x2, ...` tally ticks up; the named line takes the new value as it lands |
-| `set` | `card.line` | `value`, `status` | The line's value changes with a glow |
+| `show` | a card | | A `hidden` card pops in; a join appears once the cards on both sides of it are there |
+| `apply` | a card | `role`, and optionally `line`, `value`, `status` | A ring leaves the card and its `×1, ×2, ...` count ticks up; the named line takes the new value a beat later |
+| `set` | `card.line` | `value`, `status` | The line's value changes at once, with a flash |
 | `mark` | a card | `status` | A tick or a cross in the card's corner and a frame in that colour |
-| `badge` | a card | `text`, `status` | A bold pill above the card |
-| `highlight` | a card or `card.line` | | An outline pulse, or a glow on the line |
-| `dim` / `focus` | a card or `all` | | Fade back / bring back |
+| `badge` | a card | `text`, `status` | A verdict stamped at the foot of the card |
+| `highlight` | a card or `card.line` | | A glow on the card, or a flash on the line |
+| `dim` / `focus` | a card or `all` | | `dim x` lowers x; `focus x` brings x up and lowers the rest; `focus all` brings everything back |
 
-Arrangement is automatic: a row in landscape (two by two for four cards too wordy to share a
-row); in portrait a row for two cards, a column for three or for anything with `joins`, a
-two-by-two grid for four. `arrange: row | column | grid` overrides it. Cards grow to fill the
-frame as far as their longest title, text and line allow (up to 1.6 times), so short labels
-make big, readable cards. An `apply` whose value does not change is how an idempotent
-operation looks.
+Arrangement is automatic: a row in landscape (two by two for four cards that each carry text
+and lines); in portrait a row for two cards, a column for three or for anything with `joins`,
+a two-by-two grid for four. `arrange: row | column | grid` overrides it. Few cards are drawn
+larger. An `apply` whose value does not change is how an idempotent operation looks.
+
+A sum of three cards that also carry lines and verdicts is too tall for a phone screen; the
+page says so. Keep a sum's cards to a title and a line of text when it must work as a Short.
 
 ## 6. Stage `fanin`
 
-Many senders, one receiver. Two to six `sources` stack on the left, each with a rail to one
-`target`; a counter under the target counts arrivals. Use it for retry storms, many producers,
-many clients.
+Many senders, one receiver. Two to six `sources` each have a wire to one `target`, which counts
+what arrives. Use it for retry storms, many producers, many clients.
 
 ```yaml
 - layout: fanin
+  header: ["WHO RETRIES?", "EVERYONE"]
   sources:
     - {id: http, label: "HTTP client"}
     - {id: user, label: "the user"}
@@ -249,20 +252,20 @@ many clients.
 
 | Action | Target | Params | What you see |
 |---|---|---|---|
-| `fire` | a source | `role` (default `retry`) | The source appears the first time, its packet runs into the target and the count ticks up |
-| `badge` | the target | `text`, `status` | A bold pill above the target |
-| `tag` | the target | `text`, `status` | A light pill above the target (shares the badge's spot) |
-| `highlight` | a source or the target | | An outline pulse |
+| `fire` | a source | `role`, `text` | A packet runs down the source's wire; the count ticks up when it arrives |
+| `tag` | the target | `text` | A line in the target's log (the last two stay) |
+| `badge` | the target | `text`, `status` | A verdict stamped on the target |
+| `highlight` | a source or the target | | A glow |
 
 ## 7. Stage `code`
 
-A short listing in an editor panel. Write it for the screen: **at most 10 lines of at most 60
+A short listing in an editor window. Write it for the screen: **at most 10 lines of at most 60
 characters**, original to the episode, and true to the sample under `samples/`. Keywords,
 strings, numbers and comments are coloured for `language: sql | go | java | js | python | text`.
 
 ```yaml
 - layout: code
-  title: claim_key.sql
+  title: claim_key.sql            # the file name on the window
   language: sql
   reveal: true                    # lines stay hidden until a `show`
   lines:
@@ -278,16 +281,17 @@ strings, numbers and comments are coloured for `language: sql | go | java | js |
 | Action | Target | Params | What you see |
 |---|---|---|---|
 | `show` | lines `3`, `2-4` or `all` | | Those lines arrive one after another (only with `reveal: true`) |
-| `highlight` | lines | | A band behind those lines; the others fade |
-| `note` | lines | `text`, `status` | A pill under the panel saying what the line means |
-| `focus` | `all` | | Every line back to full strength, the band gone |
+| `highlight` | lines | | Those lines light up; the others go quiet |
+| `note` | lines | `text`, `status` | A remark pinned to the line: beside the listing in landscape, under it in portrait |
+| `focus` | `all` | | Every line back to full strength |
 
 ## 8. A worked example
 
-Episode 001 uses every stage. `short-1` is two `flow` scenes over a 33-second script, cut at
+Episode 001 uses every stage. `short-1` is two `console` scenes over a 33-second script, cut at
 "The fix". Segment `s06` is a `sequence` (the race), a `code` scene (the constraint) and a
-second `sequence` (the race again, now with one winner). `s04` and `short-5` are `cards`, `s03`
-is a `fanin`. Read them in `content/episodes/001-idempotency/episode.yaml`.
+second `sequence` (the race again, now with one winner). `s04`, `s07`, `s10` and `short-5` are
+`cards`, `s03` is a `fanin`, and `s01`, `s02`, `s05` and `s08` are `console` scenes. Read them
+in `content/episodes/001-idempotency/episode.yaml`.
 
 ## 9. Checking and previewing
 
@@ -297,7 +301,8 @@ uv run python -m channel_os.validate content/episodes/001-idempotency/episode.ya
 
 reports an unknown layout, action or target, a phrase that is not spoken and steps out of spoken
 order (errors at every status), and a standalone Short without a visual (a warning on a draft,
-an error at `ready_to_render`).
+an error at `ready_to_render`). What only the page can know (does it fit?) is reported by the
+render.
 
 Previews need the narration first (the voice stage writes `out/<episode>/timing.json` and the
 audio), then:
@@ -308,18 +313,25 @@ uv run --group scenes python -m channel_os.render --episode 001-idempotency --st
 
 writes `out/001-idempotency/preview/short-1.mp4`: the animation with the narration under it.
 Add `--quality 0.5` for a quick half-size look, `--format landscape` to see the other format
-(saved beside it as `short-1.landscape.mp4`), `--theme brand` to try the other theme, `--jobs 2`
-to draw two scenes at a time. Previews have no captions, hook card or watermark; those are
-added in assembly (M3).
+(saved beside it as `short-1.landscape.mp4`), `--theme control` to try the other look,
+`--jobs 2` to draw two scenes at a time. Scenes are drawn in a headless Chrome or Edge that is
+already installed; nothing is downloaded.
 
 On GitHub the `render` workflow does both stages (voice, then scenes) and stores
 `preview.<target>.mp4` in the episode's draft Release.
 
 ## 10. Adding a stage
 
-The stages are `flow`, `sequence`, `cards`, `fanin` and `code`; any other `layout` is an error
-(`visual-stage`). When a topic needs a picture none of them can draw, add a stage rather than
-bending one: a pure `<name>_model.py` in `src/channel_os/scenes/` (its `ACTIONS`, `problems`
-for the validator, `layout` for both formats) and a `<name>.py` that draws it on the shared
-`Stage` base. Register both in `spec.STAGES` and `preview.BUILDERS`, add its actions to the
-schema's enum (a test keeps the two in step), and document it here.
+The stages are `console`, `sequence`, `cards`, `fanin` and `code`; any other `layout` is an
+error (`visual-stage`). When a topic needs a picture none of them can draw, add a stage rather
+than bending one:
+
+1. `src/channel_os/scenes/<name>_model.py`: its `ACTIONS` and `problems(decl, steps)` for the
+   validator. No geometry: the page lays things out.
+2. `src/channel_os/scenes/web/<name>.js`: `SN.stages.<name> = {build(clip, root), render(t)}`.
+   Everything on screen is a function of `t`; nothing is remembered between frames. Mark each
+   block `data-in` (it arrives when the scene comes on), `data-safe` (it must stay in the
+   content area) and `data-fit` (its content must fit it).
+3. Register the model in `spec.STAGES`, the name in `preview.DRAWN` and the script in
+   `web/index.html`; add its actions to the schema's enum (a test keeps them in step).
+4. Page tests in `tests/` that read the DOM at chosen moments, and a section here.

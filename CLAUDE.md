@@ -27,7 +27,8 @@ no paid guides/notes/projects** anywhere in code, descriptions or posts. Cadence
 
 A **night agent** (a Claude scheduled task in the cloud, 01:00 IST) picks a topic, writes and
 fact-checks an episode (`content/episodes/<id>/episode.yaml`) and pushes it. **GitHub Actions**
-render it: cloned voice (Chatterbox) → animated diagrams (Manim) → assembly (ffmpeg) →
+render it: cloned voice (Chatterbox) → animated scenes (an HTML page drawn frame by frame in a
+headless browser) → assembly (ffmpeg) →
 captions (faster-whisper alignment + ASS) → long video, Shorts, Reels, carousel images,
 thumbnails. A **Telegram bot** sends each asset with Approve / Reject buttons. A workflow
 polls Telegram every 10 min; on Approve it **publishes** to YouTube and Instagram at the
@@ -47,7 +48,10 @@ from the owner's own notes. Never commit the voice sample or secrets here.
 ## 4. Tech stack (pin these)
 
 - Python **3.12**, dependency manager **uv** (`pyproject.toml` + `uv.lock`). Single language for the pipeline.
-- Video: **Manim Community** (scenes), **ffmpeg** (assembly, loudness, encode), **libass** (captions).
+- Video: scenes are **HTML/CSS/JS** (`src/channel_os/scenes/web/`, no framework, no build step) captured
+  frame by frame with **Playwright** in the Chrome or Edge already installed; **ffmpeg** (assembly,
+  loudness, encode), **libass** (captions). The owner chose this over Manim on 12 Oct 2026
+  (`docs/superpowers/specs/2026-10-12-look-v2-design.md`).
 - Voice: **chatterbox-tts** (MIT), reference clip from the private repo, CPU on `ubuntu-latest`.
 - Alignment: **faster-whisper** (`small.en`, word timestamps), matched against the known script text.
 - APIs: `google-api-python-client` (YouTube Data API v3), plain `httpx` for Telegram Bot API and Instagram Graph API.
@@ -61,15 +65,18 @@ config/            brand.yaml, platforms.yaml, schedule.yaml, reach.yaml, voice.
 assets/fonts/      Inter and JetBrains Mono (OFL), the only faces scenes are drawn in
 content/
   backlog.yaml     ranked topic queue (night agent reads/writes)
-  episodes/<id>/   episode.yaml (+ scenes/*.py, generated assets manifest)
+  episodes/<id>/   episode.yaml (+ samples/, generated assets manifest)
 schemas/           episode.schema.json  (validate every episode.yaml against it)
 src/channel_os/
   voice/           tts.py (chatterbox), loudness.py, reference.py, chunking.py, narrate.py,
                    polish.py (pace + clarity), wavio.py, settings.py
-  scenes/          episode.yaml `visual` -> animation (docs/VISUAL_DSL.md). No Manim: theme.py,
-                   formats.py, phrases.py, spec.py, plan.py and each stage's <name>_model.py.
-                   Manim: kit.py, stage.py, render.py, preview.py and the stages flow.py,
-                   sequence.py, cards.py, fanin.py, code.py
+  scenes/          episode.yaml `visual` -> animation (docs/VISUAL_DSL.md). No browser: theme.py,
+                   formats.py, phrases.py, vocabulary.py, spec.py, plan.py (adds captions, intro,
+                   outro, transitions) and each stage's <name>_model.py (console, sequence,
+                   cards, fanin, code). Browser: browser.py (Playwright), preview.py.
+    web/           the page scenes are drawn on: index.html, stage.css, stages.css, runtime.js,
+                   one <stage>.js per stage, brand.js (logo intro and outro)
+  brand/           sound.py (the channel's own synthesised sounds)
   assemble/        timeline.py, ffmpeg.py, cuts.py (shorts/reels), thumbnails.py, carousel.py
   captions/        align.py (whisper→script words), ass.py (burned-in), srt.py (upload track)
   publish/         youtube.py, instagram.py, pages_host.py (temporary public URLs)
@@ -125,8 +132,8 @@ Project skills in `.claude/skills/` load automatically. Use them:
 | Task | Skill |
 |---|---|
 | Write or revise an episode | `write-episode`, then `review-episode` |
-| Plan a visual explanation | `manim-composer` → then encode it in `episode.yaml` visuals |
-| Any Manim code (`src/channel_os/scenes/`) | `manimce-best-practices` |
+| Plan a visual explanation | choose stages from `docs/VISUAL_DSL.md`, then encode it in `episode.yaml` visuals |
+| Scene page code (`src/channel_os/scenes/web/`) | `frontend-design` + `webapp-testing` (Playwright) |
 | Thumbnail / carousel / guide-cover templates | `frontend-design` + `webapp-testing` (Playwright rendering) |
 | Preview renders | `render-local` |
 | A failed workflow or Telegram alert | `fix-pipeline-failure` |
@@ -135,3 +142,5 @@ Project skills in `.claude/skills/` load automatically. Use them:
 | Building milestones | Superpowers plugin workflow if installed: brainstorm → plan → TDD → verify |
 
 If a skill you need isn't installed, say so and give the owner the exact command from `docs/SKILLS.md`.
+`manim-composer` and `manimce-best-practices` are still vendored but no longer apply: scenes are not
+drawn with Manim.
