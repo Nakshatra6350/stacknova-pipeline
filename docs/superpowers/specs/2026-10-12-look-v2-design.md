@@ -186,14 +186,26 @@ is unchanged: long video of episode n gets `rotation[(n-1) mod k]`, Short j gets
 
 ## Acceptance
 
-- [ ] `preview/long.mp4` (1920x1080, 30 fps): hook, intro (with the owner's sound once chosen),
-      the remaining segments, outro with music; handle shown twice; centred captions throughout.
-- [ ] The five Shorts (1080x1920) with the follow prompt, no intro.
-- [ ] Frame count equals narration plus intro and outro, exactly.
-- [ ] Both looks used, per the rotation.
-- [ ] Nothing outside the content area in either format.
-- [ ] `pytest`, `ruff`, `mypy` pass; CI green; rendered on GitHub.
-- [ ] The owner approves the look.
+Accepted on 13 October 2026, against the render GitHub made of commit `5ea70ab` (render run
+38355721900; previews in the draft Release `ep-001-idempotency`).
+
+- [x] `preview/long.mp4` (1920x1080, 30 fps): hook, intro with the owner's sound, the remaining
+      segments, outro with music; handle shown twice (about 2:34 and 4:52); centred captions
+      throughout. 12,721 frames, 7 min 04 s.
+- [x] The five Shorts (1080x1920) with the subscribe prompt, no intro.
+- [x] Frame count equals narration plus intro and outro, exactly, for all six videos.
+- [x] Both looks used, per the rotation: the long video in `control`, the Shorts alternating
+      `nova` and `control`.
+- [x] Nothing outside the content area in either format: the page refuses a scene that breaks
+      this, and every scene of the episode draws.
+- [x] `pytest` (294 tests), `ruff`, `mypy` pass; CI green on GitHub, including the page tests
+      on Linux; rendered on GitHub.
+- [x] The owner approves: the look on 13 October ("this good for start ... we can go ahead with
+      this"), then the merge ("merge") after watching the GitHub render.
+
+Carried forward, not part of this milestone: Short 2 (56.7 s) and Short 3 (26.2 s) are outside
+the 30 to 50 second guideline, and segment 9 waits for the owner's production story, so
+episode 001 stays a draft.
 
 ## Out of scope
 
