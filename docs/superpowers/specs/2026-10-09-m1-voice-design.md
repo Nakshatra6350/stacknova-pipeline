@@ -121,17 +121,28 @@ as out of scope below, came into scope, together with a check that does the list
   contractions, words joined or split, endings, homophones, and the jargon in `terms`, which
   only has to sound close ("idempotency" is written down as "item potency"). The recogniser
   gets no hints: given the jargon as hot words it wrote those words into silences.
-- **Reading again** (`voice/narrate.py`). A chunk with misses is synthesised again with seed+1,
-  seed+2 and seed+3, and the reading with the least missed is kept. A chunk that loses a phrase
-  in every reading (four words running, or a fifth of its words) is spoken sentence by sentence,
-  which the model manages better. A sentence that still loses a phrase raises
-  `PronunciationError` and the render stops: a narration with a hole in it is not shipped.
+- **Reading again** (`voice/narrate.py`). A chunk is read once as a whole. If words are missed,
+  each of its sentences is read on its own, and a sentence that still has a miss is read again
+  with seed+1, seed+2 and seed+3; the reading with the least missed is kept. So only the
+  sentence that was wrong costs more readings, and a sentence the model skipped inside a long
+  chunk is said when it is given alone. Reading stops early when two readings running miss
+  exactly the same thing: that is the model's habit or the recogniser's, not chance. The
+  sentences replace the whole reading when they miss less; otherwise the whole reading stays,
+  because it flows better. A chunk that loses a phrase both ways (four words running, or a
+  fifth of its words) raises `PronunciationError` and the render stops: a narration with a hole
+  in it is not shipped. The first version read the whole chunk up to four times; on episode 001
+  that multiplied a render that already takes over an hour on a CPU runner.
+- **The log.** The voice model draws a progress bar for every chunk ("Sampling", counting to
+  1000, its upper limit; a chunk ends near 300 to 450). That was thousands of lines, and it
+  looked like a render starting over. `TQDM_DISABLE` switches it off in the workflow, and the
+  render prints one line per chunk: said as written, or what was missed and what was done.
 - **What the owner sees.** Each segment in `timing.json` records `retakes` and `unsure` (what
   was meant and what was heard, for misses too small to stop the render), and the workflow
   summary lists them, so a reviewer knows where to listen.
 - **Cache.** Take 0 keeps the chunk's old cache name, so speech that was right is not
-  synthesised again; other takes add `|take=N` to the key. What was heard is stored beside each
-  chunk. The cache is uploaded even when the render fails. `--no-listen` skips the check.
+  synthesised again; other takes add `|take=N` to the key. A sentence read on its own is cached
+  the same way, under its own text. What was heard is stored beside each reading. The cache is
+  uploaded even when the render fails. `--no-listen` skips the check.
 
 Limits, said plainly: speech recognition is not an ear. It can miss a word that is said
 slightly wrong and it can flag one that is fine, so the owner's listen on Telegram stays the

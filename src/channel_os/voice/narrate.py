@@ -3,7 +3,7 @@
 import hashlib
 import json
 import tempfile
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -27,8 +27,9 @@ TRUE_PEAK_LIMIT_DB = -1.0
 # pause cap in polish should have cut it; if it is still here, the render must not go on.
 MAX_SILENCE_SECONDS = 3.0
 # The voice model sometimes says a word wrong or skips a sentence, so each chunk is listened
-# to and read again, up to this many readings, until nothing is missed.
+# to, and a sentence with a miss in it is read again, up to this many readings in all.
 MAX_TAKES = 4
+Report = Callable[[str], None]  # told what the listening check found and did, line by line
 # A reading that misses this many words running, or this share of all its words, lost a phrase.
 GROSS_RUN = 4
 GROSS_SHARE = 0.2
@@ -99,63 +100,98 @@ def _gross(text: str, misses: Sequence[Miss]) -> bool:
     return dropped or weight(misses) >= max(GROSS_RUN, GROSS_SHARE * content)
 
 
-def _best_take(
+def _readings(
     text: str, synthesizer: Synthesizer, lexicon: Lexicon, listener: Listener | None,
-    cache_dir: Path,
-) -> tuple[Path, int, list[Miss]]:
-    """Speak `text`, listen to it, and read it again while words are missed.
+    cache_dir: Path, limit: int,
+) -> tuple[Path, list[Miss], int]:
+    """Speak `text`, listen to it, and read it again while that can still help.
 
-    Returns the best reading's file, which take it was, and what it still misses. Without a
-    listener there is one take and nothing is checked.
+    Returns the best reading's file, what it still misses, and how many readings were tried.
+    It stops at a clean reading, and also when a reading misses exactly what the one before
+    missed: then the miss does not depend on the seed (the model always says it so, or the
+    recogniser always hears it so) and more readings would only cost time. A reading that
+    lost a phrase is never a reason to stop early, because that stops the render. Without a
+    listener there is one reading and nothing is checked.
     """
     spoken = lexicon.respell(text)
-    best: tuple[int, int, Path, list[Miss]] | None = None
-    for take in range(MAX_TAKES if listener is not None else 1):
+    best: tuple[int, Path, list[Miss]] | None = None
+    previous: list[Miss] | None = None
+    tried = 0
+    for take in range(limit if listener is not None else 1):
         cached = cache_dir / f"{cache_key(synthesizer.identity, spoken, take)}.wav"
         if not cached.exists():
             partial = cached.with_suffix(".part")
             synthesizer.synthesize(spoken, partial, take)
             partial.replace(cached)
+        tried += 1
         if listener is None:
-            return cached, 0, []
+            return cached, [], tried
         misses = missed(text, _heard(cached, listener), lexicon.terms)
         if best is None or weight(misses) < best[0]:
-            best = (weight(misses), take, cached, misses)
-        if not misses:
+            best = (weight(misses), cached, misses)
+        if not misses or (misses == previous and not _gross(text, misses)):
             break
+        previous = misses
     assert best is not None
-    return best[2], best[1], best[3]
+    return best[1], best[2], tried
+
+
+def _said(misses: Sequence[Miss]) -> str:
+    return "; ".join(map(str, misses))
 
 
 def _raw_unit(
     unit: Unit, synthesizer: Synthesizer, settings: VoiceSettings, cache_dir: Path, work: Path,
-    lexicon: Lexicon, listener: Listener | None,
+    lexicon: Lexicon, listener: Listener | None, report: Report,
 ) -> tuple[Path, int, list[Miss]]:
     """Synthesise a unit chunk by chunk, reusing cached chunks, and join them.
 
-    Also returns how many readings beyond the first were kept and what is still missed. A
-    chunk whose every reading loses a phrase is spoken again sentence by sentence, which the
-    model manages better; a sentence that still loses a phrase stops the render.
+    Also returns how many chunks were read again and what is still missed. A chunk is read
+    once as a whole, which keeps the voice's own flow from sentence to sentence. If words are
+    missed, each of its sentences is read on its own, and again while that helps: only the
+    sentence that was wrong gets more readings, and a sentence the model skipped inside a long
+    chunk is said when it is given alone. The sentences replace the whole reading when they
+    miss less. A chunk that loses a phrase both ways stops the render.
     """
     files: list[Path] = []
     retakes = 0
     unsure: list[Miss] = []
-    for chunk in chunk_text(unit.text, settings.max_chunk_chars):
-        pieces = [chunk]
-        wav, take, misses = _best_take(chunk, synthesizer, lexicon, listener, cache_dir)
-        if _gross(chunk, misses) and len(sentences(chunk)) > 1:
-            pieces = sentences(chunk)
-        for piece in pieces:
-            if len(pieces) > 1:
-                wav, take, misses = _best_take(piece, synthesizer, lexicon, listener, cache_dir)
-            if _gross(piece, misses):
-                raise PronunciationError(
-                    f"{unit.id}: the voice did not say this in {MAX_TAKES} readings: "
-                    f"{piece!r} ({'; '.join(map(str, misses))})"
-                )
-            files.append(wav)
-            retakes += take > 0
+    chunks = chunk_text(unit.text, settings.max_chunk_chars)
+    for number, chunk in enumerate(chunks, start=1):
+        where = f"{unit.id} chunk {number}/{len(chunks)}"
+        whole, misses, _ = _readings(chunk, synthesizer, lexicon, listener, cache_dir, 1)
+        if not misses:
+            report(f"{where}: {'said as written' if listener is not None else 'spoken'}")
+            files.append(whole)
+            continue
+        report(f"{where}: {_said(misses)}")
+        lost = _gross(chunk, misses)
+        pieces: list[Path] = []
+        left: list[Miss] = []
+        for sentence in sentences(chunk):
+            wav, still, tried = _readings(sentence, synthesizer, lexicon, listener, cache_dir,
+                                          MAX_TAKES)
+            if _gross(sentence, still):
+                if lost:
+                    raise PronunciationError(
+                        f"{unit.id}: the voice did not say this in {tried} reading(s): "
+                        f"{sentence!r} ({_said(still)})"
+                    )
+                pieces.clear()  # said alone it is worse, so the whole reading stands
+                break
+            pieces.append(wav)
+            left.extend(still)
+        if pieces and (lost or weight(left) < weight(misses)):
+            files.extend(pieces)
+            unsure.extend(left)
+            retakes += 1
+            report(f"{where}: read again sentence by sentence, "
+                   + (f"still {_said(left)}" if left else "said as written now"))
+        else:
+            # The first reading flows better, and reading again did not say more of it right.
+            files.append(whole)
             unsure.extend(misses)
+            report(f"{where}: reading again did not help, the first reading is kept")
     raw = work / f"raw-{unit.id}.wav"
     concat(files, raw, settings.sentence_gap_ms)
     return raw, retakes, unsure
@@ -182,12 +218,14 @@ def narrate(
     cache_dir: Path,
     lexicon: Lexicon | None = None,
     listener: Listener | None = None,
+    report: Report = lambda line: None,
 ) -> dict[str, Any]:
     """Render units into out_dir/voice/<target_name>/ and return that target's timing entry.
 
     `lexicon` respells words the voice reads wrong. With a `listener`, every chunk is heard
     and read again until it says what the script says; each segment's record then tells how
-    many chunks needed another reading (`retakes`) and what could not be confirmed (`unsure`).
+    many chunks needed another reading (`retakes`) and what could not be confirmed (`unsure`),
+    and `report` is told about each as it happens.
     """
     lexicon = lexicon or Lexicon()
     voice_dir = out_dir / "voice" / target_name
@@ -206,7 +244,7 @@ def narrate(
     with tempfile.TemporaryDirectory() as work:
         for unit in units:
             raw, retakes, unsure = _raw_unit(unit, synthesizer, settings, cache_dir, Path(work),
-                                             lexicon, listener)
+                                             lexicon, listener, report)
             polished = polish(raw, Path(work) / f"polished-{unit.id}.wav", settings)
             segment = voice_dir / f"seg-{unit.id}.wav"
             normalize(polished, segment, target)

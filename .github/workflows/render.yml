@@ -65,6 +65,11 @@ jobs:
       LABEL: ${{ inputs.label }}
       BEFORE: ${{ github.event.before }}
       HF_HUB_DISABLE_TELEMETRY: "1"
+      # The voice model draws a progress bar for every chunk it speaks ("Sampling 0 to 1000",
+      # where 1000 is only its upper limit), thousands of lines in a log. The render prints one
+      # line per chunk instead.
+      TQDM_DISABLE: "1"
+      PYTHONUNBUFFERED: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

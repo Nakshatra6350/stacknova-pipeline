@@ -58,6 +58,15 @@ PreviewRenderer = Callable[..., Path]  # scenes.preview.render_preview, or a sta
 SoundMaker = Callable[[str, Path], Path]  # brand.sound.write_sound, or a stand-in in tests
 
 
+def _progress(target: str) -> Callable[[str], None]:
+    """Prints one line per chunk as it is narrated, at once, so a long render shows it is alive."""
+
+    def report(line: str) -> None:
+        print(f"{target}: {line}", flush=True)
+
+    return report
+
+
 def render_voice(
     episode: Mapping[str, Any],
     targets: Sequence[str],
@@ -76,7 +85,7 @@ def render_voice(
     for target in targets:
         units = select_units(episode, target)
         entry = narrate(units, target, synthesizer, settings, out_dir, cache_dir, lexicon,
-                        listener)
+                        listener, _progress(target))
         update_timing(out_dir, episode["id"], target, entry)
         loudness = entry["loudness"]
         print(
