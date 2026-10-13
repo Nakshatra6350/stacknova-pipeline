@@ -12,6 +12,7 @@ prompt on Shorts. Those come from config/brand.yaml.
 """
 
 import html
+import random
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -27,7 +28,7 @@ LONG = "long"
 CAPTION_CHARS = 84  # a caption longer than this is split at a comma so it stays on two lines
 SHORT_CAPTION_CHARS = 44  # Shorts read faster and larger: shorter pieces, changing more often
 HANDLE_EDGE = 0.5  # seconds the Instagram handle keeps clear of a scene change
-MOVES = ("slide", "wipe", "zoom", "none")  # the transition styles the page knows
+STYLES = ("slide", "wipe", "zoom")  # the transition styles the page knows
 _SENTENCE = re.compile(r"[^.!?]+[.!?]+[\"')]*\s*|[^.!?]+$")
 
 
@@ -165,15 +166,44 @@ def _handle_windows(scenes: Sequence[Clip], hook: str, shares: Sequence[float], 
     return {index: found for index, found in windows.items() if found}
 
 
+def transition_styles(wanted: Any) -> tuple[str, ...]:
+    """The styles `video.transition` asks for: one name, a list to mix, or none."""
+    if wanted is None or wanted == "none":
+        return ()
+    styles = (wanted,) if isinstance(wanted, str) else tuple(wanted)
+    unknown = [style for style in styles if style not in STYLES]
+    if unknown or not styles:
+        raise PlanError(f"config/brand.yaml: video.transition {wanted!r} must be one of "
+                        f"{', '.join(STYLES)}, a list of them, or none")
+    return styles
+
+
+def mix_styles(styles: Sequence[str], count: int, seed: str) -> list[str]:
+    """A style for each of `count` changes of scene, mixed at random but repeatably.
+
+    The owner asked for all three styles "on random". The choice is seeded with the episode
+    and target, so rendering a video again gives the same video, and no style is used twice
+    running, so the mix is seen.
+    """
+    rng = random.Random(seed)
+    picked: list[str] = []
+    for _ in range(count):
+        pool = [style for style in styles if not picked or style != picked[-1]] or list(styles)
+        picked.append(rng.choice(pool))
+    return picked
+
+
 def _moves(scenes: Sequence[Clip], index: int, hook: str, intro: bool, outro: bool,
-           style: str | None) -> dict[str, Any]:
+           changes: Sequence[str]) -> dict[str, Any]:
     """How a scene arrives and leaves, so that a change of scene is seen.
 
     'scene' is a change within a segment and 'part' a change of segment. The first scene just
     starts, so frame 1 is a whole picture, and a video with no outro just ends, so a Short
     loops cleanly. Next to a brand scene the frame goes through black, as that scene does.
+    `changes[k]` is the style of the change after scene k: scene k leaves in it and scene k+1
+    arrives in it, so the two halves of a transition match.
     """
-    if style is None or style == "none":
+    if not changes:
         return {}
     clip = scenes[index]
     before = scenes[index - 1] if index else None
@@ -184,9 +214,10 @@ def _moves(scenes: Sequence[Clip], index: int, hook: str, intro: bool, outro: bo
         leave = "scene" if after.unit == clip.unit else "part"
     into_logo = intro and after is not None and clip.unit == hook != after.unit
     return {
-        "move": style,
         "enter": enter,
+        "enter_style": changes[index - 1] if enter else None,
         "exit": leave,
+        "exit_style": changes[index] if leave else None,
         "from_black": bool(intro and before is not None and before.unit == hook != clip.unit),
         "to_black": bool(into_logo or (after is None and outro)),
     }
@@ -224,10 +255,8 @@ def plan_video(episode: Mapping[str, Any], target: str, entry: Mapping[str, Any]
     windows = _handle_windows(scenes, units[0], wanted.get("at", []),
                               float(wanted.get("seconds", 0)), fps)
     prompt = (video.get("shorts_prompt") or {}).get("seconds", 0) if not long_video else 0
-    style = video.get("transition")
-    if style is not None and style not in MOVES:
-        raise PlanError(f"config/brand.yaml: video.transition {style!r} is not one of "
-                        f"{', '.join(MOVES)}")
+    styles = transition_styles(video.get("transition"))
+    changes = mix_styles(styles, len(scenes), f"{episode['id']}/{target}") if styles else []
 
     clips: list[Clip] = []
     done_content = 0  # content frames before this clip
@@ -256,7 +285,7 @@ def plan_video(episode: Mapping[str, Any], target: str, entry: Mapping[str, Any]
         current = [line for line in local if line[0] <= 0.0][-1:] or local[:1]
         chrome["captions"] = [list(line) for line in
                               [*current, *(line for line in local if line[0] > 0.0)]]
-        chrome.update(_moves(scenes, index, units[0], bool(intro), bool(outro), style))
+        chrome.update(_moves(scenes, index, units[0], bool(intro), bool(outro), changes))
         if long_video:
             chrome["handle"] = windows.get(index, [])
         if prompt and index == len(scenes) - 1:

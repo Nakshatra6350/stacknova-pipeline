@@ -43,11 +43,14 @@ fonts:
   mono: "JetBrains Mono"
 watermark: "bottom-right"     # emblem, 6% width, 70% opacity
 video:                        # what the planner adds around an episode's scenes (decided 12 Oct 2026)
-  transition: slide           # how one scene gives way to the next: slide | wipe | zoom | none
+  # How one scene gives way to the next. The owner's pick (13 Oct 2026): "keep all, make mix of
+  # them on random". A list is mixed, one style per change of scene, the same way every time a
+  # video is rendered; one name (slide | wipe | zoom) uses that style throughout; none turns
+  # transitions off.
+  transition: [slide, wipe, zoom]
   intro:                      # long videos only, played AFTER the first segment: "hook first always then intro"
     seconds: 4.3
-    sound: null               # a sound made by src/channel_os/brand/sound.py, like the outro's music.
-                              # None yet: the owner is choosing between three; until then the intro is silent
+    sound: nod-up             # the owner's pick (S1 of three, 13 Oct 2026); made by src/channel_os/brand/sound.py
   outro:                      # long videos only; no voice, music only
     seconds: 12
     music: lofi-nod           # the owner's pick (option 2); made by src/channel_os/brand/sound.py

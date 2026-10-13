@@ -354,6 +354,22 @@ def test_a_short_is_whole_on_its_first_and_last_frame(brand: Data, themes: Any) 
     assert set(closing["last"]["blocks"]) == {1} and closing["last"]["scene"]["opacity"] == 1
 
 
+def test_a_scene_can_arrive_in_one_style_and_leave_in_another(brand: Data, themes: Any) -> None:
+    # The owner asked for the three styles mixed, so the two ends of a scene often differ.
+    data = clip_data(long_plan(moving(brand, "slide")).clips[2], LANDSCAPE,
+                     themes.themes["control"])
+    data["chrome"].update(enter="scene", enter_style="wipe", exit="scene", exit_style="zoom",
+                          from_black=False, to_black=False)
+    view = browser.probe(data, LANDSCAPE, MOMENTS, MOVES_STATE)
+    assert view["first"]["veil"]["width"] == 1920 and view["first"]["veil"]["height"] < 1080
+    assert view["first"]["scene"]["transform"] == "" and set(view["first"]["blocks"]) == {1}
+    assert view["settled"]["veil"] is None
+    assert view["settled"]["scene"] == {"opacity": 1, "transform": "", "filter": ""}
+    assert view["last"]["veil"] is None
+    assert view["last"]["scene"]["transform"] == "scale(1.07)"
+    assert view["last"]["scene"]["opacity"] == 0
+
+
 def test_the_wipe_covers_the_frame_and_the_zoom_dissolves_the_scene(
     brand: Data, themes: Any
 ) -> None:

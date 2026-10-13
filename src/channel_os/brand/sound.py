@@ -2,14 +2,16 @@
 
 Nothing here is sampled or downloaded, so the channel owns every sound outright and none can be
 claimed on YouTube. `lofi-nod` is the outro bed the owner chose on 12 October 2026 (the second
-of three options): mellow keys over a soft beat, 84 bpm, 13 seconds. The intro has no sound from
-here: two rounds of synthesised intros were rejected, and it will use a sound the owner picks.
+of three options): mellow keys over a soft beat, 84 bpm, 13 seconds. `nod-up` is the intro the
+owner chose on 13 October 2026 ("S1"): the same instruments with more energy, built around the
+logo's movements. Two earlier rounds of intros without a beat were rejected as soothing and
+vague, so an intro here keeps a clear beat.
 
 Needs numpy, so it is imported only by the scenes stage.
 """
 
 import wave
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -123,8 +125,48 @@ def _lofi_nod(rng: Any) -> Wave:
     return mix.render(room=1.6, wet=0.2, tone=5200, fade=1.8)
 
 
+def _chord(mix: _Mix, notes: Sequence[int], at: float, gain: float, seconds: float = 2.6,
+           spread: float = 0.5) -> None:
+    """The notes of a chord, a hair apart and spread from left to right."""
+    for index, note in enumerate(notes):
+        pan = spread * (index / max(1, len(notes) - 1) * 2 - 1)
+        mix.add(_keys(note, seconds), at + 0.004 * index, gain, pan)
+
+
+def _nod_up(rng: Any) -> Wave:
+    """The outro's groove, awake, timed to the logo: two beats of pickup while the emblem
+    rises, a hit at 1.0 s as it bursts, notes at 1.25 s and 1.5 s as "Stack" and "Nova" land,
+    and a last chord at 2.0 s that rings out. 120 bpm, 4.3 seconds."""
+    mix = _Mix(4.3, rng)
+    mix.add(_kick(), 0.0, 0.6)
+    mix.add(_sub(38, 0.4), 0.0, 0.4)
+    for at, gain in ((0.0, 0.5), (0.25, 0.6), (0.5, 0.6), (0.75, 0.75), (0.875, 0.65)):
+        mix.add(_hat(rng), at, gain, 0.3)
+    mix.add(_keys(50, 0.7), 0.0, 0.3, 0.0)
+    mix.add(_keys(57, 0.6), 0.25, 0.3, -0.2)
+    mix.add(_snare(rng), 0.5, 0.36)
+    mix.add(_keys(60, 0.6), 0.5, 0.34, 0.2)
+    mix.add(_keys(64, 0.6), 0.75, 0.38, -0.1)
+    mix.add(_snare(rng), 0.875, 0.3)
+    mix.add(_kick(), 1.0, 0.75)
+    mix.add(_sub(38, 0.9), 1.0, 0.55)
+    _chord(mix, [57, 60, 64, 65, 69], 1.0, 0.36)
+    for at, note, gain in ((1.25, 65, 0.4), (1.5, 69, 0.44), (1.75, 72, 0.48)):
+        mix.add(_keys(note, 1.2), at, gain, 0.0)
+        mix.add(_hat(rng), at, 0.5, 0.3)
+    mix.add(_snare(rng), 1.5, 0.42)
+    mix.add(_kick(), 1.75, 0.5)
+    mix.add(_kick(), 2.0, 0.8)
+    mix.add(_sub(41, 1.3), 2.0, 0.6)
+    _chord(mix, [57, 60, 64, 67, 72, 76], 2.0, 0.34, seconds=2.3)
+    return mix.render(room=1.4, wet=0.2, tone=6200, fade=0.75)
+
+
 # name -> (maker, peak level): how loud the sound sits in the mix (1.0 is full scale).
-SOUNDS: dict[str, tuple[Callable[[Any], Wave], float]] = {"lofi-nod": (_lofi_nod, 0.56)}
+SOUNDS: dict[str, tuple[Callable[[Any], Wave], float]] = {
+    "lofi-nod": (_lofi_nod, 0.56),
+    "nod-up": (_nod_up, 0.6),
+}
 
 
 def write_sound(name: str, path: Path) -> Path:

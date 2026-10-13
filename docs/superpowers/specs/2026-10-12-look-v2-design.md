@@ -121,9 +121,9 @@ Added by the planner from `config/brand.yaml`; episodes do not write them.
   rest. Narration is cut at the start of the second segment. Its sound is synthesised like the
   outro's: the owner asked for that on 13 October 2026 ("make intro just like you did with
   outro", energetic, easy on the ears) after two earlier rounds without a beat were rejected.
-  Until one of the options is chosen and moved into `brand/sound.py` the intro is silent.
-  `--intro-sound FILE` (and `brand/intro.wav` in the private repo, which `render.yml` fetches)
-  remains a way to lay any other file under the logo.
+  Of three options the owner chose the first, `nod-up`: the outro's instruments at 120 bpm,
+  with a hit as the logo bursts and a last chord as the name lands. `video.intro.sound` names
+  it; `--intro-sound FILE` lays any other file under the logo for a trial.
 - **Transitions** (asked for on 13 October 2026: "apply animations when switching between hook,
   intro, slides, outro to show that slide is changed"). Each clip animates only itself, so no
   two clips are ever drawn together: a scene's blocks arrive at its start and the scene leaves
@@ -131,8 +131,12 @@ Added by the planner from `config/brand.yaml`; episodes do not write them.
   (`part`) also rolls the title in the top bar and runs a light along it. Next to the intro or
   the outro the frame goes through black, as those scenes do. The very first scene just starts
   and a Short just ends, so frame 1 and a Short's last frame are whole pictures (thumbnails,
-  loops). `video.transition` in `config/brand.yaml` picks the style: `slide`, `wipe`, `zoom` or
-  `none`. A new caption rises into place; one carried over from the scene before does not.
+  loops). There are three styles, `slide`, `wipe` and `zoom`, and the owner asked for all of
+  them, "mix of them on random": `video.transition` in `config/brand.yaml` lists them, and each
+  change of scene gets one, the same on both of its sides and never the same twice running.
+  The choice is seeded with the episode and target, so a video rendered again is the same
+  video. One name instead of a list uses that style throughout; `none` turns them off. A new
+  caption rises into place; one carried over from the scene before does not.
 - **Outro** (long videos): 12 s, no voice, the chosen music; comment, like, subscribe, share,
   Instagram, and a frame for YouTube's next-video element. The next episode's title comes from a
   new optional `next: {title, teaser}` in `episode.yaml`.
@@ -176,8 +180,9 @@ is unchanged: long video of episode n gets `rotation[(n-1) mod k]`, Short j gets
    GitHub. Owner approves; `m2-scenes` and this work merge together.
    *Built on 13 October 2026*, after the owner approved the look: `cards`, `fanin`, `sequence`
    and `code` are drawn by the page, `flow` is gone, and every scene of episode 001 (the long
-   video and the five Shorts) draws. Still open: the owner's pick of intro sound and transition
-   style, and the acceptance run on GitHub, which needs the branch pushed.
+   video and the five Shorts) draws. The owner then picked the intro sound (`nod-up`) and asked
+   for the three transition styles mixed at random. Still open: the acceptance run on GitHub
+   and the owner's approval of the merge.
 
 ## Acceptance
 

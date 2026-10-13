@@ -6,15 +6,19 @@ from itertools import pairwise
 from typing import Any
 
 import pytest
+import yaml
 
 from channel_os.scenes.plan import (
+    STYLES,
     AudioPart,
     Clip,
     PlanError,
     captions,
     declared_theme,
+    mix_styles,
     plan_clips,
     plan_video,
+    transition_styles,
 )
 
 SCRIPT = "You tapped Pay and got an error. So you tapped again. The fix is one key per payment."
@@ -294,7 +298,9 @@ def test_a_long_video_changes_scene_visibly_and_goes_through_black_at_brand_scen
         ("s02", "scene", "part", False, False),
         ("s03", "part", "part", False, True),
     ]
-    assert {clip.chrome["move"] for clip in plan.clips if clip.spec.layout != "brand"} == {"slide"}
+    styles = [(clip.chrome["enter_style"], clip.chrome["exit_style"])
+              for clip in plan.clips if clip.spec.layout != "brand"]
+    assert styles == [(None, "slide"), ("slide", "slide"), ("slide", "slide"), ("slide", "slide")]
 
 
 def test_a_short_starts_and_ends_on_a_whole_picture_so_it_loops() -> None:
@@ -303,16 +309,57 @@ def test_a_short_starts_and_ends_on_a_whole_picture_so_it_loops() -> None:
                       MOVING)
     assert moves(plan) == [("short-1", None, "scene", False, False),
                            ("short-1", "scene", None, False, False)]
+    first, last = plan.clips
+    assert (first.chrome["enter_style"], last.chrome["exit_style"]) == (None, None)
 
 
 def test_transitions_can_be_turned_off_and_an_unknown_style_is_refused() -> None:
     episode, record = long_episode(2)
     for off in (BRAND, {**BRAND, "video": {**BRAND["video"], "transition": "none"}}):
         plan = plan_video(episode, "long", record, off)
-        assert all("move" not in clip.chrome for clip in plan.clips)
-    spin = {**BRAND, "video": {**BRAND["video"], "transition": "spin"}}
-    with pytest.raises(PlanError, match=r"video\.transition 'spin' is not one of slide, wipe"):
-        plan_video(episode, "long", record, spin)
+        assert all("enter_style" not in clip.chrome for clip in plan.clips)
+    for wrong in ("spin", ["slide", "spin"], []):
+        spin = {**BRAND, "video": {**BRAND["video"], "transition": wrong}}
+        with pytest.raises(PlanError, match=r"video\.transition .* must be one of slide, wipe"):
+            plan_video(episode, "long", record, spin)
+
+
+MIXED: dict[str, Any] = {**BRAND,
+                         "video": {**BRAND["video"], "transition": ["slide", "wipe", "zoom"]}}
+
+
+def test_the_owner_asked_for_all_three_styles_mixed_at_random(repo_root: Any) -> None:
+    # 13 October 2026: "T1, T2, T3, keep all, make mix of them on random".
+    config = yaml.safe_load((repo_root / "config" / "brand.yaml").read_text(encoding="utf-8"))
+    assert config["video"]["transition"] == ["slide", "wipe", "zoom"]
+    assert transition_styles(config["video"]["transition"]) == STYLES
+
+
+def test_a_mix_gives_both_sides_of_a_change_the_same_style() -> None:
+    episode, record = long_episode(10)
+    scenes = [clip for clip in plan_video(episode, "long", record, MIXED).clips
+              if clip.spec.layout != "brand"]
+    for earlier, later in pairwise(scenes):
+        assert earlier.chrome["exit_style"] == later.chrome["enter_style"]
+    used = [clip.chrome["exit_style"] for clip in scenes]
+    # Every style turns up over a video, and none twice running, so the mix is seen.
+    assert set(used) == set(STYLES)
+    assert all(one != two for one, two in pairwise(used))
+
+
+def test_a_mix_is_the_same_every_time_a_video_is_rendered() -> None:
+    # Random, but repeatable: a job that is run again must give the same video.
+    assert mix_styles(STYLES, 12, "001-idempotency/long") == mix_styles(
+        STYLES, 12, "001-idempotency/long")
+    episode, record = long_episode(10)
+    again = [[clip.chrome.get("exit_style") for clip in plan_video(episode, "long", record,
+                                                                   MIXED).clips]
+             for _ in range(2)]
+    assert again[0] == again[1]
+    # Other videos get their own order.
+    orders = {tuple(mix_styles(STYLES, 12, f"{number:03d}-topic/long")) for number in range(1, 9)}
+    assert len(orders) > 1
+    assert mix_styles(["slide"], 3, "any") == ["slide", "slide", "slide"]
 
 
 def test_captions_mark_the_emphasis_and_split_long_sentences() -> None:

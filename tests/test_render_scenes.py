@@ -114,10 +114,9 @@ def test_a_long_video_gets_its_brand_scenes_and_the_outro_music(narrated: Any) -
     (call,) = recorder.calls
     assert [clip.unit for clip in call["plan"].clips] == ["s01", "intro", "s02", "s03", "outro"]
     assert (call["format"], call["out"].name) == ("landscape", "long.mp4")
-    # The outro's music is the one config/brand.yaml names. The intro has no sound until the
-    # owner picks one, so it plays in silence.
-    assert composer.made == ["lofi-nod"]
-    assert list(call["sounds"]) == ["outro"]
+    # Both sounds are the ones config/brand.yaml names, the owner's picks.
+    assert composer.made == ["lofi-nod", "nod-up"]
+    assert sorted(call["sounds"]) == ["intro", "outro"]
 
 
 def test_an_intro_sound_is_passed_through_when_given(narrated: Any, tmp_path: Path) -> None:
@@ -130,20 +129,20 @@ def test_an_intro_sound_is_passed_through_when_given(narrated: Any, tmp_path: Pa
     assert recorder.calls[0]["sounds"]["intro"] == sting
 
 
-def test_the_intro_sound_named_in_the_config_is_made_like_the_music(
-    narrated: Any, tmp_path: Path
-) -> None:
-    root = narrated()
-    narrate_long(root)
+def set_intro_sound(root: Path, name: str | None) -> None:
     config = root / "config" / "brand.yaml"
     brand = yaml.safe_load(config.read_text(encoding="utf-8"))
-    brand["video"]["intro"]["sound"] = "nod-up"
+    brand["video"]["intro"]["sound"] = name
     config.write_text(yaml.safe_dump(brand, allow_unicode=True, sort_keys=False), encoding="utf-8")
 
+
+def test_the_intro_sound_is_whatever_the_config_names(narrated: Any, tmp_path: Path) -> None:
+    root = narrated()
+    narrate_long(root)
+    set_intro_sound(root, "another-sting")
     recorder, composer = Recorder(), Composer()
     assert scenes(root, recorder, only="long", composer=composer) == 0
-    assert composer.made == ["lofi-nod", "nod-up"]
-    assert sorted(recorder.calls[0]["sounds"]) == ["intro", "outro"]
+    assert composer.made == ["lofi-nod", "another-sting"]
 
     # A file given on the command line wins over the configured sound.
     sting = tmp_path / "sting.wav"
@@ -152,6 +151,12 @@ def test_the_intro_sound_named_in_the_config_is_made_like_the_music(
     assert scenes(root, recorder, "--intro-sound", str(sting), only="long",
                   composer=composer) == 0
     assert composer.made == ["lofi-nod"] and recorder.calls[0]["sounds"]["intro"] == sting
+
+    # With no sound named, the logo plays in silence.
+    set_intro_sound(root, None)
+    recorder, composer = Recorder(), Composer()
+    assert scenes(root, recorder, only="long", composer=composer) == 0
+    assert composer.made == ["lofi-nod"] and list(recorder.calls[0]["sounds"]) == ["outro"]
 
 
 def test_format_theme_and_quality_can_be_chosen_for_one_run(narrated: Any) -> None:

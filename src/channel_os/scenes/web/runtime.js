@@ -103,11 +103,13 @@ window.SN = (() => {
   // ---- moves: how a clip arrives and leaves, so a change of scene is seen ----------------------
   // The planner says what happens at each end of a clip: chrome.enter and chrome.exit are null,
   // 'scene' (the same segment goes on) or 'part' (a new segment); from_black and to_black mean
-  // the neighbour is a brand scene, which fades through black. chrome.move names the style.
+  // the neighbour is a brand scene, which fades through black. enter_style and exit_style name
+  // the style of each end ('slide', 'wipe' or 'zoom'); the planner mixes them, and gives the
+  // two scenes on either side of a change the same one.
   // Each clip animates only itself, so two clips never have to be drawn together.
   function renderMoves(t) {
     const c = clip.chrome || {}, scene = $('scene'), veil = $('veil'), top = $('partt');
-    if (clip.stage === 'brand' || !c.move) return;
+    if (clip.stage === 'brand' || !(c.enter_style || c.exit_style)) return;
     // `end` is the last frame's time, less a hair so that frame is the finished state.
     const D = clip.duration, end = D - 1 / 30 - 1e-4, wide = clip.format === 'landscape';
     const W = wide ? 1920 : 1080, H = wide ? 1080 : 1920, k = wide ? 1 : 1.3;
@@ -115,21 +117,22 @@ window.SN = (() => {
     const leaving = c.exit && !still ? seg(t, end - outSpan, end) : 0;   // 0, then 1 on the last frame
     const arriving = c.enter && !still ? 1 - seg(t, 0, inSpan) : 0;      // 1 on the first frame, then 0
     const gone = easeIn(leaving), here = easeOut(1 - arriving);
+    const style = leaving ? c.exit_style : c.enter_style;  // the two ends never overlap
     let transform = '', opacity = 1, blur = 0, light = 1, block = () => 1;
 
-    if (c.move === 'slide') {
+    if (style === 'slide') {
       // Out: the whole scene slides off to the left. In: its blocks rise into place one by one.
       transform = leaving ? `translateX(${-130 * k * gone}px)` : '';
       opacity = 1 - gone;
       const gap = Math.min(.045, inSpan / 8);
       block = i => c.enter && !still ? easeOut(seg(t, i * gap, i * gap + inSpan)) : 1;
-    } else if (c.move === 'zoom') {
+    } else if (style === 'zoom') {
       // Out: the scene swells and dissolves. In: the next one settles from slightly small.
       transform = leaving ? `scale(${1 + .07 * gone})` : arriving ? `scale(${.93 + .07 * here})` : '';
       opacity = leaving ? 1 - gone : here;
       blur = 7 * Math.max(gone, 1 - here);
     }
-    if (c.move === 'wipe') {
+    if (style === 'wipe') {
       // A dark blade with a bright edge crosses: it covers the old scene, then uncovers the new.
       const whole = c.exit === 'part' && leaving || c.enter === 'part' && arriving;
       const covering = ease(leaving), cleared = ease(1 - arriving);
