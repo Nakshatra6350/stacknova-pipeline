@@ -384,32 +384,83 @@ segments:
       exactly like a successful first attempt. The duplicate became harmless.
     emphasis: [Idempotency-Key, same key, saved response]
     visual:
-      layout: flow
-      header: ["IDEMPOTENCY-KEY", "REQ #4172"]
-      nodes:
-        - {id: client, kind: phone, label: client, amount: "$100.00", button: Pay}
-        - {id: server, kind: service, label: server, title: api}
-        - {id: bank, kind: ledger, label: bank, title: ledger}
-      table: {title: idempotency_keys, owner: server}
+      layout: console
+      phone:
+        title: Checkout
+        total: "$100.00"
+        method: "Visa •••• 4242"
+        items: [["Headphones", "$89.00"], ["Shipping", "$11.00"]]
+      systems:
+        - {id: api, name: "API server", sub: "POST /v1/payments", idle: "listening on :8080"}
+        - {id: store, name: "Key store", sub: "PostgreSQL · idempotency_keys", idle: "waiting"}
+        - {id: gateway, name: "Payment gateway", sub: "moves the money"}
+      panels:
+        - {id: keys, kind: table, title: idempotency_keys, columns: [key, status, response], unique: key, lane: store}
+        - {id: charges, kind: list, title: "gateway · charges", unit: charged, empty: "No money has moved.", lane: gateway}
       steps:
-        - {at: "generates a unique ID", action: tag, target: client, params: {text: "key 7f3c"}}
-        - {at: "sends it in a header", action: press, target: client}
-        - {at: "sends it in a header", action: send, target: "client->server", params: {tag: "7f3c"}}
-        - {at: "Every retry", action: highlight, target: client}
-        - {at: "we look the key up", action: title, target: table}
-        - {at: "Never seen it", action: highlight, target: table}
-        - {at: "Record it", action: row, target: table, params: {id: k, cells: ["7f3c", "in progress"], status: info}}
-        - {at: "do the work", action: send, target: "server->bank", params: {tag: "7f3c", row: {text: "$100", status: ok}}}
-        - {at: "save the response", action: row, target: table, params: {id: k, cells: ["7f3c", "201 saved"], status: ok}}
-        - {at: "save the response", action: send, target: "server->client", params: {role: reply, lost: 0.5, chip: {text: timeout, status: bad}}}
-        - {at: "Seen it", action: chip, target: client, params: {clear: true}}
-        - {at: "Seen it", action: press, target: client}
-        - {at: "Seen it", action: send, target: "client->server", params: {role: retry, tag: "7f3c"}}
-        - {at: "the work is finished", action: highlight, target: "table:k"}
-        - {at: "Don't charge again", action: block, target: "server->bank", params: {text: "no second charge"}}
-        - {at: "return the saved response", action: send, target: "server->client", params: {role: reply, chip: {text: "201", status: ok}}}
-        - {at: "successful first attempt", action: highlight, target: client}
-        - {at: "became harmless", action: badge, target: bank, params: {text: "CHARGED ONCE", status: ok}}
+        - {at: "generates a unique ID", action: screen, target: phone, params: {chip: {label: Idempotency-Key, value: 7f3c-91ab-4e02}}}
+        - {at: "generates a unique ID", action: note, target: wire, params: {text: "Before the first attempt, the client makes one random ID for this payment."}}
+        - {at: "sends it in a header", action: tap, target: phone}
+        - at: "sends it in a header"
+          action: send
+          target: "phone->api"
+          params:
+            delay: 0.1
+            label: "POST /payments · key 7f3c"
+            wire:
+              title: "Create payment"
+              method: POST
+              path: /v1/payments
+              headers: {Content-Type: application/json, Idempotency-Key: 7f3c-91ab-4e02}
+              body: {amount: 100, currency: USD, source: card_visa_4242}
+        - {at: "sends it in a header", action: log, target: api, params: {delay: 0.6, text: "POST /payments key=7f3c"}}
+        - {at: "Every retry", action: highlight, target: phone}
+        - {at: "Every retry", action: note, target: wire, params: {text: "The same payment always sends the same key. A new payment gets a new one."}}
+        - {at: "we look the key up", action: send, target: "api->store", params: {label: "SELECT 7f3c"}}
+        - {at: "we look the key up", action: highlight, target: keys}
+        - {at: "Never seen it", action: log, target: store, params: {text: "SELECT 7f3c → 0 rows"}}
+        - {at: "Record it", action: send, target: "api->store", params: {label: "INSERT 7f3c"}}
+        - {at: "Record it", action: row, target: keys, params: {delay: 0.45, key: "7f3c-91ab…", cells: [in_progress, "—"], status: info}}
+        - {at: "Record it", action: log, target: store, params: {delay: 0.45, text: "INSERT 7f3c → 1 row"}}
+        - {at: "do the work", action: send, target: "api->gateway", params: {label: "charge $100"}}
+        - {at: "do the work", action: item, target: charges, params: {delay: 0.6, text: "#1 pay_A19", value: "$100.00"}}
+        - {at: "do the work", action: log, target: gateway, params: {delay: 0.6, text: "charge #1 $100 ok"}}
+        - {at: "save the response", action: row, target: keys, params: {key: "7f3c-91ab…", cells: [completed, "201 pay_A19"], status: ok}}
+        - {at: "save the response", action: log, target: store, params: {text: "UPDATE 7f3c → completed"}}
+        - at: "save the response"
+          action: send
+          target: "gateway->phone"
+          params: {delay: 0.4, label: "201 Created", role: reply, lost: 0.8, response: {status: "201 Created", body: {id: pay_A19, status: succeeded}}}
+        - {at: "save the response", action: screen, target: phone, params: {delay: 1.5, state: error, text: "We could not confirm your payment. Try again.", attempt: "no reply"}}
+        - {at: "Seen it", action: tap, target: phone}
+        - at: "Seen it"
+          action: send
+          target: "phone->api"
+          params:
+            delay: 0.1
+            label: "RETRY · key 7f3c"
+            role: retry
+            wire:
+              title: "Create payment"
+              tag: "RETRY · SAME KEY"
+              method: POST
+              path: /v1/payments
+              headers: {Content-Type: application/json, Idempotency-Key: 7f3c-91ab-4e02}
+              body: {amount: 100, currency: USD, source: card_visa_4242}
+        - {at: "Seen it", action: send, target: "api->store", params: {delay: 0.7, label: "SELECT 7f3c"}}
+        - {at: "the work is finished", action: log, target: store, params: {text: "SELECT 7f3c → completed"}}
+        - {at: "the work is finished", action: highlight, target: keys}
+        - {at: "Don't charge again", action: log, target: api, params: {text: "key exists → skip charge"}}
+        - {at: "Don't charge again", action: note, target: wire, params: {text: "No second charge: the key is already there, with its answer.", status: ok}}
+        - {at: "return the saved response", action: send, target: "store->api", params: {label: "saved 201", role: reply}}
+        - at: "return the saved response"
+          action: send
+          target: "api->phone"
+          params: {delay: 0.5, label: "201 · replayed", role: reply, response: {status: "201 Created · replayed", body: {id: pay_A19, status: succeeded}}}
+        - {at: "return the saved response", action: screen, target: phone, params: {delay: 1.05, state: success, text: "$100.00 · receipt #A19", attempt: "paid"}}
+        - {at: "successful first attempt", action: highlight, target: phone}
+        - {at: "became harmless", action: stamp, target: charges, params: {text: "CHARGED ONCE", status: ok}}
+        - {at: "became harmless", action: highlight, target: charges}
 
   - id: s06
     title: The race most tutorials miss
@@ -540,34 +591,92 @@ segments:
       holds if every link holds.
     emphasis: [downstream, chain, every link]
     visual:
-      layout: flow
-      header: ["DOWNSTREAM", "THE SAME PROBLEM AGAIN"]
-      nodes:
-        - {id: client, kind: phone, label: client, amount: "$100.00", button: Pay}
-        - {id: server, kind: service, label: "your server", title: api}
-        - {id: gateway, kind: service, label: "payment gateway", title: gateway}
-        - {id: bank, kind: ledger, label: bank, title: ledger}
+      layout: console
+      phone:
+        title: Checkout
+        total: "$100.00"
+        method: "Visa •••• 4242"
+        items: [["Headphones", "$89.00"], ["Shipping", "$11.00"]]
+      systems:
+        - {id: api, name: "Your server", sub: "POST /v1/payments", idle: "listening on :8080"}
+        - {id: gateway, name: "Payment gateway", sub: "POST /v1/charges", idle: "waiting"}
+        - {id: bank, name: "Card network", sub: "moves the money"}
+      panels:
+        - {id: chain, kind: list, title: "the chain · which key each hop carries", unit: links, empty: "No request yet.", lane: api}
+        - {id: charges, kind: list, title: "card network · debits", unit: debited, empty: "No money has moved.", lane: bank}
       steps:
-        - {at: "Now zoom out", action: tag, target: client, params: {text: "key 7f3c"}}
-        - {at: "Now zoom out", action: send, target: "client->server", params: {tag: "7f3c"}}
-        - {at: "calls a payment gateway", action: send, target: "server->bank", params: {row: {text: "$100", status: ok}}}
-        - {at: "that call times out", action: send, target: "gateway->server", params: {role: reply, lost: 0.5, chip: {text: timeout, status: bad}}}
-        - {at: "you are now the client", action: highlight, target: server}
-        - {at: "pass an idempotency key downstream", action: tag, target: server, params: {text: "key pay-7f3c"}}
-        - {at: "Derive it from your own key", action: highlight, target: client}
-        - {at: "a retry of your operation", action: chip, target: server, params: {clear: true}}
-        - {at: "a retry of your operation", action: send, target: "server->gateway", params: {role: retry, tag: "pay-7f3c"}}
-        - {at: "never a new charge", action: block, target: "gateway->bank", params: {text: "seen it"}}
-        - {at: "never a new charge", action: send, target: "gateway->server", params: {role: reply, chip: {text: paid, status: ok}}}
-        - {at: "unknown outcome", action: chip, target: server, params: {text: unknown, status: bad}}
-        - {at: "don't release the key", action: highlight, target: server}
-        - {at: "ask the gateway what happened", action: send, target: "server->gateway", params: {tag: "pay-7f3c"}}
-        - {at: "Idempotency isn't", action: send, target: "gateway->server", params: {role: reply, chip: {text: paid, status: ok}}}
-        - {at: "It's a chain", action: highlight, target: client}
-        - {at: "It's a chain", action: highlight, target: server}
+        - {at: "Now zoom out", action: screen, target: phone, params: {chip: {label: Idempotency-Key, value: 7f3c-91ab-4e02}}}
+        - {at: "Now zoom out", action: tap, target: phone, params: {delay: 0.15}}
+        - at: "Now zoom out"
+          action: send
+          target: "phone->api"
+          params:
+            delay: 0.25
+            label: "POST /payments · key 7f3c"
+            wire:
+              title: "Create payment"
+              method: POST
+              path: /v1/payments
+              headers: {Content-Type: application/json, Idempotency-Key: 7f3c-91ab-4e02}
+              body: {amount: 100, currency: USD, source: card_visa_4242}
+        - {at: "Now zoom out", action: item, target: chain, params: {delay: 0.8, text: "client → your server", value: "key 7f3c", status: info}}
+        - at: "calls a payment gateway"
+          action: send
+          target: "api->gateway"
+          params:
+            label: "charge $100 · no key"
+            wire:
+              title: "Charge the card"
+              tag: "NO KEY"
+              bad: true
+              method: POST
+              path: /v1/charges
+              headers: {Content-Type: application/json, Idempotency-Key: null}
+              body: {amount: 100, currency: USD, payment: pay_A19}
+        - {at: "calls a payment gateway", action: item, target: chain, params: {delay: 0.5, text: "your server → gateway", value: "no key", status: bad}}
+        - {at: "calls a payment gateway", action: send, target: "gateway->bank", params: {delay: 0.6, label: "debit $100"}}
+        - {at: "calls a payment gateway", action: item, target: charges, params: {delay: 1.1, text: "#1 debit", value: "$100.00"}}
+        - {at: "calls a payment gateway", action: log, target: bank, params: {delay: 1.1, text: "debit #1 $100 ok"}}
+        - at: "that call times out"
+          action: send
+          target: "gateway->api"
+          params: {label: "200 OK", role: reply, lost: 0.5, response: {status: "200 OK", body: {charge: ch_19, status: succeeded}}}
+        - {at: "that call times out", action: log, target: api, params: {delay: 0.7, text: "gateway call timed out"}}
+        - {at: "you are now the client", action: highlight, target: api}
+        - {at: "you are now the client", action: note, target: wire, params: {text: "Your server is the client now. Same silence, same three stories.", status: bad}}
+        - {at: "pass an idempotency key downstream", action: item, target: chain, params: {text: "your server → gateway", value: "key pay-7f3c", status: info}}
+        - {at: "pass an idempotency key downstream", action: highlight, target: chain}
+        - {at: "Derive it from your own key", action: log, target: api, params: {text: "pay-7f3c = derived from 7f3c"}}
+        - at: "a retry of your operation"
+          action: send
+          target: "api->gateway"
+          params:
+            label: "RETRY · key pay-7f3c"
+            role: retry
+            wire:
+              title: "Charge the card"
+              tag: "RETRY · SAME KEY"
+              method: POST
+              path: /v1/charges
+              headers: {Content-Type: application/json, Idempotency-Key: pay-7f3c}
+              body: {amount: 100, currency: USD, payment: pay_A19}
+        - {at: "never a new charge", action: log, target: gateway, params: {text: "key pay-7f3c seen → no new debit"}}
+        - at: "never a new charge"
+          action: send
+          target: "gateway->api"
+          params: {delay: 0.3, label: "200 · replayed", role: reply, response: {status: "200 OK · replayed", body: {charge: ch_19, status: succeeded}}}
+        - {at: "never a new charge", action: stamp, target: charges, params: {delay: 0.5, text: "DEBITED ONCE", status: ok}}
+        - {at: "unknown outcome", action: log, target: api, params: {text: "outcome unknown"}}
+        - {at: "unknown outcome", action: note, target: wire, params: {text: "Outcome unknown? Keep the key. A new key would be a new charge.", status: bad}}
+        - {at: "don't release the key", action: highlight, target: chain}
+        - {at: "ask the gateway what happened", action: send, target: "api->gateway", params: {label: "GET charge · key pay-7f3c"}}
+        - {at: "Idempotency isn't", action: send, target: "gateway->api", params: {label: "200 · succeeded", role: reply}}
+        - {at: "Idempotency isn't", action: log, target: api, params: {delay: 0.5, text: "confirmed: charged once"}}
+        - {at: "It's a chain", action: highlight, target: phone}
+        - {at: "It's a chain", action: highlight, target: api, params: {delay: 0.15}}
         - {at: "every link holds", action: highlight, target: gateway}
-        - {at: "every link holds", action: highlight, target: bank}
-        - {at: "every link holds", action: badge, target: bank, params: {text: "CHARGED ONCE", status: ok}}
+        - {at: "every link holds", action: highlight, target: bank, params: {delay: 0.15}}
+        - {at: "every link holds", action: highlight, target: charges, params: {delay: 0.3}}
 
   - id: s09
     title: From production
@@ -642,17 +751,34 @@ segments:
     emphasis: [at-least-once, exactly-once effect, don't matter]
     visual:
       # Scene 1: what a real network does to "exactly-once delivery".
-      - layout: flow
-        header: ["EXACTLY-ONCE?", "OVER A REAL NETWORK"]
-        nodes:
-          - {id: sender, kind: service, label: sender, title: producer}
-          - {id: receiver, kind: service, label: receiver, title: consumer}
-          - {id: effects, kind: ledger, label: effects, title: applied}
+      - layout: console
+        systems:
+          - {id: sender, name: "Sender", sub: "sends each message once, it hopes", idle: "1 message to send"}
+          - {id: receiver, name: "Receiver", sub: "applies what arrives", idle: "waiting"}
+        panels:
+          - {id: applied, kind: list, title: "receiver · effects applied", unit: applied, empty: "Nothing applied yet.", lane: receiver}
         steps:
-          - {at: "exactly-once delivery", action: tag, target: receiver, params: {text: "exactly-once?"}}
-          - {at: "Over a real network", action: send, target: "sender->effects", params: {tag: "msg 1", row: {text: "msg 1", status: ok}}}
-          - {at: "at-least-once", action: badge, target: receiver, params: {text: "AT-LEAST-ONCE", status: info}}
-          - {at: "arrive twice", action: send, target: "sender->effects", params: {role: retry, tag: "msg 1", row: {text: "msg 1", status: bad}}}
+          - {at: "exactly-once delivery", action: note, target: wire, params: {text: "\"Exactly-once delivery\": the promise on the box."}}
+          - at: "Over a real network"
+            action: send
+            target: "sender->receiver"
+            params:
+              label: "msg 1"
+              wire:
+                title: "Deliver a message"
+                method: SEND
+                path: payments.paid
+                headers: {Message-Id: msg-1}
+                hi: [Message-Id]
+                body: {payment: pay_A19, amount: 100}
+          - {at: "Over a real network", action: item, target: applied, params: {delay: 0.55, text: "msg 1", value: "applied"}}
+          - {at: "Over a real network", action: log, target: receiver, params: {delay: 0.55, text: "msg 1 applied"}}
+          - {at: "Over a real network", action: send, target: "receiver->sender", params: {delay: 0.9, label: "ack", role: reply, lost: 0.5}}
+          - {at: "at-least-once", action: log, target: sender, params: {text: "no ack → send again"}}
+          - {at: "at-least-once", action: note, target: wire, params: {text: "No ack came back, so the sender sends again. That is at-least-once."}}
+          - {at: "arrive twice", action: send, target: "sender->receiver", params: {label: "msg 1 (again)", role: retry}}
+          - {at: "arrive twice", action: item, target: applied, params: {delay: 0.55, text: "msg 1", value: "applied again", status: bad}}
+          - {at: "arrive twice", action: stamp, target: applied, params: {delay: 0.7, text: "APPLIED TWICE", status: bad}}
       # Scene 2: the sum that does hold.
       - layout: cards
         from: "What you can build"
@@ -683,26 +809,36 @@ segments:
     emphasis: [one winner, outbox pattern]
     visual:
       # Scene 1: the whole chain, each move lighting up as it is named.
-      - layout: flow
-        header: ["RECAP", "IDEMPOTENCY IN FOUR MOVES"]
-        nodes:
-          - {id: client, kind: phone, label: client, amount: "$100.00", button: Pay}
-          - {id: server, kind: service, label: "your server", title: api}
-          - {id: gateway, kind: service, label: gateway, title: gateway}
-          - {id: bank, kind: ledger, label: bank, title: ledger}
-        table: {title: idempotency_keys, owner: server}
+      - layout: console
+        phone:
+          title: Checkout
+          total: "$100.00"
+          method: "Visa •••• 4242"
+          items: [["Headphones", "$89.00"], ["Shipping", "$11.00"]]
+        systems:
+          - {id: api, name: "Your server", sub: "POST /v1/payments", idle: "listening on :8080"}
+          - {id: store, name: "Key store", sub: "PostgreSQL · idempotency_keys", idle: "waiting"}
+          - {id: gateway, name: "Payment gateway", sub: "moves the money"}
+        panels:
+          - {id: keys, kind: table, title: idempotency_keys, columns: [key, status, fingerprint], unique: key, lane: store}
+          - {id: moves, kind: list, title: "idempotency in four moves", unit: moves, empty: "Four things to remember.", lane: api}
         steps:
-          - {at: "Silence after a request", action: send, target: "server->client", params: {role: reply, lost: 0.5, chip: {text: "no reply", status: bad}}}
-          - {at: "Retries are guaranteed", action: press, target: client}
-          - {at: "Retries are guaranteed", action: send, target: "client->server", params: {role: retry}}
-          - {at: "a client-generated key", action: chip, target: client, params: {clear: true}}
-          - {at: "a client-generated key", action: tag, target: client, params: {text: "key 7f3c"}}
-          - {at: "a unique constraint", action: title, target: table}
-          - {at: "a unique constraint", action: badge, target: table, params: {text: UNIQUE, status: info}}
-          - {at: "one winner", action: row, target: table, params: {id: k, cells: ["7f3c", "completed"], status: ok}}
-          - {at: "a request fingerprint", action: row, target: table, params: {id: f, cells: ["fingerprint", "9a1f"], status: info}}
-          - {at: "keys passed downstream", action: tag, target: server, params: {text: "key pay-7f3c"}}
-          - {at: "keys passed downstream", action: send, target: "server->bank", params: {tag: "pay-7f3c", row: {text: "$100", status: ok}}}
+          - {at: "Silence after a request", action: tap, target: phone}
+          - {at: "Silence after a request", action: send, target: "phone->gateway", params: {delay: 0.1, label: "POST /payments"}}
+          - {at: "Silence after a request", action: send, target: "gateway->phone", params: {delay: 1.1, label: "201 Created", role: reply, lost: 0.7}}
+          - {at: "three causes", action: screen, target: phone, params: {state: error, title: "No response", text: "Three stories. One silence.", attempt: "no reply"}}
+          - {at: "Retries are guaranteed", action: tap, target: phone}
+          - {at: "Retries are guaranteed", action: send, target: "phone->api", params: {delay: 0.1, label: "RETRY", role: retry}}
+          - {at: "a client-generated key", action: screen, target: phone, params: {chip: {label: Idempotency-Key, value: 7f3c-91ab-4e02}}}
+          - {at: "a client-generated key", action: item, target: moves, params: {text: "1 · a key from the client", value: "same on every retry", status: info}}
+          - {at: "a unique constraint", action: highlight, target: keys.unique}
+          - {at: "a unique constraint", action: row, target: keys, params: {delay: 0.2, key: "7f3c-91ab…", cells: [in_progress, "—"], status: info}}
+          - {at: "a unique constraint", action: item, target: moves, params: {delay: 0.2, text: "2 · a unique constraint", value: "one winner", status: info}}
+          - {at: "one winner", action: row, target: keys, params: {key: "7f3c-91ab…", cells: [completed, "—"], status: ok}}
+          - {at: "a request fingerprint", action: row, target: keys, params: {key: "7f3c-91ab…", cells: [completed, "9a1f"], status: ok}}
+          - {at: "a request fingerprint", action: item, target: moves, params: {text: "3 · a request fingerprint", value: "catches misuse", status: info}}
+          - {at: "keys passed downstream", action: send, target: "api->gateway", params: {label: "charge · key pay-7f3c"}}
+          - {at: "keys passed downstream", action: item, target: moves, params: {delay: 0.3, text: "4 · keys passed downstream", value: "the chain holds", status: info}}
       # Scene 2: what the next episode is about.
       - layout: cards
         from: "Next episode"

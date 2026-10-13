@@ -9,19 +9,14 @@ Python so the validator can check a visual without a browser. The page draws it
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from channel_os.scenes.vocabulary import ROLES, STATUSES, edge
+
 ACTIONS = frozenset({"tap", "send", "log", "row", "item", "stamp", "screen", "note", "highlight"})
-ROLES = ("request", "reply", "retry", "error")
-STATUSES = ("ok", "bad", "info")
 SCREEN_STATES = ("idle", "error", "success")
 PANEL_KINDS = ("table", "list")
 MAX_SYSTEMS = 4
 MAX_PANELS = 2
 PHONE = "phone"
-
-
-def _edge(target: str) -> tuple[str, str] | None:
-    source, arrow, destination = target.partition("->")
-    return (source.strip(), destination.strip()) if arrow else None
 
 
 def _step_problem(decl: Mapping[str, Any], step: Mapping[str, Any]) -> str | None:
@@ -37,13 +32,13 @@ def _step_problem(decl: Mapping[str, Any], step: Mapping[str, Any]) -> str | Non
     if "status" in params and params["status"] not in STATUSES:
         return f"status {params['status']!r} is not one of {', '.join(STATUSES)}"
     if action == "send":
-        edge = _edge(target)
-        if edge is None:
+        pair = edge(target)
+        if pair is None:
             return f"send needs a target like 'phone->api', not {target!r}"
-        for end in edge:
+        for end in pair:
             if end not in ends:
                 return f"unknown system {end!r} in {target!r}"
-        if edge[0] == edge[1]:
+        if pair[0] == pair[1]:
             return f"cannot send from a system to itself ({target!r})"
         if not params.get("label"):
             return "send needs params.label: the words the packet carries"

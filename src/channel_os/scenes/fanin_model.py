@@ -1,33 +1,16 @@
-"""The fan-in stage without drawing: many senders, one receiver, and a count of arrivals (M2).
+"""The fan-in stage without drawing: what a declaration and its steps may say (M2).
 
-Sources stack on the left; each has a rail to one target on the right. Pure Python, pixels of
-the final frame, origin top-left.
+Many senders, one receiver, and a count of arrivals. Each source has a wire to the target. The
+page draws it (`scenes/web/fanin.js`) and lays it out with CSS, so there is no geometry here.
 """
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
 from typing import Any
 
-from channel_os.scenes.flow_model import ROLES, STATUSES
-from channel_os.scenes.formats import MONO_ADVANCE, Format, Rect
+from channel_os.scenes.vocabulary import ROLES, STATUSES
 
 ACTIONS = frozenset({"fire", "badge", "tag", "highlight"})
 MAX_SOURCES = 6
-LABEL_PX = 22.0
-
-
-@dataclass(frozen=True)
-class FaninLayout:
-    fmt: Format
-    header_y: float
-    sources: Mapping[str, Rect]
-    target: Rect
-    name_y: float
-    counter: tuple[float, float]
-    caption_y: float
-
-    def badge(self) -> tuple[float, float]:
-        return self.target.cx, self.target.y0 - 37 * self.fmt.scale
 
 
 def _step_problem(decl: Mapping[str, Any], step: Mapping[str, Any]) -> str | None:
@@ -45,7 +28,9 @@ def _step_problem(decl: Mapping[str, Any], step: Mapping[str, Any]) -> str | Non
         return None if target in sources else f"fire needs a source, and {target!r} is not one"
     if action == "highlight":
         return None if target == target_id or target in sources else f"unknown target {target!r}"
-    return None if target == target_id else f"{action} goes on the target {target_id!r}"
+    if target != target_id:
+        return f"{action} goes on the target {target_id!r}"
+    return None if params.get("text") else f"{action} needs params.text"
 
 
 def problems(decl: Mapping[str, Any], steps: Sequence[Mapping[str, Any]]) -> list[str]:
@@ -69,26 +54,3 @@ def problems(decl: Mapping[str, Any], steps: Sequence[Mapping[str, Any]]) -> lis
         if issue:
             found.append(f"step {index + 1} ({step['action']} at {step['at']!r}): {issue}")
     return found
-
-
-def layout(fmt: Format, decl: Mapping[str, Any]) -> FaninLayout:
-    """Where the sources, the target and the counter sit in the given format."""
-    area, s = fmt.content, fmt.scale
-    sources = decl["sources"]
-    top, bottom = area.y0 + 150 * s, area.y1 - 60 * s
-    centre = (top + bottom) / 2
-    spacing = min(96 * s, (bottom - top) / (len(sources) - 1))
-    first = centre - spacing * (len(sources) - 1) / 2
-    widest = max(len(str(source.get("label", source["id"]))) for source in sources)
-    pill_w = min(widest * MONO_ADVANCE * LABEL_PX * s * fmt.text_scale + 56 * s, area.w * 0.46)
-    pill_h = 54 * s
-    rects = {
-        source["id"]: Rect(area.x0 + 20, first + index * spacing - pill_h / 2,
-                           area.x0 + 20 + pill_w, first + index * spacing + pill_h / 2)
-        for index, source in enumerate(sources)
-    }
-    width, height = 210 * s, 150 * s
-    right = area.x1 - 30
-    target = Rect(right - width, centre - height / 2, right, centre + height / 2)
-    return FaninLayout(fmt, area.y0 + 22, rects, target, target.y1 + 40 * s,
-                       (target.cx, target.y1 + 112 * s), target.y1 + 160 * s)

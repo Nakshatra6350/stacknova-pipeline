@@ -15,17 +15,15 @@ from channel_os.scenes import (
     code_model,
     console_model,
     fanin_model,
-    flow_model,
     sequence_model,
 )
 from channel_os.scenes.phrases import anchors, find_offset, normalise, time_at
 
 MAX_DELAY = 5.0  # seconds a step may wait after its phrase
 # layout name -> the module that checks its declaration and steps (`problems`, `ACTIONS`).
-# Layouts not listed have no stage. scenes.preview.DRAWN lists the ones the page can draw.
+# Layouts not listed have no stage. The page draws each of these (scenes/web/<name>.js).
 STAGES: Mapping[str, Any] = {
     "console": console_model,
-    "flow": flow_model,
     "sequence": sequence_model,
     "cards": cards_model,
     "fanin": fanin_model,

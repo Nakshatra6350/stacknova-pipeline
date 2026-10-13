@@ -73,8 +73,9 @@ def test_a_long_preview_is_frame_exact_and_its_audio_follows_the_picture(
     assert loudest(preview, 2.7, 0.6) > -40
 
 
-def test_the_page_draws_some_layouts_and_the_rest_wait_for_their_stage() -> None:
-    # Layouts the validator accepts but the page cannot draw yet fail at render time with the
-    # page's own message; this list shrinks as the remaining stages are rebuilt.
-    assert set(DRAWN) - {"brand"} <= set(STAGES)
-    assert "console" in DRAWN and "brand" in DRAWN
+def test_the_page_draws_every_layout_the_validator_accepts(repo_root: Path) -> None:
+    # A layout that validates but cannot be drawn would only fail at render time.
+    assert set(DRAWN) == {*STAGES, "brand"}
+    page = (repo_root / "src/channel_os/scenes/web/index.html").read_text(encoding="utf-8")
+    for layout in DRAWN:
+        assert f'<script src="{layout}.js"></script>' in page, layout

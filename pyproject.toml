@@ -66,8 +66,9 @@ extend-exclude = [".claude", "brand-assets"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
-# The marks scenes draw on screen (a log prompt, a lost packet), which tests quote exactly.
-allowed-confusables = ["›", "✕"]
+# The marks scenes draw on screen (a log prompt, a lost packet, a count), which tests quote
+# exactly.
+allowed-confusables = ["›", "✕", "×"]
 
 [tool.mypy]
 python_version = "3.12"

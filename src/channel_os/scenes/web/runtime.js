@@ -28,6 +28,9 @@ window.SN = (() => {
     cam: icon('<rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r="1" fill="currentColor"/>', 26, 'style="color:#fff"'),
   };
 
+  // The heading of a one-column scene: its label line and, when it has one, its statement.
+  const head = D => !(D.header || D.title) ? '' : `<div class="shead" data-in>${D.header ? `<span class="lbl">${esc([].concat(D.header).join(' · '))}</span>` : ''}${D.title ? `<div class="stitle disp">${esc(D.title)}</div>` : ''}</div>`;
+
   const stages = {};  // stage name -> { build(clip, root), render(t) }
   let clip = null, stage = null;
   let movers = [];    // the scene's blocks marked data-in, in the order they arrive
@@ -188,7 +191,7 @@ window.SN = (() => {
     const spilled = new Set();
     for (const t of moments.sort((a, b) => a - b)) {
       render(t);
-      for (const el of document.querySelectorAll('.panel, .scr')) {
+      for (const el of document.querySelectorAll('.panel, .scr, [data-fit]')) {
         if (el.offsetParent === null || spilled.has(el)) continue;
         if (el.scrollHeight > el.clientHeight + 2 || el.scrollWidth > el.clientWidth + 2) {
           spilled.add(el);
@@ -200,7 +203,7 @@ window.SN = (() => {
     return found;
   }
 
-  return { clamp, ease, seg, fade, pop, bump, esc, typed, hl, last, $, set, ICON, stages, boot, render, unsafe };
+  return { clamp, ease, seg, fade, pop, bump, esc, typed, hl, last, $, set, head, ICON, stages, boot, render, unsafe };
 })();
 window.boot = SN.boot;
 window.render = SN.render;

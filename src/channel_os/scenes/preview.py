@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from channel_os.assemble.ffmpeg import run_ffmpeg
+from channel_os.scenes import code_model
 from channel_os.scenes.browser import RenderError, count_frames, render_clip
 from channel_os.scenes.formats import FPS, Format
 from channel_os.scenes.plan import Clip, VideoPlan
@@ -19,9 +20,9 @@ from channel_os.scenes.theme import FACES, Theme
 REPO = Path(__file__).resolve().parents[3]
 FONT_DIR = REPO / "assets" / "fonts"
 EMBLEM = REPO / "brand-assets" / "source" / "emblem-1264.jpg"
-# Layouts the page can draw. spec.STAGES lists what the validator accepts; a layout that is
-# accepted but not here fails the render with the page's own message.
-DRAWN = ("console", "brand")
+# Layouts the page can draw: every stage the validator accepts (spec.STAGES), and the brand
+# scenes the planner adds.
+DRAWN = ("console", "cards", "fanin", "sequence", "code", "brand")
 BRAND_FADE = 0.35  # seconds over which an intro or outro sound fades out at its scene's end
 
 Job = tuple[dict[str, Any], Format, int, Path, float]
@@ -29,6 +30,11 @@ Job = tuple[dict[str, Any], Format, int, Path, float]
 
 def clip_data(clip: Clip, fmt: Format, theme: Theme) -> dict[str, Any]:
     """One clip as the plain data the page is given."""
+    decl = dict(clip.spec.decl)
+    if clip.spec.layout == "code":
+        # The page colours a listing with the validator's own tokeniser, not a second one.
+        language = decl.get("language", "text")
+        decl["tokens"] = [code_model.tokens(str(line), language) for line in decl["lines"]]
     return {
         "stage": clip.spec.layout,
         "format": fmt.name,
@@ -37,7 +43,7 @@ def clip_data(clip: Clip, fmt: Format, theme: Theme) -> dict[str, Any]:
         "emblem": EMBLEM.as_uri(),
         "fonts": [{"family": family, "weight": weight, "url": (FONT_DIR / name).as_uri()}
                   for family, weight, name in FACES],
-        "decl": dict(clip.spec.decl),
+        "decl": decl,
         "steps": [{"time": step.time, "action": step.action, "target": step.target,
                    "params": dict(step.params)} for step in clip.spec.steps],
         "chrome": dict(clip.chrome),

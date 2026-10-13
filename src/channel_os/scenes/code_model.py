@@ -1,21 +1,18 @@
-"""The code stage without drawing: a short listing, its tokens and where it sits (M2).
+"""The code stage without drawing: a short listing, its tokens and what its steps may say (M2).
 
-Listings are written for the screen: a handful of short lines, original to the episode. Pure
-Python, pixels of the final frame, origin top-left.
+Listings are written for the screen: a handful of short lines, original to the episode. The
+page draws them (`scenes/web/code.js`) with the tokens found here, and lays them out with CSS.
 """
 
 import re
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
 from typing import Any
 
-from channel_os.scenes.flow_model import STATUSES
-from channel_os.scenes.formats import Format, Rect
+from channel_os.scenes.vocabulary import STATUSES
 
 ACTIONS = frozenset({"show", "highlight", "note", "focus"})
 MAX_LINES = 10
 MAX_CHARS = 60  # a longer line would have to shrink too far to stay readable in portrait
-CODE_PX = 24.0
 COMMENT = {"sql": "--", "go": "//", "java": "//", "js": "//", "python": "#", "text": None}
 # Words coloured as keywords, per language. A listing shows a few of them, not a grammar.
 _WORDS = {
@@ -46,20 +43,6 @@ KEYWORDS = {language: frozenset(words.split(" ")) - {""} for language, words in 
 _STRING = r"'[^']*'|\"[^\"]*\"|`[^`]*`"
 _NUMBER = r"\$\d+|\b\d+(?:\.\d+)?\b"
 _WORD = r"[A-Za-z_][A-Za-z_0-9]*"
-
-
-@dataclass(frozen=True)
-class CodeLayout:
-    fmt: Format
-    header_y: float
-    panel: Rect
-    bar_h: float
-    first_y: float  # centre of line 1
-    line_h: float
-    number_x: float  # right edge of the line numbers
-    code_x: float
-    code_w: float
-    note: tuple[float, float]
 
 
 def tokens(line: str, language: str) -> list[tuple[int, int, str]]:
@@ -126,20 +109,3 @@ def problems(decl: Mapping[str, Any], steps: Sequence[Mapping[str, Any]]) -> lis
         if issue:
             found.append(f"step {index + 1} ({action} at {step['at']!r}): {issue}")
     return found
-
-
-def layout(fmt: Format, decl: Mapping[str, Any]) -> CodeLayout:
-    """Where the listing and its note sit in the given format."""
-    area, s = fmt.content, fmt.scale
-    count = len(decl["lines"])
-    bar_h, line_h = 50 * s, 42 * s
-    width = min(area.w - 40, 1180 * s)
-    height = bar_h + 16 * s + count * line_h + 14 * s
-    note_room = 76 * s
-    top = area.y0 + 62
-    top += max(0.0, (area.y1 - 20 - top - height - note_room) / 2)
-    panel = Rect(area.cx - width / 2, top, area.cx + width / 2, top + height)
-    code_x = panel.x0 + 78 * s
-    return CodeLayout(fmt, area.y0 + 22, panel, bar_h, top + bar_h + 16 * s + line_h / 2, line_h,
-                      panel.x0 + 54 * s, code_x, panel.x1 - 22 * s - code_x,
-                      (area.cx, panel.y1 + 46 * s))

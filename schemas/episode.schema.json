@@ -22,7 +22,7 @@
               "at": {"type": "string", "description": "phrase in the narration that triggers the step, or 'start'. Steps are listed in spoken order; a repeated phrase means its next occurrence."},
               "action": {
                 "description": "what happens; each stage has its own list (docs/VISUAL_DSL.md)",
-                "enum": ["apply", "badge", "block", "chip", "dim", "divider", "fire", "focus", "highlight", "item", "log", "mark", "message", "note", "press", "row", "screen", "send", "set", "show", "stamp", "tag", "tap", "timeout", "title"]
+                "enum": ["apply", "badge", "dim", "divider", "fire", "focus", "highlight", "item", "log", "mark", "message", "note", "row", "screen", "send", "set", "show", "stamp", "tag", "tap"]
               },
               "target": {"type": "string"},
               "params": {"type": "object"}
