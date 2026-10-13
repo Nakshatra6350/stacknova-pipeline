@@ -46,7 +46,8 @@ video:                        # what the planner adds around an episode's scenes
   transition: slide           # how one scene gives way to the next: slide | wipe | zoom | none
   intro:                      # long videos only, played AFTER the first segment: "hook first always then intro"
     seconds: 4.3
-    sound: null               # none yet: the owner will pick a sting; until then the intro is silent
+    sound: null               # a sound made by src/channel_os/brand/sound.py, like the outro's music.
+                              # None yet: the owner is choosing between three; until then the intro is silent
   outro:                      # long videos only; no voice, music only
     seconds: 12
     music: lofi-nod           # the owner's pick (option 2); made by src/channel_os/brand/sound.py

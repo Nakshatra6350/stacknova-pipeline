@@ -54,7 +54,9 @@ jobs:
       - name: Show the browser
         run: google-chrome --version
       - name: Page tests
-        run: uv run --group scenes pytest tests/test_page.py tests/test_preview.py tests/test_sound.py
+        run: >-
+          uv run --group scenes pytest tests/test_page.py tests/test_page_stages.py
+          tests/test_preview.py tests/test_sound.py
 
   samples:
     name: code samples compile
