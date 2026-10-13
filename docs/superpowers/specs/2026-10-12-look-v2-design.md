@@ -107,19 +107,29 @@ Actions: `tap`, `send` (label, role, lost, back, wire), `reply` (status, body, l
 Added by the planner from `config/brand.yaml`; episodes do not write them.
 
 - **Top bar** (all formats): emblem, part n of N, segment title, episode pill.
-- **Caption bar** (long videos): the sentence being spoken, with the segment's `emphasis` words
-  coloured. Times come from the phrase anchors. Shorts get burned-in word captions in M3 instead.
+- **Captions** (all formats): the sentence being spoken, centred, with the segment's `emphasis`
+  words coloured and no step counter (the owner's request, 12 October 2026). Times come from the
+  phrase anchors. On a long video they sit in a bar under the scene. On a Short they are bare
+  text in the middle band `docs/CAPTIONS_SPEC.md` reserves (near y=1180), in shorter pieces;
+  that is a stand-in for the word-by-word captions burned in later, and the planner stops
+  sending it once those exist. A caption that does not fit its bar fails the render.
 - **Progress bar**: the whole video, in the brand gradient.
-- **Instagram handle** (long videos): a lower third, twice, at about 35% and 70%.
-- **Intro** (long videos): the first segment plays (the hook), then a 4.3 s logo scene with the
-  chosen sound, then the rest. Narration is cut at the start of the second segment.
+- **Instagram handle** (long videos): a lower third, twice, at about 35% and 70% of the content.
+  One that would fall in the hook, or be cut short by a scene change, waits for the next scene
+  with room for it; if no scene has room it is left out.
+- **Intro** (long videos): the first segment plays (the hook), then a 4.3 s logo scene, then the
+  rest. Narration is cut at the start of the second segment. The intro has no sound yet: two
+  rounds of synthesised stings were rejected, so the owner will pick a licensed one. It goes in
+  the private repo (`brand/intro.wav` or `brand/intro.mp3`), the render workflow fetches it like
+  the voice reference, and `--intro-sound` lays it under the logo.
 - **Outro** (long videos): 12 s, no voice, the chosen music; comment, like, subscribe, share,
   Instagram, and a frame for YouTube's next-video element. The next episode's title comes from a
   new optional `next: {title, teaser}` in `episode.yaml`.
 - **Shorts prompt**: like, comment, share, follow over the last 3 s. No intro and no end card on
   Shorts (`docs/REACH_PLAYBOOK.md`: no logo intro, endings loop).
-- **Sound**: generated at render time by `brand/sound.py` from sine waves and noise, so nothing
-  licensed enters the repo and nothing can be claimed on YouTube.
+- **Sound**: the outro's music (`lofi-nod`, the owner's pick) is generated at render time by
+  `brand/sound.py` from sine waves and noise, so nothing licensed enters the repo and nothing
+  can be claimed on YouTube. A brand sound longer than its scene fades out; it is never cut.
 
 Nothing here sells or links to anything (Phase 1).
 
@@ -138,18 +148,26 @@ is unchanged: long video of episode n gets `rotation[(n-1) mod k]`, Short j gets
   `data-safe` element inside the content area. Faster and sharper than brightness checks.
 - One render test per stage checks the frame count of a real clip.
 - CI installs Playwright and uses the runner's Chrome.
+- The page itself refuses what it cannot draw well, and the render fails with the reason: a
+  `data-safe` element outside the content area, a panel whose content does not fit at some
+  moment of the story, a caption too long for its bar, a layout with no stage.
+- Clips are encoded as limited-range BT.709 (screenshots are full-range), so colours play the
+  same in a player and on YouTube.
 
 ## Order of work
 
 1. **Engine + `console` + brand scenes**: `short-1` and the opening of the long video (hook,
    intro, next segment) render through the real pipeline in both looks. Owner looks.
+   *Built on 12 October 2026.* Segments s01 and s02 and `short-1` of episode 001 are written
+   as `console` scenes; the other segments still name the old layouts, which validate but
+   cannot be drawn until step 2.
 2. **The other four stages**, episode 001 rewritten, workflow and CI updated, acceptance run on
    GitHub. Owner approves; `m2-scenes` and this work merge together.
 
 ## Acceptance
 
-- [ ] `preview/long.mp4` (1920x1080, 30 fps): hook, intro with sound, the remaining segments,
-      outro with music; handle shown twice; caption bar throughout.
+- [ ] `preview/long.mp4` (1920x1080, 30 fps): hook, intro (with the owner's sound once chosen),
+      the remaining segments, outro with music; handle shown twice; centred captions throughout.
 - [ ] The five Shorts (1080x1920) with the follow prompt, no intro.
 - [ ] Frame count equals narration plus intro and outro, exactly.
 - [ ] Both looks used, per the rotation.

@@ -48,15 +48,16 @@ class FakeSynthesizer:
         write_audio(out_path, [(1.5 + 0.02 * len(text), 0.1)])
 
 
-def _flow(steps: list[dict[str, Any]]) -> dict[str, Any]:
-    """A visual the flow stage can draw: phone, server and bank in a row."""
+def _console(steps: list[dict[str, Any]]) -> dict[str, Any]:
+    """A visual the console stage can draw: a phone, a server, a gateway and its charges."""
     return {
-        "layout": "flow",
-        "nodes": [
-            {"id": "you", "kind": "phone", "label": "you"},
-            {"id": "server", "kind": "service", "label": "server"},
-            {"id": "bank", "kind": "ledger", "label": "bank"},
+        "layout": "console",
+        "phone": {"title": "Checkout", "total": "$100.00"},
+        "systems": [
+            {"id": "api", "name": "API server"},
+            {"id": "gateway", "name": "Payment gateway"},
         ],
+        "panels": [{"id": "charges", "kind": "list", "title": "charges"}],
         "steps": steps,
     }
 
@@ -67,10 +68,11 @@ def _segment(segment_id: str) -> dict[str, Any]:
         "title": f"Segment {segment_id}",
         "narration": "Here is the retry that matters." + " filler" * 400,
         "emphasis": ["retry"],
-        "visual": _flow(
+        "visual": _console(
             [
-                {"at": "start", "action": "press", "target": "you"},
-                {"at": "the retry", "action": "send", "target": "you->bank"},
+                {"at": "start", "action": "tap", "target": "phone"},
+                {"at": "the retry", "action": "send", "target": "phone->gateway",
+                 "params": {"label": "POST /payments", "role": "retry"}},
             ]
         ),
     }
@@ -105,7 +107,7 @@ def episode() -> dict[str, Any]:
                 "id": "short-2",
                 "source": "standalone",
                 "script": "A standalone script about one retry.",
-                "visual": _flow([{"at": "one retry", "action": "press", "target": "you"}]),
+                "visual": _console([{"at": "one retry", "action": "tap", "target": "phone"}]),
                 "hook_on_screen": "Exactly-once is a lie",
                 "youtube_title": "Exactly-Once Delivery Doesn't Exist #Shorts",
                 "instagram_caption": "Caption.",
@@ -130,12 +132,6 @@ def reach() -> dict[str, Any]:
 @pytest.fixture
 def repo_root() -> Path:
     return REPO_ROOT
-
-
-@pytest.fixture
-def cache(repo_root: Path) -> Path:
-    """Manim's label cache. Shared with real renders on purpose: a new label is slow to draw."""
-    return repo_root / ".cache" / "manim"
 
 
 @pytest.fixture

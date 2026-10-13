@@ -97,11 +97,11 @@ def test_a_layout_without_a_stage_is_an_error_even_in_a_draft(
 
 def test_a_step_the_stage_cannot_draw_is_reported(episode: Data, reach: Data) -> None:
     episode["segments"][1]["visual"]["steps"][0] = {
-        "at": "start", "action": "press", "target": "bank",
+        "at": "start", "action": "item", "target": "ledger", "params": {"text": "#1"},
     }
     findings = [f for f in lint_episode(episode, reach) if f.rule == "visual-stage"]
     assert [(f.level, f.where) for f in findings] == [("error", "s02")]
-    assert "phone" in findings[0].message
+    assert "unknown panel 'ledger'" in findings[0].message
 
 
 def test_steps_out_of_spoken_order_block_rendering(episode: Data, reach: Data) -> None:

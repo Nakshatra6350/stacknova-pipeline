@@ -1,0 +1,179 @@
+/* Look v2: one stylesheet for every stage. Colours come from the theme as CSS variables set by
+   runtime.js; fonts are loaded there too. Sizes scale with --k (1 in landscape, larger in portrait). */
+body{--b1:#7b5cff;--b2:#ff4d8d;--b3:#ff8a3d;--b4:#ffd24d;--brand:linear-gradient(90deg,var(--b1),var(--b2) 45%,var(--b3) 75%,var(--b4))}
+
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+html,body{background:#000;overflow:hidden}
+body{font-family:Inter,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
+#stage{position:relative;overflow:hidden;background:radial-gradient(1300px 800px at 62% 28%,var(--stage2),var(--stage) 72%)}
+#stage::before{content:"";position:absolute;inset:0;opacity:.5;
+  background-image:radial-gradient(circle,rgba(255,255,255,.07) 1px,transparent 1.4px);background-size:34px 34px}
+body[data-format=landscape] #stage{width:1920px;height:1080px}
+body[data-format=portrait] #stage{width:1080px;height:1920px}
+.abs{position:absolute}
+.mono{font-family:"JetBrains Mono",monospace}
+.disp{font-family:"Inter Display",Inter,sans-serif;font-weight:800;letter-spacing:-.015em}
+.grad{background:var(--brand);-webkit-background-clip:text;background-clip:text;color:transparent}
+.lbl{font:700 calc(13px*var(--k)) "JetBrains Mono",monospace;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+body[data-format=landscape]{--k:1}
+body[data-format=portrait]{--k:1.42}
+
+/* chrome */
+.top{position:absolute;display:flex;align-items:center;gap:calc(18px*var(--k));border-bottom:1.5px solid var(--line)}
+.top .mark{width:calc(38px*var(--k));height:calc(38px*var(--k));border-radius:10px;background:var(--emblem) center/175% no-repeat;flex:none}
+.top .ttl{font-size:calc(27px*var(--k));white-space:nowrap}
+.top .pill{margin-left:auto;font:500 calc(14px*var(--k)) "JetBrains Mono",monospace;color:var(--muted);border:1.5px solid var(--line);border-radius:999px;padding:calc(5px*var(--k)) calc(14px*var(--k));white-space:nowrap}
+.prog{position:absolute;left:0;bottom:0;height:7px;background:var(--brand);box-shadow:0 0 18px rgba(255,77,141,.6)}
+
+/* system nodes */
+.node{position:absolute;background:var(--panel);border:1.5px solid var(--line);border-radius:18px;padding:calc(13px*var(--k)) calc(17px*var(--k));display:flex;flex-direction:column;gap:calc(4px*var(--k));overflow:hidden}
+.node .nt{font-size:calc(21px*var(--k));color:var(--hue);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.node .ns{font-size:calc(13.5px*var(--k));color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.node .lg{font:400 calc(14px*var(--k))/1.5 "JetBrains Mono",monospace;color:var(--dim);margin-top:auto}
+.node .lg div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.node .lg div:last-child{color:var(--ink)}
+.node.hot{border-color:var(--hue);box-shadow:0 0 0 1.5px var(--hue),0 0 46px -8px var(--hue)}
+.node .led{position:absolute;right:calc(16px*var(--k));top:calc(18px*var(--k));width:calc(10px*var(--k));height:calc(10px*var(--k));border-radius:50%;background:var(--hue);box-shadow:0 0 12px var(--hue)}
+.track{position:absolute;height:2px;background:repeating-linear-gradient(90deg,var(--line) 0 10px,transparent 10px 18px)}
+.tick{position:absolute;width:2px;height:16px;background:var(--line)}
+.pkt{position:absolute;transform:translate(-50%,-50%);display:flex;align-items:center;gap:calc(9px*var(--k));height:calc(38px*var(--k));padding:0 calc(16px*var(--k)) 0 calc(11px*var(--k));border-radius:999px;font:700 calc(15px*var(--k)) "JetBrains Mono",monospace;white-space:nowrap;color:#071018;background:var(--hue);box-shadow:0 0 0 5px var(--stage),0 0 30px -2px var(--hue)}
+.pkt i{width:calc(11px*var(--k));height:calc(11px*var(--k));border-radius:50%;background:#071018;opacity:.55}
+.pkt.back{background:var(--stage);color:var(--hue);border:2px dashed var(--hue)}
+.pkt.back i{background:var(--hue);opacity:1}
+.pkt.dead{background:var(--stage);color:var(--err);border:2px solid var(--err);box-shadow:0 0 0 5px var(--stage),0 0 30px -2px var(--err)}
+
+/* panels */
+.panel{position:absolute;background:var(--panel);border:1.5px solid var(--line);border-radius:18px;display:flex;flex-direction:column;overflow:hidden}
+.panel .ph{display:flex;align-items:center;gap:calc(10px*var(--k));padding:calc(12px*var(--k)) calc(18px*var(--k));border-bottom:1.5px solid var(--line);flex:none}
+.panel .ph .lbl{color:var(--hue,var(--muted))}
+.panel .ph .r{margin-left:auto;font:500 calc(13px*var(--k)) "JetBrains Mono",monospace;color:var(--muted)}
+.chipc{font:700 calc(13px*var(--k)) "JetBrains Mono",monospace;padding:calc(3px*var(--k)) calc(11px*var(--k));border-radius:999px;border:1.5px solid var(--hue);color:var(--hue);white-space:nowrap}
+.arrow{color:var(--dim);font:700 calc(15px*var(--k)) "JetBrains Mono",monospace}
+.wtitle{font-size:calc(24px*var(--k));padding:calc(12px*var(--k)) calc(18px*var(--k)) 0}
+.req{display:flex;align-items:center;gap:calc(12px*var(--k));padding:calc(10px*var(--k)) calc(18px*var(--k));font:500 calc(17px*var(--k)) "JetBrains Mono",monospace}
+.meth{font:700 calc(13px*var(--k)) "JetBrains Mono",monospace;padding:calc(3px*var(--k)) calc(10px*var(--k));border-radius:7px;background:var(--ink);color:var(--stage)}
+.hdrs{display:grid;grid-template-columns:auto 1fr;gap:calc(2px*var(--k)) calc(16px*var(--k));padding:0 calc(18px*var(--k)) calc(10px*var(--k));font:400 calc(15px*var(--k))/1.6 "JetBrains Mono",monospace}
+.hdrs .k{color:var(--muted)}
+.hdrs .hi{color:var(--hue);font-weight:700}
+.hdrs .v.hi{justify-self:start;background:color-mix(in srgb,var(--hue) 16%,transparent);border-radius:6px;padding:0 10px;box-shadow:0 0 0 1.5px var(--hue)}
+.tries{display:grid;gap:7px;font:600 13px "JetBrains Mono",monospace}
+.tries div{display:flex;justify-content:space-between;padding:8px 12px;border-radius:10px;background:#fff;border:1px solid #e3e8ec}
+.pay>span{display:flex;align-items:center}
+.sec{display:flex;flex-direction:column;gap:calc(5px*var(--k));padding:0 calc(18px*var(--k)) calc(12px*var(--k));min-height:0}
+.sec .sl{display:flex;gap:calc(12px*var(--k));align-items:center}
+.sec .sl b{font:700 calc(13px*var(--k)) "JetBrains Mono",monospace;color:var(--ok)}
+.sec .sl b.bad{color:var(--err)}
+pre.code{background:var(--code);border:1.5px solid var(--line);border-radius:12px;padding:calc(11px*var(--k)) calc(14px*var(--k));font:400 calc(16.5px*var(--k))/1.5 "JetBrains Mono",monospace;color:#d7e0e6;white-space:pre-wrap;min-height:calc(46px*var(--k))}
+.jk{color:var(--jk)}.js{color:var(--js)}.jn{color:var(--jn)}
+.note{margin:0 calc(18px*var(--k)) calc(14px*var(--k));padding:calc(4px*var(--k)) 0 calc(4px*var(--k)) calc(12px*var(--k));border-left:3px solid var(--hue);font-size:calc(16px*var(--k));color:var(--muted);line-height:1.4}
+.wait{color:var(--dim);font:400 calc(15px*var(--k)) "JetBrains Mono",monospace;padding:calc(6px*var(--k)) 2px}
+table.t{width:100%;border-collapse:collapse;font:400 calc(15.5px*var(--k)) "JetBrains Mono",monospace}
+table.t th{text-align:left;font:700 calc(12px*var(--k)) "JetBrains Mono",monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);padding:calc(10px*var(--k)) calc(18px*var(--k)) calc(6px*var(--k))}
+table.t td{padding:calc(9px*var(--k)) calc(18px*var(--k));border-top:1.5px solid var(--line)}
+.uq{display:inline-block;margin-left:8px;font:700 calc(10.5px*var(--k)) "JetBrains Mono",monospace;letter-spacing:.08em;padding:1px 7px;border-radius:999px;border:1.5px solid var(--hue);color:var(--hue)}
+.empty{color:var(--dim);font-size:calc(15px*var(--k));padding:calc(14px*var(--k)) calc(18px*var(--k))}
+.chips{display:flex;flex-direction:column;gap:calc(9px*var(--k));padding:calc(14px*var(--k)) calc(18px*var(--k))}
+.chg{font:700 calc(15px*var(--k)) "JetBrains Mono",monospace;padding:calc(8px*var(--k)) calc(14px*var(--k));border-radius:12px;border:1.5px solid var(--hue);color:var(--hue);background:color-mix(in srgb,var(--hue) 12%,transparent);display:flex;justify-content:space-between;gap:12px}
+.stamp{position:absolute;right:calc(18px*var(--k));bottom:calc(16px*var(--k));font-size:calc(25px*var(--k));padding:calc(5px*var(--k)) calc(16px*var(--k));border:3px solid var(--hue);color:var(--hue);border-radius:12px;letter-spacing:.02em;background:var(--panel)}
+
+/* caption bar and lower third */
+.capbar{position:absolute;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 40px;background:var(--panel2);border:1.5px solid var(--line);border-radius:18px}
+.capbar .n{font:700 14px "JetBrains Mono",monospace;color:var(--muted);flex:none}
+.capbar .t{font:500 30px/1.25 Inter,sans-serif}
+.capbar .t b{font-weight:700;color:var(--a)}
+.third{position:absolute;display:flex;align-items:center;gap:14px;padding:10px 20px 10px 12px;border-radius:999px;background:rgba(10,8,22,.92);border:1.5px solid rgba(255,255,255,.18);box-shadow:0 14px 40px rgba(0,0,0,.55)}
+.third .ig{width:44px;height:44px;border-radius:13px;background:var(--brand);display:grid;place-items:center}
+.third small{display:block;font:600 12px "JetBrains Mono",monospace;letter-spacing:.12em;color:#b9b2dc}
+.third b{font:700 22px Inter,sans-serif;color:#fff}
+
+/* phone */
+.phone{position:absolute;border-radius:54px;background:#04070a;border:2.5px solid var(--line);box-shadow:0 0 0 7px var(--stage),0 30px 70px rgba(0,0,0,.6)}
+.scr{position:absolute;inset:13px;border-radius:42px;overflow:hidden;background:#f5f7fa;color:#111b21;display:flex;flex-direction:column}
+.sbar{height:34px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 26px;font:600 13px Inter,sans-serif;background:#fff}
+.ahead{height:58px;flex:none;display:flex;align-items:center;gap:12px;padding:0 20px;background:#fff;border-bottom:1px solid #e3e8ec;font:700 18px Inter,sans-serif}
+.abody{flex:1;padding:18px 18px 0;display:flex;flex-direction:column;gap:14px;position:relative}
+.card{background:#fff;border:1px solid #e3e8ec;border-radius:16px;padding:14px 16px;display:grid;gap:6px}
+.card .row{display:flex;justify-content:space-between;font-size:14.5px;color:#4a5a66}
+.card .tot{display:flex;justify-content:space-between;align-items:baseline;border-top:1px dashed #d5dce2;padding-top:10px;margin-top:4px;font-weight:700;font-size:16px}
+.card .tot b{font:800 30px "Inter Display",Inter,sans-serif}
+.keyc{font:600 12.5px "JetBrains Mono",monospace;padding:7px 10px;border-radius:10px;border:1.5px dashed #6d4bff;color:#5a3df0;background:#efeaff;display:flex;justify-content:space-between}
+.keyc.bad{border-color:#d93025;color:#b3261e;background:#fde7e7}
+.pay{height:56px;border-radius:28px;background:#111b21;color:#fff;display:grid;place-items:center;font:700 18px Inter,sans-serif;position:relative;margin-top:auto;margin-bottom:22px}
+.pay.busy{background:#5b6b77}
+.rip{position:absolute;left:50%;top:50%;width:70px;height:70px;margin:-35px 0 0 -35px;border-radius:50%;border:3px solid #7b5cff;background:rgba(123,92,255,.25)}
+.toast{position:absolute;left:14px;right:14px;top:12px;padding:12px 14px;border-radius:14px;font-size:14.5px;line-height:1.35;box-shadow:0 10px 26px rgba(0,0,0,.22)}
+.toast.err{background:#fde7e7;color:#8e1c16;border:1px solid #f3b7b3}
+.toast.ok{background:#e3f6ec;color:#0b6b3a;border:1px solid #a9dfc0}
+.toast b{display:block;font-size:15.5px}
+.spin{width:22px;height:22px;border-radius:50%;border:3px solid rgba(255,255,255,.35);border-top-color:#fff;display:inline-block;vertical-align:-5px;margin-right:10px}
+.done{display:grid;justify-items:center;text-align:center;gap:8px;padding-top:26px}
+.done .ci{width:84px;height:84px;border-radius:50%;background:#e3f6ec;color:#0b8a4a;display:grid;place-items:center;font-size:44px}
+.done b{font:800 24px "Inter Display",Inter,sans-serif}
+.done span{font:600 14px "JetBrains Mono",monospace;color:#5a6b77}
+
+/* brand scenes */
+.center{position:absolute;inset:0;display:grid;place-items:center}
+.emblem{background:var(--emblem) center/cover no-repeat;mix-blend-mode:screen;
+  -webkit-mask-image:radial-gradient(circle,#000 52%,transparent 70%);mask-image:radial-gradient(circle,#000 52%,transparent 70%)}
+.word{font-size:150px;line-height:1;color:#fff}
+.word .grad{background:linear-gradient(90deg,var(--b2),var(--b3) 55%,var(--b4));-webkit-background-clip:text;background-clip:text}
+.pcap{position:absolute;left:60px;width:960px;top:1078px;height:200px;display:grid;place-items:center;text-align:center;font-size:56px;line-height:1.14;color:#fff;text-shadow:0 4px 0 #000,0 0 26px rgba(0,0,0,.9)}
+.pcap b{color:var(--b2)}
+.act b{color:var(--ink)}
+.tag{display:flex;align-items:center;gap:26px;font:600 25px Inter,sans-serif;letter-spacing:.42em;color:#c9c2ee;white-space:nowrap}
+.tag i{height:2px;background:linear-gradient(90deg,transparent,var(--b1));display:block}
+.tag i:last-child{background:linear-gradient(90deg,var(--b1),transparent)}
+.act{position:absolute;display:flex;align-items:center;gap:20px;padding:20px 26px;border-radius:22px;background:var(--panel);border:1.5px solid var(--line)}
+.act.on{border-color:var(--hue);box-shadow:0 0 0 1.5px var(--hue),0 0 50px -10px var(--hue)}
+.act .ic{width:66px;height:66px;border-radius:18px;display:grid;place-items:center;background:color-mix(in srgb,var(--hue) 18%,transparent);color:var(--hue);flex:none}
+.act b{display:block;font:800 30px "Inter Display",Inter,sans-serif}
+.act span{display:block;font-size:19px;color:var(--muted);margin-top:3px}
+.next{position:absolute;border-radius:22px;border:2px dashed var(--line);display:grid;place-items:center;text-align:center;color:var(--muted)}
+.cta{position:absolute;display:flex;gap:16px;align-items:center;justify-content:center}
+.cta .b{display:flex;align-items:center;gap:12px;padding:16px 24px;border-radius:999px;background:rgba(10,8,22,.94);border:2px solid rgba(255,255,255,.2);font:700 30px Inter,sans-serif;color:#fff}
+.cta .b svg{color:var(--hue)}
+.cta .b.on{border-color:var(--hue);box-shadow:0 0 44px -6px var(--hue)}
+
+/* ---- layout: the stage is a fixed frame; inside it flex and grid place things, not pixels ---- */
+.node,.panel,.phone{position:relative}
+.main{position:absolute;display:flex}
+.board{flex:1;min-width:0;display:grid}
+.systems{display:flex;min-width:0}
+.systems .node{flex:1;min-width:0}
+.trackrow{position:relative}
+.trackrow .track{left:0;right:0;top:50%}
+.lower{display:flex;min-height:0;min-width:0}
+.lower .panel{flex:1;min-width:0}
+.side{display:flex;flex-direction:column}
+body[data-format=landscape] .top{left:0;top:0;width:1920px;height:68px;padding:0 30px}
+body[data-format=landscape] .main{left:44px;top:92px;width:1832px;height:816px;gap:54px}
+body[data-format=landscape] .phone{width:372px;flex:none}
+body[data-format=landscape] .board{grid-template-rows:150px 58px 1fr}
+body[data-format=landscape] .systems{gap:25px}
+body[data-format=landscape] .lower{gap:20px}
+body[data-format=landscape] .side{width:506px;flex:none;gap:16px}
+body[data-format=landscape] .capbar{left:44px;top:926px;width:1832px;height:104px}
+body[data-format=landscape] .third{top:838px}
+body[data-format=portrait] .top{left:60px;top:268px;width:960px;height:70px;padding:0 4px}
+body[data-format=portrait] .main{left:60px;top:352px;width:960px;height:688px}
+body[data-format=portrait] .phone,body[data-format=portrait] .third{display:none}
+/* Shorts: the caption sits in the middle band the caption spec reserves (baseline near y=1180),
+   as bare text. It stands in for the word-by-word captions burned in later (M4). */
+body[data-format=portrait] .capbar{left:60px;top:1070px;width:960px;height:220px;padding:0;background:none;border:0}
+body[data-format=portrait] .capbar .t{font:700 50px/1.2 Inter,sans-serif;text-shadow:0 3px 16px rgba(0,0,0,.85)}
+body[data-format=portrait] .board{grid-template-rows:166px 62px 1fr}
+body[data-format=portrait] .systems{gap:12px}
+/* Four cards across a phone screen: the name and the latest log line only, still readable on a
+   phone; the border glow stands in for the LED. */
+body[data-format=portrait] .systems.tight{gap:8px}
+body[data-format=portrait] .systems.tight .node{padding:18px 11px}
+body[data-format=portrait] .systems.tight .nt{font-size:26px}
+body[data-format=portrait] .systems.tight .lg{font-size:18px}
+body[data-format=portrait] .systems.tight .ns,body[data-format=portrait] .systems.tight .led{display:none}
+body[data-format=portrait] .side{display:contents}
+body[data-format=portrait] .cta{left:40px;width:1000px;top:1300px}
+body[data-format=landscape] .cta{display:none}
+.node.you{flex:.72}
+.panel.hot{border-color:var(--hue);box-shadow:0 0 0 1.5px var(--hue),0 0 46px -8px var(--hue)}
+.top .mark{background-size:175%}

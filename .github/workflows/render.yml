@@ -125,12 +125,34 @@ jobs:
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
-      - name: Install ffmpeg and what Manim builds against
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq --no-install-recommends \
-            ffmpeg libcairo2-dev libpango1.0-dev pkg-config
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg
       - name: Install scenes dependencies
         run: uv sync --locked --no-default-groups --group scenes
+      # Scenes are drawn in the Chrome the runner image ships; nothing is downloaded.
+      - name: Show the browser
+        run: google-chrome --version
+      # The logo's sound is licensed audio, so it lives in the private repo like the voice
+      # reference (brand/intro.wav or brand/intro.mp3). Until the owner puts one there, the
+      # intro plays in silence.
+      - name: Fetch the intro sound, if there is one
+        env:
+          CONTENT_TOKEN: ${{ secrets.CONTENT_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          for name in intro.wav intro.mp3; do
+            if curl --fail --silent --location \
+              -H "Authorization: Bearer ${CONTENT_TOKEN}" \
+              -H "Accept: application/vnd.github.raw+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              -o "$RUNNER_TEMP/$name" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY_OWNER}/stacknova-content/contents/brand/$name"
+            then
+              echo "INTRO_SOUND=$RUNNER_TEMP/$name" >> "$GITHUB_ENV"
+              echo "intro sound: brand/$name"
+              break
+            fi
+            rm -f "$RUNNER_TEMP/$name"
+          done
       - name: Render scenes
         run: bash scripts/render-scenes.sh

@@ -26,10 +26,12 @@ voice = [
     # chatterbox's watermarker (resemble-perth 1.0.1) imports pkg_resources, gone in setuptools 81.
     "setuptools<81",
 ]
-# Animated scenes: `uv sync --group scenes`. Manim needs numpy>=2.1 and chatterbox needs
-# numpy<2, so this group and `voice` can never share an environment (see conflicts below).
+# Animated scenes: `uv sync --group scenes`. Scenes are HTML drawn in a headless browser
+# (Playwright drives an installed Chrome or Edge); numpy synthesises the intro and outro sound.
+# Kept apart from `voice` so each resolves its own numpy (chatterbox needs numpy<2).
 scenes = [
-    "manim==0.21.0",
+    "playwright==1.55.0",
+    "numpy>=2.1",
 ]
 
 [tool.uv]
@@ -64,6 +66,8 @@ extend-exclude = [".claude", "brand-assets"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+# The marks scenes draw on screen (a log prompt, a lost packet), which tests quote exactly.
+allowed-confusables = ["›", "✕"]
 
 [tool.mypy]
 python_version = "3.12"
@@ -74,9 +78,9 @@ files = ["src"]
 module = ["chatterbox.*", "torch", "perth"]
 ignore_missing_imports = true
 
-# Manim and its helpers are treated as untyped whether or not the scenes group is installed,
+# Playwright and numpy are treated as untyped whether or not the scenes group is installed,
 # so `mypy src` gives the same result in every environment.
 [[tool.mypy.overrides]]
-module = ["manim", "manim.*", "manimpango", "av", "av.*", "numpy", "numpy.*"]
+module = ["playwright", "playwright.*", "numpy", "numpy.*"]
 follow_imports = "skip"
 ignore_missing_imports = true

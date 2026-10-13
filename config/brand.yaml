@@ -42,6 +42,20 @@ fonts:
   sans_bold: "Inter Display ExtraBold"
   mono: "JetBrains Mono"
 watermark: "bottom-right"     # emblem, 6% width, 70% opacity
+video:                        # what the planner adds around an episode's scenes (decided 12 Oct 2026)
+  intro:                      # long videos only, played AFTER the first segment: "hook first always then intro"
+    seconds: 4.3
+    sound: null               # none yet: the owner will pick a sting; until then the intro is silent
+  outro:                      # long videos only; no voice, music only
+    seconds: 12
+    music: lofi-nod           # the owner's pick (option 2); made by src/channel_os/brand/sound.py
+    cadence: "two deep dives a week"
+  handle:                     # Instagram handle as a lower third on long videos
+    at: [0.35, 0.7]           # shares of the way through the episode
+    seconds: 5
+  shorts_prompt:              # like / comment / share / subscribe over the end of a Short
+    seconds: 3                # no intro and no end card on Shorts (docs/REACH_PLAYBOOK.md)
+    ask: Subscribe            # the last button's word; the Reel cut of a Short says Follow (M3)
 bios:                         # paste-ready versions in BRAND_PROFILE_TEXT.md
   youtube_name: "StackNova"
   instagram_name: "StackNova | Backend Systems"

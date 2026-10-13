@@ -1,90 +1,80 @@
-"""A preview: every planned clip, in order, under the narration."""
+"""A whole preview, start to finish: clips drawn in the browser, joined, and the audio cut to
+match (the scenes dependency group and ffmpeg)."""
 
+import re
+import subprocess
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-pytest.importorskip("manim", reason="needs the scenes dependency group")
+pytest.importorskip("playwright.sync_api", reason="needs the scenes dependency group")
 
-import av
-
-from channel_os.scenes.flow_model import layout
-from channel_os.scenes.formats import PORTRAIT
-from channel_os.scenes.plan import plan_clips
-from channel_os.scenes.preview import render_preview
-from channel_os.scenes.render import count_frames, read_frame
+from channel_os.brand.sound import write_sound
+from channel_os.scenes.browser import count_frames
+from channel_os.scenes.formats import LANDSCAPE
+from channel_os.scenes.plan import plan_video
+from channel_os.scenes.preview import DRAWN, render_preview
+from channel_os.scenes.spec import STAGES
 from channel_os.scenes.theme import load_themes
 
-QUALITY = 0.25
-SCRIPT = "You tapped Pay and got an error. So you tapped again. The fix is one key per payment."
-NODES = [
-    {"id": "you", "kind": "phone", "label": "you"},
-    {"id": "server", "kind": "service", "label": "server"},
-    {"id": "bank", "kind": "ledger", "label": "bank"},
-]
-WITH_TABLE = {"layout": "flow", "from": "The fix", "nodes": NODES,
-              "table": {"title": "keys", "owner": "server"},
-              "steps": [{"at": "one key", "action": "press", "target": "you"}]}
-VISUAL = [
-    {"layout": "flow", "nodes": NODES,
-     "steps": [{"at": "tapped Pay", "action": "press", "target": "you"}]},
-    WITH_TABLE,
-]
+SCRIPT = "You tapped Pay and got an error. The fix is one key per payment."
+VISUAL = {
+    "layout": "console",
+    "phone": {"title": "Checkout", "total": "$100.00"},
+    "systems": [{"id": "api", "name": "API server"}, {"id": "gateway", "name": "Payment gateway"}],
+    "steps": [{"at": "tapped Pay", "action": "tap", "target": "phone"}],
+}
+# Brand scenes far shorter than the real ones, so the test stays quick.
+BRAND: dict[str, Any] = {
+    "tagline": "Light up your whole stack.",
+    "handles": {"confirmed": {"youtube": "@StackNovaDev", "instagram": "@stacknova.dev"}},
+    "video": {"intro": {"seconds": 0.5}, "outro": {"seconds": 1.0, "music": "lofi-nod"}},
+}
 
 
-def test_workers_hand_their_labels_back_without_sharing_a_folder(
+def loudest(path: Path, start: float, seconds: float) -> float:
+    """The peak level of a stretch of a file's audio, in dB (silence is far below -60)."""
+    done = subprocess.run(
+        ["ffmpeg", "-hide_banner", "-ss", str(start), "-t", str(seconds), "-i", str(path),
+         "-vn", "-af", "volumedetect", "-f", "null", "-"],
+        capture_output=True, text=True, check=True,
+    )
+    found = re.search(r"max_volume: (-?[\d.]+|-inf) dB", done.stderr)
+    assert found, done.stderr[-400:]
+    return float(found.group(1))
+
+
+def test_a_long_preview_is_frame_exact_and_its_audio_follows_the_picture(
     tmp_path: Path, repo_root: Path, audio: Any
 ) -> None:
-    # Seen on GitHub on 11 October 2026: three workers on one text folder, and one of them
-    # found a label file missing while another was rewriting it.
-    themes = load_themes(repo_root / "config" / "themes.yaml")
-    card = {"layout": "cards", "cards": [{"id": "a", "title": "one"}],
-            "steps": [{"at": "start", "action": "highlight", "target": "a"}]}
-    episode = {"id": "001-test", "segments": [], "shorts": [
-        {"id": "short-1", "source": "standalone", "script": SCRIPT,
-         "visual": [card, {**card, "from": "The fix"}]}]}
-    entry = {"duration": 2.0, "segments": [
-        {"id": "short-1", "start": 0.0, "duration": 2.0, "pauses": []}]}
-    clips = plan_clips(episode, "short-1", entry)
-    shared = tmp_path / "labels"
+    segments = [{"id": unit, "title": "Part", "narration": SCRIPT, "visual": VISUAL}
+                for unit in ("s01", "s02")]
+    episode = {"id": "001-test", "segments": segments, "shorts": []}
+    entry = {"duration": 2.0,
+             "segments": [{"id": unit, "start": start, "duration": 1.0, "pauses": []}
+                          for unit, start in (("s01", 0.0), ("s02", 1.0))]}
+    plan = plan_video(episode, "long", entry, BRAND)
+    assert [(clip.unit, clip.frames) for clip in plan.clips] == [
+        ("s01", 30), ("intro", 15), ("s02", 30), ("outro", 30)]
 
-    out = render_preview(clips, PORTRAIT, themes.themes["brand"], themes,
-                         audio(tmp_path / "narration.wav", [(2.0, 0.1)]), tmp_path / "out.mp4",
-                         quality=QUALITY, cache_dir=shared, jobs=2)
+    narration = audio(tmp_path / "narration.wav", [(2.0, 0.1)])
+    sounds = {"outro": write_sound("lofi-nod", tmp_path / "outro.wav")}
+    theme = load_themes(repo_root / "config" / "themes.yaml").themes["control"]
+    preview = render_preview(plan, LANDSCAPE, theme, narration, tmp_path / "preview" / "long.mp4",
+                             sounds, quality=0.25, jobs=2)
 
-    assert count_frames(out) == 60
-    assert [path.name for path in shared.iterdir()] == ["texts"], "only labels come back"
-    labels = list((shared / "texts").iterdir())
-    assert labels and all(path.suffix == ".svg" and path.stat().st_size > 0 for path in labels)
+    assert count_frames(preview) == plan.frames == 105
+    # Narration under the hook, silence under the logo (no intro sound has been chosen),
+    # narration again, then the outro's music.
+    assert loudest(preview, 0.2, 0.6) > -30
+    assert loudest(preview, 1.15, 0.2) < -60
+    assert loudest(preview, 1.7, 0.6) > -30
+    assert loudest(preview, 2.7, 0.6) > -40
 
 
-def test_clips_are_joined_in_order_under_the_narration(
-    tmp_path: Path, repo_root: Path, cache: Path, audio: Any
-) -> None:
-    themes = load_themes(repo_root / "config" / "themes.yaml")
-    episode = {"id": "001-test", "segments": [], "shorts": [
-        {"id": "short-1", "source": "standalone", "script": SCRIPT, "visual": VISUAL}]}
-    entry = {"duration": 3.0, "segments": [
-        {"id": "short-1", "start": 0.0, "duration": 3.0, "pauses": [[1.0, 1.2], [1.8, 2.0]]}]}
-    clips = plan_clips(episode, "short-1", entry)
-    assert [clip.frames for clip in clips] == [60, 30]
-
-    narration = audio(tmp_path / "narration.wav", [(3.0, 0.1)])
-    # Two scenes at once, as the workflow does: both draw "you", "server" and "bank", and each
-    # worker must be able to use those labels without tripping over the other.
-    out = render_preview(clips, PORTRAIT, themes.themes["navy"], themes, narration,
-                         tmp_path / "preview" / "short-1.mp4", quality=QUALITY, cache_dir=cache,
-                         jobs=2)
-
-    assert count_frames(out) == 90
-    with av.open(str(out)) as container:
-        assert len(container.streams.audio) == 1
-        assert float(container.duration) / av.time_base == pytest.approx(3.0, abs=0.1)
-    # Only the second scene has a table: its place is empty before the cut and drawn after it.
-    table = layout(PORTRAIT, WITH_TABLE).table
-    assert table is not None
-    rows = slice(round(table.rect.y0 * QUALITY), round(table.rect.y1 * QUALITY))
-    columns = slice(round(table.rect.x0 * QUALITY), round(table.rect.x1 * QUALITY))
-    before, after = (float(read_frame(out, index)[rows, columns].mean()) for index in (55, 85))
-    assert after > before + 3
+def test_the_page_draws_some_layouts_and_the_rest_wait_for_their_stage() -> None:
+    # Layouts the validator accepts but the page cannot draw yet fail at render time with the
+    # page's own message; this list shrinks as the remaining stages are rebuilt.
+    assert set(DRAWN) - {"brand"} <= set(STAGES)
+    assert "console" in DRAWN and "brand" in DRAWN

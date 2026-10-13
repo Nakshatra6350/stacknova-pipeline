@@ -11,7 +11,7 @@
       "type": "object",
       "required": ["layout", "steps"],
       "properties": {
-        "layout": {"type": "string", "description": "stage name: flow, sequence, cards, fanin or code"},
+        "layout": {"type": "string", "description": "stage name: console, sequence, cards, fanin or code"},
         "from": {"type": "string", "description": "phrase at which this scene takes over; required on every scene of a list except the first"},
         "steps": {
           "type": "array",
@@ -22,7 +22,7 @@
               "at": {"type": "string", "description": "phrase in the narration that triggers the step, or 'start'. Steps are listed in spoken order; a repeated phrase means its next occurrence."},
               "action": {
                 "description": "what happens; each stage has its own list (docs/VISUAL_DSL.md)",
-                "enum": ["apply", "badge", "block", "chip", "dim", "divider", "fire", "focus", "highlight", "mark", "message", "note", "press", "row", "send", "set", "show", "tag", "timeout", "title"]
+                "enum": ["apply", "badge", "block", "chip", "dim", "divider", "fire", "focus", "highlight", "item", "log", "mark", "message", "note", "press", "row", "screen", "send", "set", "show", "stamp", "tag", "tap", "timeout", "title"]
               },
               "target": {"type": "string"},
               "params": {"type": "object"}
@@ -42,6 +42,13 @@
   "properties": {
     "id": {"type": "string", "pattern": "^[0-9]{3}-[a-z0-9-]+$"},
     "theme": {"type": "string", "description": "name of a theme in config/themes.yaml; omit to use the rotation"},
+    "next": {
+      "description": "The next episode, shown on the outro of the long video.",
+      "type": "object",
+      "required": ["title"],
+      "properties": {"title": {"type": "string"}, "teaser": {"type": "string"}},
+      "additionalProperties": false
+    },
     "version": {"type": "integer", "minimum": 1},
     "status": {"enum": ["draft", "ready_to_render", "rendering", "rendered", "published", "archived"]},
     "pillar": {"enum": ["database-internals", "distributed-systems", "jvm-java", "go-runtime", "node-runtime", "production-failures", "money-systems", "interview-depth"]},

@@ -10,6 +10,9 @@ target_versions:
   go: "1.26"
   postgresql: "18"
 estimated_minutes: 9
+next:                           # shown on the outro of the long video
+  title: "The Outbox Pattern"
+  teaser: "You charged the card. Now update your database and publish an event, and those two cannot share a transaction."
 
 keywords:
   primary: idempotency
@@ -66,27 +69,71 @@ segments:
       to close it, and why "exactly-once delivery" is a promise no network can keep.
     emphasis: [two charges, exactly what it was told, exactly-once]
     visual:
-      layout: flow
-      header: ["CHECKOUT", "ORDER #4171"]
-      nodes:
-        - {id: you, kind: phone, label: you, amount: "$100.00", button: Pay}
-        - {id: server, kind: service, label: server, title: api}
-        - {id: bank, kind: ledger, label: "your bank", title: statement}
+      layout: console
+      phone:
+        title: Checkout
+        total: "$100.00"
+        method: "Visa •••• 4242"
+        items: [["Headphones", "$89.00"], ["Shipping", "$11.00"]]
+      systems:
+        - {id: api, name: "API server", sub: "POST /v1/payments", idle: "listening on :8080"}
+        - {id: gateway, name: "Payment gateway", sub: "moves the money"}
+      panels:
+        - {id: statement, kind: list, title: "your bank · statement", unit: charges, empty: "No charges yet.", lane: gateway}
+        - {id: ahead, kind: list, title: "in the next few minutes", unit: parts, empty: "Three things to see.", lane: api}
       steps:
-        - {at: "tapped Pay", action: press, target: you}
-        - {at: "tapped Pay", action: send, target: "you->bank", params: {row: {text: "$100", status: ok}}}
-        - {at: "The spinner", action: chip, target: you, params: {text: waiting, status: info}}
-        - {at: "Something went wrong", action: send, target: "server->you", params: {role: reply, lost: 0.5, chip: {text: "try again", status: bad}}}
-        - {at: "tried again", action: chip, target: you, params: {clear: true}}
-        - {at: "tried again", action: press, target: you}
-        - {at: "tried again", action: send, target: "you->bank", params: {role: retry, row: {text: "$100", status: bad}}}
-        - {at: "two charges", action: badge, target: bank, params: {text: "TWO CHARGES", status: bad}}
-        - {at: "Nobody wrote", action: highlight, target: server}
-        - {at: "exactly what it was told", action: tag, target: server, params: {text: "no bug here"}}
-        - {at: "the exact gap", action: block, target: "server->you", params: {text: "the gap"}}
-        - {at: "the one pattern", action: tag, target: you, params: {text: "one key"}}
-        - {at: "exactly-once delivery", action: tag, target: server, params: {text: "exactly-once?", status: bad}}
-        - {at: "no network can keep", action: highlight, target: bank}
+        - {at: "tapped Pay", action: tap, target: phone}
+        - at: "tapped Pay"
+          action: send
+          target: "phone->gateway"
+          params:
+            delay: 0.1
+            label: "POST /payments"
+            wire:
+              title: "Create payment"
+              method: POST
+              path: /v1/payments
+              headers: {Content-Type: application/json}
+              body: {amount: 100, currency: USD, source: card_visa_4242}
+        - {at: "tapped Pay", action: log, target: api, params: {delay: 0.6, text: "POST /payments → charge $100"}}
+        - {at: "The spinner", action: log, target: gateway, params: {text: "charge #1 $100 ok"}}
+        - {at: "The spinner", action: item, target: statement, params: {delay: 0.1, text: "#1 · card payment", value: "$100.00"}}
+        - at: "The spinner"
+          action: send
+          target: "gateway->phone"
+          params: {delay: 0.5, label: "201 Created", role: reply, lost: 0.8, response: {status: "201 Created", body: {id: pay_A19, status: succeeded}}}
+        - {at: "Something went wrong", action: screen, target: phone, params: {state: error, text: "Try again.", attempt: "no reply"}}
+        - {at: "tried again", action: tap, target: phone}
+        - at: "tried again"
+          action: send
+          target: "phone->gateway"
+          params:
+            delay: 0.1
+            label: "POST /payments (again)"
+            role: retry
+            wire:
+              title: "Create payment"
+              tag: "RETRY"
+              method: POST
+              path: /v1/payments
+              headers: {Content-Type: application/json}
+              body: {amount: 100, currency: USD, source: card_visa_4242}
+        - {at: "tried again", action: log, target: api, params: {delay: 0.6, text: "POST /payments → charge $100"}}
+        - {at: "two charges", action: item, target: statement, params: {text: "#2 · card payment", value: "$100.00", status: bad}}
+        - {at: "two charges", action: log, target: gateway, params: {text: "charge #2 $100 ok"}}
+        - {at: "two charges", action: stamp, target: statement, params: {delay: 0.15, text: "TWO CHARGES", status: bad}}
+        - at: "two charges"
+          action: send
+          target: "gateway->phone"
+          params: {delay: 0.1, label: "201 Created", role: reply, response: {status: "201 Created", body: {id: pay_B77, status: succeeded}}}
+        - {at: "two charges", action: screen, target: phone, params: {delay: 0.75, state: success, text: "$100.00 · receipt #B77", warn: "your bank shows two charges", attempt: "paid"}}
+        - {at: "Nobody wrote", action: highlight, target: api}
+        - {at: "Nobody wrote", action: note, target: wire, params: {text: "No line of code says \"charge twice\"."}}
+        - {at: "exactly what it was told", action: note, target: wire, params: {text: "Two requests arrived. Each one was handled correctly.", status: ok}}
+        - {at: "the exact gap", action: item, target: ahead, params: {text: "1 · the exact gap that lets this happen", status: info}}
+        - {at: "the one pattern", action: item, target: ahead, params: {text: "2 · the one pattern that closes it", status: info}}
+        - {at: "exactly-once delivery", action: item, target: ahead, params: {text: "3 · why \"exactly-once\" cannot be promised", status: info}}
+        - {at: "no network can keep", action: highlight, target: ahead}
 
   - id: s02
     title: Silence has three causes
@@ -102,41 +149,138 @@ segments:
       retry means a second charge.
     emphasis: [three possibilities, silence, second charge]
     visual:
-      layout: flow
-      header: ["ONE API CALL", "NO RESPONSE"]
-      nodes:
-        - {id: client, kind: phone, label: client, amount: "$100.00", button: Pay}
-        - {id: server, kind: service, label: server, title: api}
-        - {id: bank, kind: ledger, label: bank, title: ledger}
-      lanes:
-        title: "no response. three possible stories:"
-        rows:
-          - {id: a, label: "1  never arrived"}
-          - {id: b, label: "2  crashed first"}
-          - {id: c, label: "3  charged, reply lost"}
-      steps:
-        - {at: "The client sends a request", action: press, target: client}
-        - {at: "The client sends a request", action: send, target: "client->server"}
-        - {at: "the server does the work", action: send, target: "server->bank", params: {row: {text: "$100", status: ok}}}
-        - {at: "the server sends a response", action: send, target: "bank->client", params: {role: reply, chip: {text: paid, status: ok}}}
-        - {at: "the client retries", action: highlight, target: client}
-        - {at: "hides a question", action: chip, target: client, params: {clear: true}}
-        - {at: "hides a question", action: dim, target: main}
-        - {at: "gets no response", action: timeout, target: lanes}
-        - {at: "three possibilities", action: title, target: lanes}
-        - {at: "never reached the server", action: send, target: "a:client->server", params: {lost: 0.6}}
-        - {at: "a retry is safe", action: send, target: "a:client->bank", params: {role: retry, mark: ok}}
-        - {at: "crashed before", action: send, target: "b:client->server", params: {mark: crash}}
-        - {at: "Also safe", action: send, target: "b:client->bank", params: {role: retry, mark: ok}}
-        - {at: "charged the card", action: send, target: "c:client->bank", params: {mark: ok}}
-        - {at: "got lost on the way back", action: send, target: "c:server->client", params: {role: reply, lost: 0.5}}
-        - {at: "From the client's side", action: focus, target: main}
-        - {at: "all three look identical", action: chip, target: client, params: {text: silence, status: bad}}
-        - {at: "property of networks", action: tag, target: server, params: {text: "not a bug"}}
-        - {at: "in case three", action: dim, target: a}
-        - {at: "in case three", action: dim, target: b}
-        - {at: "a retry means", action: send, target: "c:client->bank", params: {role: retry, mark: x2}}
-        - {at: "second charge", action: badge, target: bank, params: {text: "SECOND CHARGE", status: bad}}
+      # Scene 1: the picture most of us carry. Request, work, response.
+      - layout: console
+        phone:
+          title: Checkout
+          total: "$100.00"
+          method: "Visa •••• 4242"
+          items: [["Headphones", "$89.00"], ["Shipping", "$11.00"]]
+        systems:
+          - {id: api, name: "API server", sub: "POST /v1/payments", idle: "listening on :8080"}
+          - {id: gateway, name: "Payment gateway", sub: "moves the money"}
+        panels:
+          - {id: charges, kind: list, title: "gateway · charges", unit: charged, empty: "No money has moved.", lane: gateway}
+        steps:
+          - {at: "The client sends a request", action: tap, target: phone}
+          - at: "The client sends a request"
+            action: send
+            target: "phone->api"
+            params:
+              delay: 0.1
+              label: "POST /payments"
+              wire:
+                title: "Create payment"
+                method: POST
+                path: /v1/payments
+                headers: {Content-Type: application/json}
+                body: {amount: 100, currency: USD, source: card_visa_4242}
+          - {at: "the server does the work", action: log, target: api, params: {text: "POST /payments → charge $100"}}
+          - {at: "the server does the work", action: send, target: "api->gateway", params: {delay: 0.1, label: "charge $100"}}
+          - {at: "the server does the work", action: item, target: charges, params: {delay: 0.65, text: "#1 pay_A19", value: "$100.00"}}
+          - {at: "the server does the work", action: log, target: gateway, params: {delay: 0.65, text: "charge #1 $100 ok"}}
+          - at: "the server sends a response"
+            action: send
+            target: "gateway->phone"
+            params: {label: "201 Created", role: reply, response: {status: "201 Created", body: {id: pay_A19, status: succeeded}}}
+          - {at: "the server sends a response", action: screen, target: phone, params: {delay: 0.9, state: success, text: "$100.00 · receipt #A19", attempt: "paid"}}
+          - {at: "the client retries", action: note, target: wire, params: {text: "And if anything fails? The client just retries."}}
+          - {at: "Clean", action: stamp, target: charges, params: {text: "CLEAN", status: ok}}
+      # Scene 2: the same call with no response. Three stories the client cannot tell apart.
+      - layout: console
+        from: "But that picture"
+        phone:
+          title: Checkout
+          total: "$100.00"
+          method: "Visa •••• 4242"
+          items: [["Headphones", "$89.00"], ["Shipping", "$11.00"]]
+        systems:
+          - {id: api, name: "API server", sub: "POST /v1/payments", idle: "listening on :8080"}
+          - {id: gateway, name: "Payment gateway", sub: "moves the money"}
+        panels:
+          - {id: stories, kind: list, title: "no response · three possible stories", unit: stories, empty: "The client only knows: no reply.", lane: api}
+          - {id: charges, kind: list, title: "gateway · charges", unit: charged, empty: "No money has moved.", lane: gateway}
+        steps:
+          - {at: "hides a question", action: note, target: wire, params: {text: "The client sent a request and heard nothing back. What happened?"}}
+          - {at: "gets no response", action: screen, target: phone, params: {state: error, title: "No response", text: "The request timed out."}}
+          - {at: "three possibilities", action: highlight, target: stories}
+          - at: "never reached the server"
+            action: send
+            target: "phone->api"
+            params:
+              label: "POST /payments"
+              lost: 0.45
+              wire:
+                title: "Create payment"
+                tag: "STORY 1"
+                method: POST
+                path: /v1/payments
+                headers: {Content-Type: application/json}
+                body: {amount: 100, currency: USD, source: card_visa_4242}
+          - {at: "a retry is safe", action: item, target: stories, params: {text: "1 · the request never arrived", value: "retry is safe"}}
+          - at: "crashed before"
+            action: send
+            target: "phone->api"
+            params:
+              label: "POST /payments"
+              wire:
+                title: "Create payment"
+                tag: "STORY 2"
+                method: POST
+                path: /v1/payments
+                headers: {Content-Type: application/json}
+                body: {amount: 100, currency: USD, source: card_visa_4242}
+          - {at: "crashed before", action: log, target: api, params: {delay: 0.55, text: "crashed · nothing changed"}}
+          - {at: "Also safe", action: item, target: stories, params: {text: "2 · the server crashed first", value: "retry is safe"}}
+          - at: "the server did the work"
+            action: send
+            target: "phone->gateway"
+            params:
+              label: "POST /payments"
+              wire:
+                title: "Create payment"
+                tag: "STORY 3"
+                bad: true
+                method: POST
+                path: /v1/payments
+                headers: {Content-Type: application/json}
+                body: {amount: 100, currency: USD, source: card_visa_4242}
+          - {at: "the server did the work", action: log, target: api, params: {delay: 0.5, text: "POST /payments → charge $100"}}
+          - {at: "charged the card", action: item, target: charges, params: {text: "#1 pay_A19", value: "$100.00"}}
+          - {at: "charged the card", action: log, target: gateway, params: {text: "charge #1 $100 ok"}}
+          - at: "got lost on the way back"
+            action: send
+            target: "gateway->phone"
+            params: {label: "201 Created", role: reply, lost: 0.7, response: {status: "201 Created", body: {id: pay_A19, status: succeeded}}}
+          - {at: "got lost on the way back", action: item, target: stories, params: {delay: 0.9, text: "3 · charged, reply got lost", value: "second charge", status: bad}}
+          - {at: "A timeout", action: note, target: wire, params: {text: "A timeout. A dropped connection. A load balancer restart.", status: bad}}
+          - {at: "From the client's side", action: highlight, target: phone}
+          - {at: "all three look identical", action: highlight, target: stories}
+          - {at: "silence", action: screen, target: phone, params: {state: error, title: "No response", text: "Story 1, 2 or 3? The client cannot tell."}}
+          - {at: "property of networks", action: note, target: wire, params: {text: "Not a bug in your code. A property of networks."}}
+          - {at: "a retry means", action: tap, target: phone}
+          - at: "a retry means"
+            action: send
+            target: "phone->gateway"
+            params:
+              delay: 0.1
+              label: "POST /payments (retry)"
+              role: retry
+              wire:
+                title: "Create payment"
+                tag: "RETRY"
+                method: POST
+                path: /v1/payments
+                headers: {Content-Type: application/json}
+                body: {amount: 100, currency: USD, source: card_visa_4242}
+          - {at: "second charge", action: item, target: charges, params: {text: "#2 pay_B77", value: "$100.00", status: bad}}
+          - {at: "second charge", action: log, target: gateway, params: {text: "charge #2 $100 ok"}}
+          - {at: "second charge", action: stamp, target: charges, params: {delay: 0.15, text: "SECOND CHARGE", status: bad}}
+          - at: "second charge"
+            action: send
+            target: "gateway->phone"
+            params: {delay: 0.2, label: "201 Created", role: reply, response: {status: "201 Created", body: {id: pay_B77, status: succeeded}}}
+          - {at: "second charge", action: screen, target: phone, params: {delay: 0.85, state: success, text: "$100.00 · receipt #B77", warn: "charged twice", attempt: "charged again"}}
 
   - id: s03
     title: Retries are guaranteed
@@ -590,68 +734,172 @@ shorts:
       same result. That's why your retry should be harmless. Unless someone forgot the key.
     visual:
       # Scene 1: the double charge, then the two stories a timeout cannot tell apart.
-      - layout: flow
-        header: ["PAYMENT / RETRY", "REQ #4171"]
-        nodes:
-          - {id: you, kind: phone, label: you, amount: "$100.00", button: Pay}
-          - {id: server, kind: service, label: server, title: api}
-          - {id: bank, kind: ledger, label: bank, title: ledger}
-        lanes:
-          title: "no reply. two possible stories:"
-          rows:
-            - {id: a, label: "1  never arrived"}
-            - {id: b, label: "2  charged, reply lost"}
+      - layout: console
+        phone:
+          title: Checkout
+          total: "$100.00"
+          method: "Visa •••• 4242"
+          items: [["Headphones", "$89.00"], ["Shipping", "$11.00"]]
+        systems:
+          - {id: api, name: "API server", sub: "POST /v1/payments", idle: "listening on :8080"}
+          - {id: gateway, name: "Payment gateway", sub: "moves the money"}
+        panels:
+          - {id: charges, kind: list, title: "gateway · charges", unit: charged, empty: "No money has moved.", lane: gateway}
+          - {id: stories, kind: list, title: "what the phone cannot see", unit: stories, empty: "The phone only knows: no reply.", lane: api}
         steps:
-          - {at: "tapped Pay", action: press, target: you}
-          - {at: "tapped Pay", action: send, target: "you->bank", params: {row: {text: "$100", status: ok}}}
-          - {at: "got an error", action: send, target: "server->you", params: {role: reply, lost: 0.55, chip: {text: error, status: bad}}}
-          - {at: "tapped again", action: chip, target: you, params: {clear: true}}
-          - {at: "tapped again", action: press, target: you}
-          - {at: "tapped again", action: send, target: "you->bank", params: {role: retry, row: {text: "$100", status: bad}}}
-          - {at: "charged twice", action: badge, target: bank, params: {text: "CHARGED TWICE", status: bad}}
-          - {at: "Here's why", action: dim, target: main}
-          - {at: "Here's why", action: title, target: lanes}
-          - {at: "request times out", action: timeout, target: lanes}
-          - {at: "you can't tell", action: send, target: "a:you->server", params: {lost: 0.62}}
-          - {at: "or charged you", action: send, target: "b:you->bank", params: {mark: ok}}
-          - {at: "lost the reply", action: send, target: "b:server->you", params: {role: reply, lost: 0.5}}
-          - {at: "A retry", action: dim, target: a}
-          - {at: "A retry", action: send, target: "b:you->bank", params: {role: retry, mark: "x2"}}
-          - {at: "second charge", action: focus, target: main}
-          - {at: "second charge", action: highlight, target: bank}
+          - {at: "tapped Pay", action: tap, target: phone}
+          - at: "tapped Pay"
+            action: send
+            target: "phone->gateway"
+            params:
+              delay: 0.1
+              label: "POST /payments"
+              wire:
+                title: "Create payment"
+                method: POST
+                path: /v1/payments
+                headers: {Content-Type: application/json}
+                body: {amount: 100, currency: USD, source: card_visa_4242}
+          - {at: "tapped Pay", action: log, target: api, params: {delay: 0.55, text: "POST /payments → charge $100"}}
+          - {at: "got an error", action: item, target: charges, params: {text: "#1 pay_A19", value: "$100.00", status: ok}}
+          - {at: "got an error", action: log, target: gateway, params: {text: "charge #1 $100 ok"}}
+          - at: "got an error"
+            action: send
+            target: "gateway->phone"
+            params: {delay: 0.1, label: "201 Created", role: reply, lost: 0.8, response: {status: "201 Created", body: {id: pay_A19, status: succeeded}}}
+          - {at: "got an error", action: screen, target: phone, params: {delay: 0.95, state: error, text: "We could not confirm your payment. Try again.", attempt: "no reply"}}
+          - {at: "tapped again", action: tap, target: phone}
+          - at: "tapped again"
+            action: send
+            target: "phone->gateway"
+            params:
+              delay: 0.1
+              label: "POST /payments (again)"
+              role: retry
+              wire:
+                title: "Create payment"
+                tag: "RETRY"
+                method: POST
+                path: /v1/payments
+                headers: {Content-Type: application/json}
+                body: {amount: 100, currency: USD, source: card_visa_4242}
+          - {at: "charged twice", action: item, target: charges, params: {text: "#2 pay_B77", value: "$100.00", status: bad}}
+          - {at: "charged twice", action: log, target: gateway, params: {text: "charge #2 $100 ok"}}
+          - {at: "charged twice", action: stamp, target: charges, params: {delay: 0.15, text: "CHARGED TWICE", status: bad}}
+          - at: "charged twice"
+            action: send
+            target: "gateway->phone"
+            params: {delay: 0.1, label: "201 Created", role: reply, response: {status: "201 Created", body: {id: pay_B77, status: succeeded}}}
+          - {at: "charged twice", action: screen, target: phone, params: {delay: 0.75, state: success, text: "$100.00 · receipt #B77", warn: "and your bank shows two charges", attempt: "paid"}}
+          - {at: "Here's why", action: note, target: wire, params: {text: "The first reply never came back. The phone cannot see which story happened.", status: bad}}
+          - {at: "request times out", action: highlight, target: stories}
+          - {at: "you can't tell", action: item, target: stories, params: {text: "1 · the request never arrived", value: "nothing charged", status: ok}}
+          - {at: "or charged you", action: item, target: stories, params: {text: "2 · charged, the reply got lost", value: "charged once", status: bad}}
+          - {at: "A retry", action: highlight, target: stories}
+          - {at: "A retry", action: note, target: wire, params: {text: "In story 2, the retry is a second charge.", status: bad}}
+          - {at: "second charge", action: highlight, target: charges}
       # Scene 2: the same payment with a key. The retry stops at the server's table.
-      - layout: flow
+      - layout: console
         from: "The fix"
-        header: ["WITH AN IDEMPOTENCY KEY", "REQ #4172"]
-        nodes:
-          - {id: you, kind: phone, label: you, amount: "$100.00", button: Pay}
-          - {id: server, kind: service, label: server, title: api}
-          - {id: bank, kind: ledger, label: bank, title: ledger}
-        table: {title: idempotency_keys, owner: server}
+        phone:
+          title: Checkout
+          total: "$100.00"
+          method: "Visa •••• 4242"
+          items: [["Headphones", "$89.00"], ["Shipping", "$11.00"]]
+        systems:
+          - {id: api, name: "API server", sub: "POST /v1/payments", idle: "listening on :8080"}
+          - {id: store, name: "Key store", sub: "PostgreSQL · idempotency_keys", idle: "waiting"}
+          - {id: gateway, name: "Payment gateway", sub: "moves the money"}
+        panels:
+          - {id: keys, kind: table, title: idempotency_keys, columns: [key, status, response], unique: key, lane: store}
+          - {id: charges, kind: list, title: "gateway · charges", unit: charged, empty: "No money has moved.", lane: gateway}
         steps:
-          - {at: "idempotency key", action: tag, target: you, params: {text: "key 7f3c"}}
-          - {at: "one random ID", action: press, target: you}
-          - {at: "one random ID", action: send, target: "you->bank", params: {tag: "7f3c", row: {text: "$100", status: ok}}}
-          - {at: "reused on every retry", action: send, target: "server->you", params: {role: reply, lost: 0.55, chip: {text: error, status: bad}}}
-          - {at: "The server stores", action: title, target: table}
-          - {at: "The server stores", action: row, target: table, params: {id: k, cells: ["7f3c", "paid"]}}
-          - {at: "unique constraint", action: badge, target: table, params: {text: UNIQUE, status: info}}
-          - {at: "second attempt", action: chip, target: you, params: {clear: true}}
-          - {at: "second attempt", action: press, target: you}
-          - {at: "second attempt", action: send, target: "you->server", params: {role: retry, tag: "7f3c"}}
-          - {at: "can't charge again", action: highlight, target: "table:k"}
-          - {at: "can't charge again", action: block, target: "server->bank"}
-          - {at: "replays the first response", action: send, target: "server->you", params: {role: reply, chip: {text: paid, status: ok}}}
-          - {at: "Same key", action: badge, target: bank, params: {text: "CHARGED ONCE", status: ok}}
-          - {at: "your retry", action: press, target: you}
-          - {at: "your retry", action: send, target: "you->server", params: {role: retry, tag: "7f3c"}}
-          - {at: "harmless", action: highlight, target: "table:k"}
-          - {at: "harmless", action: send, target: "server->you", params: {role: reply, chip: {text: paid, status: ok}}}
-          - {at: "Unless someone", action: tag, target: you, params: {text: "no key", status: bad}}
-          - {at: "Unless someone", action: chip, target: you, params: {clear: true}}
-          - {at: "Unless someone", action: press, target: you}
-          - {at: "Unless someone", action: send, target: "you->bank", params: {role: retry, row: {text: "$100", status: bad}}}
-          - {at: "forgot the key", action: badge, target: bank, params: {text: "CHARGED TWICE", status: bad}}
+          - {at: "idempotency key", action: screen, target: phone, params: {chip: {label: Idempotency-Key, value: 7f3c-91ab-4e02}}}
+          - {at: "idempotency key", action: note, target: wire, params: {text: "Before the first attempt, the client makes one random ID for this payment."}}
+          - {at: "one random ID", action: tap, target: phone}
+          - at: "one random ID"
+            action: send
+            target: "phone->api"
+            params:
+              delay: 0.1
+              label: "POST /payments · key 7f3c"
+              wire:
+                title: "Create payment"
+                method: POST
+                path: /v1/payments
+                headers: {Content-Type: application/json, Idempotency-Key: 7f3c-91ab-4e02}
+                body: {amount: 100, currency: USD, source: card_visa_4242}
+          - {at: "one random ID", action: log, target: api, params: {delay: 0.6, text: "POST /payments key=7f3c"}}
+          - {at: "one random ID", action: send, target: "api->store", params: {delay: 0.7, label: "INSERT 7f3c"}}
+          - {at: "one random ID", action: row, target: keys, params: {delay: 1.15, key: "7f3c-91ab…", cells: [in_progress, "—"], status: info}}
+          - {at: "one random ID", action: log, target: store, params: {delay: 1.15, text: "INSERT 7f3c → 1 row"}}
+          - {at: "one random ID", action: send, target: "api->gateway", params: {delay: 1.2, label: "charge $100"}}
+          - {at: "reused on every retry", action: item, target: charges, params: {text: "#1 pay_A19", value: "$100.00", status: ok}}
+          - {at: "reused on every retry", action: log, target: gateway, params: {text: "charge #1 $100 ok"}}
+          - at: "reused on every retry"
+            action: send
+            target: "gateway->phone"
+            params: {delay: 0.1, label: "201 Created", role: reply, lost: 0.8, response: {status: "201 Created", body: {id: pay_A19, status: succeeded}}}
+          - {at: "reused on every retry", action: screen, target: phone, params: {delay: 1.1, state: error, text: "We could not confirm your payment. Try again.", attempt: "no reply"}}
+          - {at: "The server stores", action: row, target: keys, params: {key: "7f3c-91ab…", cells: [completed, "201 pay_A19"], status: ok}}
+          - {at: "The server stores", action: log, target: store, params: {text: "UPDATE 7f3c → completed"}}
+          - {at: "The server stores", action: highlight, target: store}
+          - {at: "unique constraint", action: highlight, target: keys.unique}
+          - {at: "second attempt", action: tap, target: phone}
+          - at: "second attempt"
+            action: send
+            target: "phone->api"
+            params:
+              delay: 0.1
+              label: "RETRY · key 7f3c"
+              role: retry
+              wire:
+                title: "Create payment"
+                tag: "RETRY · SAME KEY"
+                method: POST
+                path: /v1/payments
+                headers: {Content-Type: application/json, Idempotency-Key: 7f3c-91ab-4e02}
+                body: {amount: 100, currency: USD, source: card_visa_4242}
+          - {at: "can't charge again", action: send, target: "api->store", params: {label: "INSERT 7f3c"}}
+          - at: "can't charge again"
+            action: row
+            target: keys
+            params: {delay: 0.45, key: "7f3c-91ab…", cells: [completed, "201 pay_A19"], conflict: true, message: "second INSERT of 7f3c → conflict. Key already claimed."}
+          - {at: "can't charge again", action: log, target: store, params: {delay: 0.45, text: "INSERT 7f3c → conflict"}}
+          - {at: "can't charge again", action: log, target: api, params: {delay: 0.6, text: "key exists → skip charge"}}
+          - {at: "replays the first response", action: send, target: "store->api", params: {label: "saved 201", role: reply}}
+          - at: "replays the first response"
+            action: send
+            target: "api->phone"
+            params: {delay: 0.5, label: "201 · replayed", role: reply, response: {status: "201 Created · replayed", body: {id: pay_A19, status: succeeded}}}
+          - {at: "replays the first response", action: note, target: wire, params: {delay: 1.0, text: "No second charge: the server found key 7f3c and returned what it had saved.", status: ok}}
+          - {at: "replays the first response", action: screen, target: phone, params: {delay: 1.05, state: success, text: "$100.00 · receipt #A19", attempt: "paid"}}
+          - {at: "Same key", action: stamp, target: charges, params: {text: "CHARGED ONCE", status: ok}}
+          - {at: "Same key", action: highlight, target: charges}
+          - {at: "your retry", action: tap, target: phone}
+          - {at: "your retry", action: send, target: "phone->api", params: {delay: 0.1, label: "RETRY · key 7f3c", role: retry}}
+          - {at: "harmless", action: send, target: "api->phone", params: {label: "201 · replayed", role: reply}}
+          - {at: "harmless", action: screen, target: phone, params: {delay: 0.55, state: success, text: "$100.00 · receipt #A19", attempt: "paid, same receipt"}}
+          - {at: "Unless someone", action: screen, target: phone, params: {state: idle, chip: {label: Idempotency-Key, value: missing, status: bad}}}
+          - {at: "Unless someone", action: tap, target: phone, params: {delay: 0.2}}
+          - at: "Unless someone"
+            action: send
+            target: "phone->gateway"
+            params:
+              delay: 0.3
+              label: "POST /payments · no key"
+              role: error
+              wire:
+                title: "Create payment"
+                tag: "NO KEY"
+                bad: true
+                method: POST
+                path: /v1/payments
+                headers: {Content-Type: application/json, Idempotency-Key: null}
+                body: {amount: 100, currency: USD, source: card_visa_4242}
+          - {at: "forgot the key", action: item, target: charges, params: {text: "#2 pay_B77", value: "$100.00", status: bad}}
+          - {at: "forgot the key", action: stamp, target: charges, params: {delay: 0.1, text: "CHARGED TWICE", status: bad}}
+          - {at: "forgot the key", action: screen, target: phone, params: {delay: 0.3, state: success, text: "$100.00 · receipt #B77", warn: "and receipt #A19: charged twice", attempt: "charged again"}}
     youtube_title: "Why Your Retry Charged You Twice #Shorts"
     instagram_caption: |
       Tapped Pay twice and got charged twice? 💸

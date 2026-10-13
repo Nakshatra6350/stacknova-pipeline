@@ -1,8 +1,8 @@
-"""Colour themes and fonts for scenes, read from config/themes.yaml (M2).
+"""Colour themes and fonts for scenes, read from config/themes.yaml (M2, look v2).
 
-Scene code never names a colour or a font; it asks the theme. Which theme an asset gets is a
-rotation over the configured list unless episode.yaml names one, because the owner wants a
-mixture across videos and Shorts.
+The page never names a colour; it uses CSS variables and the theme supplies them. Which theme
+an asset gets is a rotation over the configured list unless episode.yaml names one, because the
+owner wants the looks alternated across videos and Shorts.
 """
 
 import re
@@ -13,24 +13,32 @@ from pathlib import Path
 import yaml
 
 _SHORT = re.compile(r"^short-(\d+)$")
+_HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
+# Every theme must define these; the stylesheet uses each of them.
+COLOURS = (
+    "stage", "stage2", "panel", "panel2", "line", "ink", "muted", "dim", "code",
+    "client", "a", "b", "c", "d", "ok", "err", "retry", "jk", "js", "jn",
+)
+# The bundled faces: (family, weight, file in assets/fonts). Text is drawn only in these.
+FACES = (
+    ("Inter Display", 800, "InterDisplay-ExtraBold.ttf"),
+    ("Inter", 400, "Inter-Regular.ttf"),
+    ("Inter", 500, "Inter-Medium.ttf"),
+    ("Inter", 600, "Inter-SemiBold.ttf"),
+    ("Inter", 700, "Inter-Bold.ttf"),
+    ("JetBrains Mono", 400, "JetBrainsMono-Regular.ttf"),
+    ("JetBrains Mono", 700, "JetBrainsMono-Bold.ttf"),
+)
 
 
 @dataclass(frozen=True)
 class Theme:
     name: str
-    bg: str
-    surface: str
-    line: str
-    strong: str
-    ink: str
-    muted: str
-    accent: str
-    soft: str
-    packet: str
-    reply: str
-    retry: str
-    ok: str
-    bad: str
+    colours: Mapping[str, str]
+
+    def css(self) -> dict[str, str]:
+        """The theme as CSS custom properties."""
+        return {f"--{key}": value for key, value in self.colours.items()}
 
 
 @dataclass(frozen=True)
@@ -44,11 +52,20 @@ class Themes:
 
 def load_themes(path: Path) -> Themes:
     raw = yaml.safe_load(path.read_text(encoding="utf-8"))
-    themes = {name: Theme(name=name, **colours) for name, colours in raw["themes"].items()}
+    themes: dict[str, Theme] = {}
+    for name, colours in raw["themes"].items():
+        missing = [key for key in COLOURS if key not in colours]
+        bad = [key for key, value in colours.items() if not _HEX.match(str(value))]
+        if missing or bad:
+            raise ValueError(
+                f"theme {name!r}: missing {', '.join(missing) or 'nothing'}; "
+                f"not a #rrggbb colour: {', '.join(bad) or 'nothing'}"
+            )
+        themes[name] = Theme(name, {key: str(colours[key]) for key in COLOURS})
     rotation = tuple(raw["rotation"])
-    missing = [name for name in rotation if name not in themes]
-    if missing:
-        raise ValueError(f"rotation names unknown theme(s): {', '.join(missing)}")
+    unknown = [name for name in rotation if name not in themes]
+    if unknown:
+        raise ValueError(f"rotation names unknown theme(s): {', '.join(unknown)}")
     return Themes(rotation=rotation, themes=themes, **raw["fonts"])
 
 

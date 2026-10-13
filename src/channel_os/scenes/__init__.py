@@ -1,1 +1,1 @@
-"""Shared Manim theme and components (milestone M2)."""
+"""episode.yaml `visual` -> animation: the planner, the stage rules and the page (M2)."""

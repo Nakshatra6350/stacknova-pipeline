@@ -1,4 +1,4 @@
-"""Turn a `visual` block from episode.yaml into scenes with timed steps (M2). No Manim here.
+"""Turn a `visual` block from episode.yaml into scenes with timed steps (M2). No browser here.
 
 A visual is one scene or a list of scenes. Each later scene takes over at its `from` phrase.
 Steps are listed in spoken order: a phrase is looked up from where the previous step's phrase
@@ -10,12 +10,21 @@ from dataclasses import dataclass
 from itertools import pairwise
 from typing import Any
 
-from channel_os.scenes import cards_model, code_model, fanin_model, flow_model, sequence_model
+from channel_os.scenes import (
+    cards_model,
+    code_model,
+    console_model,
+    fanin_model,
+    flow_model,
+    sequence_model,
+)
 from channel_os.scenes.phrases import anchors, find_offset, normalise, time_at
 
+MAX_DELAY = 5.0  # seconds a step may wait after its phrase
 # layout name -> the module that checks its declaration and steps (`problems`, `ACTIONS`).
-# Layouts not listed have no stage. scenes.preview.BUILDERS lists who draws each one.
+# Layouts not listed have no stage. scenes.preview.DRAWN lists the ones the page can draw.
 STAGES: Mapping[str, Any] = {
+    "console": console_model,
     "flow": flow_model,
     "sequence": sequence_model,
     "cards": cards_model,
@@ -84,6 +93,10 @@ def _offsets(blocks: Sequence[Mapping[str, Any]], text: str) -> list[tuple[int, 
     return result
 
 
+def _delay(step: Mapping[str, Any]) -> float:
+    return float((step.get("params") or {}).get("delay", 0.0))
+
+
 def stage_problems(visual: Any) -> list[str]:
     """Unknown layouts, and whatever each known stage says about its declaration and steps."""
     found: list[str] = []
@@ -93,6 +106,12 @@ def stage_problems(visual: Any) -> list[str]:
         if stage is None:
             found.append(f"{where}: layout {block['layout']!r} has no stage yet")
             continue
+        for number, step in enumerate(block["steps"], start=1):
+            delay = (step.get("params") or {}).get("delay", 0.0)
+            number_like = isinstance(delay, int | float) and not isinstance(delay, bool)
+            if not number_like or not 0 <= delay <= MAX_DELAY:
+                found.append(f"{where}: step {number}: delay is seconds after the phrase, "
+                             f"0 to {MAX_DELAY:g}, not {delay!r}")
         decl = {key: value for key, value in block.items() if key not in _RESERVED}
         found.extend(f"{where}: {issue}" for issue in stage.problems(decl, block["steps"]))
     return found
@@ -132,7 +151,8 @@ def build_scenes(
     for block, (_, step_offsets), start, end in zip(blocks, offsets, starts, ends, strict=True):
         steps = []
         for step, offset in zip(block["steps"], step_offsets, strict=True):
-            spoken = time_at(min(offset, length), anchor_list)
+            # `delay` staggers steps that share a phrase: a packet leaves, then its row appears.
+            spoken = time_at(min(offset, length), anchor_list) + _delay(step)
             local = min(max(spoken - start, 0.0), end - start)
             steps.append(
                 Step(local, step["action"], step["target"], dict(step.get("params") or {}),

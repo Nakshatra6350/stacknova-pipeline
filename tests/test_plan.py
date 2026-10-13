@@ -1,33 +1,67 @@
-"""Planning a target's clips: every frame of the narration belongs to exactly one scene."""
+"""Planning a target: every frame of the narration belongs to exactly one scene, and the
+planner adds what an episode never writes (captions, the logo intro, the outro, the prompts)."""
 
 import copy
+from itertools import pairwise
 from typing import Any
 
 import pytest
 
-from channel_os.scenes.plan import Clip, PlanError, declared_theme, plan_clips
+from channel_os.scenes.plan import (
+    AudioPart,
+    Clip,
+    PlanError,
+    captions,
+    declared_theme,
+    plan_clips,
+    plan_video,
+)
 
 SCRIPT = "You tapped Pay and got an error. So you tapped again. The fix is one key per payment."
-NODES = [
-    {"id": "you", "kind": "phone", "label": "you"},
-    {"id": "bank", "kind": "ledger", "label": "bank"},
-]
+SYSTEMS = [{"id": "api", "name": "API server"}, {"id": "gateway", "name": "Payment gateway"}]
+BRAND: dict[str, Any] = {
+    "tagline": "Light up your whole stack.",
+    "handles": {"confirmed": {"youtube": "@StackNovaDev", "instagram": "@stacknova.dev"}},
+    "video": {
+        "intro": {"seconds": 4.0, "sound": None},
+        "outro": {"seconds": 10, "music": "lofi-nod", "cadence": "two deep dives a week"},
+        "handle": {"at": [0.35, 0.7], "seconds": 5},
+        "shorts_prompt": {"seconds": 3},
+    },
+}
 
 
 def scene(steps: list[dict[str, Any]], **extra: Any) -> dict[str, Any]:
-    return {"layout": "flow", "nodes": NODES, "steps": steps, **extra}
+    return {"layout": "console", "phone": {"title": "Checkout"}, "systems": SYSTEMS,
+            "steps": steps, **extra}
 
 
 def press(at: str) -> dict[str, Any]:
-    return {"at": at, "action": "press", "target": "you"}
+    return {"at": at, "action": "tap", "target": "phone"}
 
 
 def short_episode(visual: Any) -> dict[str, Any]:
     return {
         "id": "001-test",
         "segments": [],
-        "shorts": [{"id": "short-1", "source": "standalone", "script": SCRIPT, "visual": visual}],
+        "shorts": [{"id": "short-1", "source": "standalone", "script": SCRIPT, "visual": visual,
+                    "hook_on_screen": "This retry charged you twice"}],
     }
+
+
+def long_episode(count: int, seconds: float = 20.0) -> tuple[dict[str, Any], dict[str, Any]]:
+    """An episode of `count` segments, each `seconds` long with no gap, and its timing record."""
+    segments = [
+        {"id": f"s{n:02d}", "title": f"Part {n}", "narration": SCRIPT, "emphasis": ["one key"],
+         "visual": scene([press("tapped Pay")])}
+        for n in range(1, count + 1)
+    ]
+    episode = {"id": "007-test", "segments": segments, "shorts": [],
+               "packaging": {"titles": ["Why Your Payment Got Charged Twice"]},
+               "next": {"title": "The Outbox Pattern"}}
+    record = entry(*((f"s{n:02d}", (n - 1) * seconds, seconds) for n in range(1, count + 1)),
+                   duration=count * seconds)
+    return episode, record
 
 
 def entry(*segments: tuple[str, float, float], duration: float) -> dict[str, Any]:
@@ -44,7 +78,7 @@ def test_one_scene_covers_the_whole_narration() -> None:
     clips = plan_clips(short_episode(scene([press("tapped Pay")])), "short-1",
                        entry(("short-1", 0.0, 6.0), duration=6.0))
     assert [(clip.unit, clip.frames) for clip in clips] == [("short-1", 180)]
-    assert clips[0].spec.steps[0].action == "press"
+    assert clips[0].spec.steps[0].action == "tap"
 
 
 def test_a_later_scene_takes_over_at_its_phrase() -> None:
@@ -113,8 +147,132 @@ def test_the_theme_an_episode_names_is_found_per_target() -> None:
     episode = short_episode(scene([press("tapped Pay")]))
     assert declared_theme(episode, "long") is None
     assert declared_theme(episode, "short-1") is None
-    episode["theme"] = "navy"
-    episode["shorts"][0]["theme"] = "brand"
-    assert declared_theme(episode, "long") == "navy"
-    assert declared_theme(episode, "short-1") == "brand"
+    episode["theme"] = "nova"
+    episode["shorts"][0]["theme"] = "control"
+    assert declared_theme(episode, "long") == "nova"
+    assert declared_theme(episode, "short-1") == "control"
     assert declared_theme(episode, "short-9") is None
+
+
+# ---- what the planner adds around the scenes ---------------------------------------------------
+
+
+def test_a_long_video_gets_the_logo_after_the_hook_and_an_outro() -> None:
+    episode, record = long_episode(3)
+    plan = plan_video(episode, "long", record, BRAND)
+    # The owner's rule: the hook always comes first, then the logo.
+    assert [clip.unit for clip in plan.clips] == ["s01", "intro", "s02", "s03", "outro"]
+    intro, outro = plan.clips[1], plan.clips[-1]
+    assert (intro.spec.layout, intro.frames, intro.spec.decl["scene"]) == ("brand", 120, "intro")
+    assert intro.spec.decl["tagline"] == "LIGHT UP YOUR WHOLE STACK."
+    assert (outro.frames, outro.spec.decl["scene"]) == (300, "outro")
+    assert outro.spec.decl["instagram"] == "@stacknova.dev"
+    assert outro.spec.decl["youtube"] == "@StackNovaDev"
+    assert outro.spec.decl["next"] == {"title": "The Outbox Pattern"}
+    assert plan.frames == 3 * 600 + 120 + 300
+
+
+def test_the_audio_is_cut_where_the_logo_goes() -> None:
+    episode, record = long_episode(3)
+    plan = plan_video(episode, "long", record, BRAND)
+    assert plan.audio == (
+        AudioPart("narration", 0.0, 20.0),
+        AudioPart("intro", 0.0, 4.0),
+        AudioPart("narration", 20.0, 60.0),
+        AudioPart("outro", 0.0, 10),
+    )
+    # Picture and sound are the same length, to the frame.
+    assert sum(part.end - part.start for part in plan.audio) * 30 == pytest.approx(plan.frames)
+
+
+def test_the_progress_bar_runs_through_the_whole_video() -> None:
+    episode, record = long_episode(3)
+    plan = plan_video(episode, "long", record, BRAND)
+    scenes = [clip for clip in plan.clips if clip.spec.layout != "brand"]
+    assert scenes[0].chrome["progress"][0] == 0.0
+    # The second segment starts after the hook and the logo, not straight after the hook.
+    assert scenes[1].chrome["progress"][0] == pytest.approx((600 + 120) / plan.frames)
+    for earlier, later in pairwise(scenes[1:]):
+        assert earlier.chrome["progress"][1] == pytest.approx(later.chrome["progress"][0])
+    assert [clip.chrome["part"] for clip in scenes] == [1, 2, 3]
+    assert scenes[0].chrome["title"] == "Part 1"
+    assert scenes[0].chrome["pill"] == "EP 007 · Why Your Payment Got Charged Twice"
+
+
+def test_a_one_segment_video_has_no_logo_to_cut_to() -> None:
+    episode, record = long_episode(1)
+    plan = plan_video(episode, "long", record, BRAND)
+    assert [clip.unit for clip in plan.clips] == ["s01", "outro"]
+    assert [part.source for part in plan.audio] == ["narration", "outro"]
+
+
+def test_the_instagram_handle_keeps_out_of_the_hook_and_fits_its_scene() -> None:
+    # Ten 20 s segments: 35% is at 70 s (10 s into s04), 70% is at 140 s (the start of s08).
+    episode, record = long_episode(10)
+    plan = plan_video(episode, "long", record, BRAND)
+    shown = {clip.unit: clip.chrome["handle"] for clip in plan.clips
+             if clip.chrome.get("handle")}
+    assert shown == {"s04": [[10.0, 15.0]], "s08": [[0.5, 5.5]]}
+
+    # Two segments: 35% falls in the hook, so the handle waits for the next scene.
+    episode, record = long_episode(2)
+    plan = plan_video(episode, "long", record, BRAND)
+    assert plan.clips[0].chrome["handle"] == []
+    assert plan.clips[2].chrome["handle"] == [[0.5, 5.5], [10.5, 15.5]]
+
+
+def test_a_handle_no_scene_has_room_for_is_left_out() -> None:
+    # A 5 s handle never fits a 5 s scene, and a handle cut off by a scene change looks broken.
+    episode, record = long_episode(6, seconds=5.0)
+    plan = plan_video(episode, "long", record, BRAND)
+    assert all(not clip.chrome.get("handle") for clip in plan.clips)
+
+
+def test_a_short_gets_the_follow_prompt_and_no_brand_scenes() -> None:
+    visual = [scene([press("tapped Pay")]), scene([press("one key")], **{"from": "The fix"})]
+    plan = plan_video(short_episode(visual), "short-1", entry(("short-1", 0.0, 6.0), duration=6.0),
+                      BRAND)
+    assert [clip.spec.layout for clip in plan.clips] == ["console", "console"]
+    assert plan.audio == (AudioPart("narration", 0.0, 6.0),)
+    first, last = plan.clips
+    assert "cta" not in first.chrome and "handle" not in first.chrome
+    # The prompt covers the last three seconds of the last scene, however long that scene is.
+    assert last.chrome["cta"] == [pytest.approx(0.0, abs=0.01), pytest.approx(2.1, abs=0.01)]
+    assert last.chrome["cta_ask"] == "Subscribe"
+    reel = {**BRAND, "video": {**BRAND["video"], "shorts_prompt": {"seconds": 3, "ask": "Follow"}}}
+    record = entry(("short-1", 0.0, 6.0), duration=6.0)
+    assert plan_video(short_episode(visual), "short-1", record, reel).clips[-1].chrome[
+        "cta_ask"] == "Follow"
+    assert last.chrome["title"] == "This retry charged you twice"
+    assert last.chrome["pill_short"] == "EP 001"
+
+
+def test_every_scene_carries_the_captions_spoken_during_it() -> None:
+    visual = [scene([press("tapped Pay")]), scene([press("one key")], **{"from": "The fix"})]
+    plan = plan_video(short_episode(visual), "short-1", entry(("short-1", 0.0, 6.0), duration=6.0),
+                      BRAND)
+    first, last = (clip.chrome["captions"] for clip in plan.clips)
+    assert [text for _, text in first] == ["You tapped Pay and got an error.",
+                                            "So you tapped again."]
+    assert [text for _, text in last] == ["The fix is one key per payment."]
+    # Times are seconds into the scene, and a scene opens with a caption already on screen.
+    assert first[0][0] == 0.0 and last[0][0] == 0.0
+    assert first[1][0] == pytest.approx(2.3, abs=0.05)
+
+
+def test_captions_mark_the_emphasis_and_split_long_sentences() -> None:
+    text = "The fix: send an idempotency key, one random ID per payment, reused on every retry."
+    whole = captions(text, 8.0, [], emphasis=["idempotency key"])
+    assert [line for _, line in whole] == [
+        "The fix: send an <b>idempotency key</b>, one random ID per payment, reused on every retry."
+    ]
+    pieces = captions(text, 8.0, [], limit=44)
+    assert [line for _, line in pieces] == [
+        "The fix: send an idempotency key,",
+        "one random ID per payment,",
+        "reused on every retry.",
+    ]
+    times = [when for when, _ in pieces]
+    assert times == sorted(times) and times[0] == 0.0 and times[-1] < 8.0
+    # Text is escaped for the page; only the emphasis is markup.
+    assert captions("Is a < b & c?", 2.0, [])[0][1] == "Is a &lt; b &amp; c?"

@@ -2,8 +2,9 @@
 # Scenes stage of .github/workflows/render.yml. Runs after the voice stage, in its own job,
 # because the two dependency groups conflict.
 # Reads EPISODE, ONLY, MODELS, ALLOW_DRAFT, LABEL, BEFORE, RUNNER_TEMP and GITHUB_SHA from the
-# environment. Takes the narration from the draft Release ep-<id> and puts the previews back
-# there; nothing rendered is printed or stored anywhere else.
+# environment, and INTRO_SOUND if the workflow fetched one (the logo's sound; without it the
+# intro is silent). Takes the narration from the draft Release ep-<id> and puts the previews
+# back there; nothing rendered is printed or stored anywhere else.
 set -euo pipefail
 
 [[ "${LABEL:-}" =~ ^[a-z0-9-]{0,24}$ ]] || { echo "refusing odd label: ${LABEL:-}" >&2; exit 1; }
@@ -44,9 +45,13 @@ for ep in $episodes; do
   fi
   unzip -q -o "$RUNNER_TEMP/$archive" -d "$out"
 
-  # Three scenes at a time: the runner has four cores, and each scene is its own process.
+  # Three scenes at a time: the runner has four cores, and each scene is its own process
+  # with its own browser.
   args=(--episode "$ep" --stage scenes --only "$ONLY" --out "$out" --jobs 3)
   if [ "${ALLOW_DRAFT:-false}" = "true" ]; then args+=(--allow-draft); fi
+  if [ -n "${INTRO_SOUND:-}" ] && [ -f "$INTRO_SOUND" ]; then
+    args+=(--intro-sound "$INTRO_SOUND")
+  fi
   uv run --no-sync python -m channel_os.render "${args[@]}" | tee "$RUNNER_TEMP/scenes.log"
   [ -d "$out/preview" ] || continue
 

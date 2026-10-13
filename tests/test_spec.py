@@ -8,16 +8,13 @@ from channel_os.scenes.spec import SpecError, build_scenes, problems
 
 TEXT = "You tapped Pay, got an error. Here's why. The fix: send a key. Same key, same result."
 DURATION = 10.0
-NODES = [
-    {"id": "you", "kind": "phone", "label": "you"},
-    {"id": "server", "kind": "service", "label": "server"},
-    {"id": "bank", "kind": "ledger", "label": "bank"},
-]
-PRESS = {"action": "press", "target": "you"}
+SYSTEMS = [{"id": "api", "name": "API server"}, {"id": "gateway", "name": "Payment gateway"}]
+PRESS = {"action": "tap", "target": "phone"}
 
 
 def scene(steps: list[dict[str, Any]], **extra: Any) -> dict[str, Any]:
-    return {"layout": "flow", "nodes": NODES, "steps": steps, **extra}
+    return {"layout": "console", "phone": {"title": "Checkout"}, "systems": SYSTEMS,
+            "steps": steps, **extra}
 
 
 def proportion(phrase: str) -> float:
@@ -26,10 +23,19 @@ def proportion(phrase: str) -> float:
 
 def test_one_scene_spans_the_whole_narration() -> None:
     scenes = build_scenes(scene([{"at": "tapped Pay", **PRESS}]), TEXT, DURATION, [])
-    assert [(s.start, s.end, s.layout) for s in scenes] == [(0.0, 10.0, "flow")]
+    assert [(s.start, s.end, s.layout) for s in scenes] == [(0.0, 10.0, "console")]
     assert scenes[0].steps[0].time == pytest.approx(proportion("tapped Pay"))
-    assert "nodes" in scenes[0].decl
+    assert "systems" in scenes[0].decl
     assert "steps" not in scenes[0].decl
+
+
+def test_a_delay_moves_a_step_after_its_phrase() -> None:
+    steps = [{"at": "tapped Pay", **PRESS},
+             {"at": "tapped Pay", **PRESS, "params": {"delay": 0.4}}]
+    first, second = build_scenes(scene(steps), TEXT, DURATION, [])[0].steps
+    assert second.time == pytest.approx(first.time + 0.4)
+    late = [{"at": "tapped Pay", **PRESS, "params": {"delay": 9}}]
+    assert any("delay" in issue for issue in problems(scene(late), TEXT))
 
 
 def test_a_list_cuts_at_each_from_phrase_with_no_gap() -> None:
@@ -70,8 +76,8 @@ def test_a_layout_without_a_stage_is_reported() -> None:
 
 def test_the_stage_checks_actions_and_targets() -> None:
     steps = [
-        {"at": "start", "action": "arrow", "target": "you"},
-        {"at": "start", "action": "press", "target": "nobody"},
+        {"at": "start", "action": "arrow", "target": "phone"},
+        {"at": "start", "action": "log", "target": "nobody", "params": {"text": "hello"}},
     ]
     issues = problems(scene(steps), TEXT)
     assert any("arrow" in issue for issue in issues)
