@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 
 from channel_os.render import main
 
@@ -127,6 +128,30 @@ def test_an_intro_sound_is_passed_through_when_given(narrated: Any, tmp_path: Pa
     recorder = Recorder()
     assert scenes(root, recorder, "--intro-sound", str(sting), only="long") == 0
     assert recorder.calls[0]["sounds"]["intro"] == sting
+
+
+def test_the_intro_sound_named_in_the_config_is_made_like_the_music(
+    narrated: Any, tmp_path: Path
+) -> None:
+    root = narrated()
+    narrate_long(root)
+    config = root / "config" / "brand.yaml"
+    brand = yaml.safe_load(config.read_text(encoding="utf-8"))
+    brand["video"]["intro"]["sound"] = "nod-up"
+    config.write_text(yaml.safe_dump(brand, allow_unicode=True, sort_keys=False), encoding="utf-8")
+
+    recorder, composer = Recorder(), Composer()
+    assert scenes(root, recorder, only="long", composer=composer) == 0
+    assert composer.made == ["lofi-nod", "nod-up"]
+    assert sorted(recorder.calls[0]["sounds"]) == ["intro", "outro"]
+
+    # A file given on the command line wins over the configured sound.
+    sting = tmp_path / "sting.wav"
+    sting.write_bytes(b"sting")
+    recorder, composer = Recorder(), Composer()
+    assert scenes(root, recorder, "--intro-sound", str(sting), only="long",
+                  composer=composer) == 0
+    assert composer.made == ["lofi-nod"] and recorder.calls[0]["sounds"]["intro"] == sting
 
 
 def test_format_theme_and_quality_can_be_chosen_for_one_run(narrated: Any) -> None:

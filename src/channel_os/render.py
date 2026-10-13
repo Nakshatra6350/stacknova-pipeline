@@ -174,14 +174,21 @@ def _scene_tools() -> tuple[PreviewRenderer, SoundMaker]:
 
 def _sounds(brand: Mapping[str, Any], work: Path, make_sound: SoundMaker,
             intro_sound: Path | None) -> dict[str, Path]:
-    """The audio files for the brand scenes: the outro's music, and the intro's sound if any."""
+    """The audio files for the brand scenes: the outro's music, and the intro's sound if any.
+
+    Both are named in config/brand.yaml and made by brand/sound.py. A file given with
+    --intro-sound is used for the intro instead of the configured one.
+    """
     sounds: dict[str, Path] = {}
     video = brand.get("video") or {}
     music = (video.get("outro") or {}).get("music")
     if music:
         sounds["outro"] = make_sound(str(music), work / "outro.wav")
+    sting = (video.get("intro") or {}).get("sound")
     if intro_sound is not None:
         sounds["intro"] = intro_sound
+    elif sting:
+        sounds["intro"] = make_sound(str(sting), work / "intro.wav")
     return sounds
 
 
