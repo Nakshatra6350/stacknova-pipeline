@@ -3,6 +3,7 @@
 Usage: python -m channel_os.render --episode ID [--stage voice|scenes] [--only TARGET]
                                    [--out DIR] [--root DIR] [--allow-draft]
        voice:  --reference WAV [--model NAME] [--set KEY=VALUE ...] [--cache-dir DIR]
+               [--no-listen]
        scenes: [--format portrait|landscape] [--theme NAME] [--quality N] [--jobs N]
                [--intro-sound FILE]
 
@@ -32,6 +33,8 @@ from channel_os.validate import (
     load_yaml,
     validate_episode,
 )
+from channel_os.voice.lexicon import Lexicon, load_lexicon
+from channel_os.voice.listen import Listener, WhisperListener
 from channel_os.voice.loudness import detect_pauses
 from channel_os.voice.narrate import (
     LoudnessError,
@@ -45,10 +48,12 @@ from channel_os.voice.settings import VoiceSettings, load_settings
 from channel_os.voice.tts import ChatterboxSynthesizer, Synthesizer
 
 VOICE_CONFIG = Path("config") / "voice.yaml"
+PRONUNCIATION_CONFIG = Path("config") / "pronunciation.yaml"
 THEMES_CONFIG = Path("config") / "themes.yaml"
 BRAND_CONFIG = Path("config") / "brand.yaml"
 RENDERABLE_STATUS = "ready_to_render"
 SynthesizerFactory = Callable[[VoiceSettings, Path], Synthesizer]
+ListenerFactory = Callable[[], Listener]
 PreviewRenderer = Callable[..., Path]  # scenes.preview.render_preview, or a stand-in in tests
 SoundMaker = Callable[[str, Path], Path]  # brand.sound.write_sound, or a stand-in in tests
 
@@ -60,17 +65,34 @@ def render_voice(
     settings: VoiceSettings,
     out_dir: Path,
     cache_dir: Path,
+    lexicon: Lexicon | None = None,
+    listener: Listener | None = None,
 ) -> None:
-    """Narrate each target and record it in out_dir/timing.json."""
+    """Narrate each target and record it in out_dir/timing.json.
+
+    With a listener every chunk is heard and read again until it says what the script says;
+    what could still not be confirmed is printed, so someone knows where to listen.
+    """
     for target in targets:
         units = select_units(episode, target)
-        entry = narrate(units, target, synthesizer, settings, out_dir, cache_dir)
+        entry = narrate(units, target, synthesizer, settings, out_dir, cache_dir, lexicon,
+                        listener)
         update_timing(out_dir, episode["id"], target, entry)
         loudness = entry["loudness"]
         print(
             f"{target}: {entry['duration']} s, {loudness['integrated_lufs']} LUFS, "
             f"{loudness['true_peak_db']} dBTP, {len(entry['segments'])} segment(s)"
         )
+        if not entry["listened"]:
+            print(f"{target}: not listened to (--no-listen)")
+            continue
+        retakes = sum(segment["retakes"] for segment in entry["segments"])
+        unsure = [(segment["id"], note) for segment in entry["segments"]
+                  for note in segment["unsure"]]
+        print(f"{target}: listened to; {retakes} chunk(s) read again, "
+              f"{len(unsure)} place(s) not confirmed")
+        for unit, note in unsure:
+            print(f"  {unit}: meant [{note['meant']}] heard [{note['heard']}]")
 
 
 def _with_pauses(entry: Mapping[str, Any], out_dir: Path) -> dict[str, Any]:
@@ -147,6 +169,9 @@ def _parser() -> argparse.ArgumentParser:
         help="override one voice setting for this run, e.g. tempo=0.92 or clarity.air_db=2",
     )
     voice.add_argument("--cache-dir", type=Path, default=None, help="default: <root>/.cache/voice")
+    voice.add_argument("--no-listen", action="store_true",
+                       help="skip listening to each chunk and reading it again when words are "
+                            "missed (for quick tuning runs; the result is unchecked)")
     scenes = parser.add_argument_group("scenes stage")
     scenes.add_argument("--format", choices=sorted(FORMATS), default=None,
                         help="default: landscape for long, portrait for Shorts")
@@ -192,11 +217,17 @@ def _sounds(brand: Mapping[str, Any], work: Path, make_sound: SoundMaker,
     return sounds
 
 
+def _whisper() -> Listener:
+    """The real listener. Its model loads when it first hears something."""
+    return WhisperListener()
+
+
 def main(
     argv: Sequence[str] | None = None,
     make_synthesizer: SynthesizerFactory = ChatterboxSynthesizer,
     render_preview: PreviewRenderer | None = None,
     make_sound: SoundMaker | None = None,
+    make_listener: ListenerFactory = _whisper,
 ) -> int:
     parser = _parser()
     args = parser.parse_args(argv)
@@ -212,6 +243,7 @@ def main(
         )
         if args.stage == "voice":
             settings = load_settings(root / VOICE_CONFIG, args.model, args.overrides)
+            lexicon = load_lexicon(root / PRONUNCIATION_CONFIG)
             if not args.reference.is_file():
                 raise InputError(f"{args.reference}: voice reference not found")
         else:
@@ -269,7 +301,9 @@ def main(
             prepared = Path(work) / "reference.wav"
             prepare_reference(args.reference, prepared, settings.reference)
             synthesizer = make_synthesizer(settings, prepared)
-            render_voice(episode, targets, synthesizer, settings, out_dir, cache_dir)
+            listener = None if args.no_listen else make_listener()
+            render_voice(episode, targets, synthesizer, settings, out_dir, cache_dir, lexicon,
+                         listener)
     except (LoudnessError, FfmpegError, ValueError, RuntimeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

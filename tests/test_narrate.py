@@ -1,17 +1,22 @@
 """Units become cached chunks, normalised segments, one narration and a timing entry."""
 
 import json
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 import pytest
+from conftest import SAID, TAKE
 
 from channel_os.voice import narrate as narrate_module
 from channel_os.voice.chunking import chunk_text
+from channel_os.voice.lexicon import Lexicon
 from channel_os.voice.loudness import Loudness
 from channel_os.voice.narrate import (
+    MAX_TAKES,
     LoudnessError,
+    PronunciationError,
     SilenceError,
     Unit,
     all_targets,
@@ -69,7 +74,7 @@ class Stalling:
     def __init__(self, audio: Any) -> None:
         self.audio = audio
 
-    def synthesize(self, text: str, out_path: Path) -> None:
+    def synthesize(self, text: str, out_path: Path, take: int = 0) -> None:
         self.audio(out_path, [(1.0, 0.1), (12.0, 0.0), (1.0, 0.1)])
 
 
@@ -198,3 +203,122 @@ def test_update_timing_keeps_other_targets(tmp_path: Path) -> None:
         "episode": "900-fixture",
         "targets": {"long": {"duration": 1.0}, "short-1": {"duration": 2.0}},
     }
+
+
+# ---- listening to what was said ------------------------------------------------------------
+
+
+class Ears:
+    """Speech recognition for tests: hears what the fake voice was given, unless `mishear`
+    says what it heard instead (it is told the text and which take it was)."""
+
+    identity = "test-ears"
+
+    def __init__(self, mishear: Callable[[str, int], str | None] = lambda text, take: None) -> None:
+        self.mishear = mishear
+        self.calls = 0
+
+    def hear(self, wav: Path) -> str:
+        self.calls += 1
+        text, take = SAID[wav.stem], TAKE[wav.stem]
+        heard = self.mishear(text, take)
+        return text if heard is None else heard
+
+
+def test_a_chunk_said_wrong_is_read_again(
+    tmp_path: Path, settings: VoiceSettings, fake_synthesizer: Any
+) -> None:
+    # The owner heard "retry" said as "re-tree". Another reading of the same words fixes it.
+    ears = Ears(lambda text, take: text.replace("retry", "re tree") if take == 0 else None)
+    synthesizer = fake_synthesizer()
+    entry = narrate(UNITS, "long", synthesizer, settings, tmp_path / "out", tmp_path / "c",
+                    listener=ears)
+    assert entry["listened"] is True
+    first, second = entry["segments"]
+    assert (first["retakes"], first["unsure"]) == (1, [])
+    assert (second["retakes"], second["unsure"]) == (0, [])
+    assert synthesizer.takes == [0, 1, 0]
+    assert synthesizer.calls[0] == synthesizer.calls[1] == UNITS[0].text
+
+
+def test_the_best_reading_is_kept_when_none_is_clean(
+    tmp_path: Path, settings: VoiceSettings, fake_synthesizer: Any
+) -> None:
+    def mishear(text: str, take: int) -> str:
+        wrong = text.replace("matters", "mutters")
+        return wrong if take == 2 else wrong.replace("works", "walks")
+
+    synthesizer = fake_synthesizer()
+    entry = narrate(UNITS[:1], "long", synthesizer, settings, tmp_path / "out", tmp_path / "c",
+                    listener=Ears(mishear))
+    # Every reading was tried; the third missed least, so it is the one used, and what it
+    # still misses is written down for whoever reviews the video.
+    assert synthesizer.takes == list(range(MAX_TAKES))
+    segment = entry["segments"][0]
+    assert segment["retakes"] == 1
+    assert segment["unsure"] == [{"meant": "matters", "heard": "mutters"}]
+
+
+SKIPPED = "We're back to two charges, just faster."
+RACE = Unit("s06", f"Both charge. {SKIPPED} The fix is to let the database decide.")
+
+
+def test_a_skipped_sentence_is_spoken_again_on_its_own(
+    tmp_path: Path, settings: VoiceSettings, fake_synthesizer: Any
+) -> None:
+    # Seen in episode 001: the voice stalled and left a sentence of segment s06 unsaid.
+    # Given the whole chunk it skips the sentence in every reading; given one sentence it speaks.
+    ears = Ears(lambda text, take: text.replace(f"{SKIPPED} ", "") if "Both charge" in text
+                and SKIPPED in text else None)
+    synthesizer = fake_synthesizer()
+    entry = narrate([RACE], "long", synthesizer, settings, tmp_path / "out", tmp_path / "c",
+                    listener=ears)
+    assert synthesizer.calls[:MAX_TAKES] == [RACE.text] * MAX_TAKES
+    assert synthesizer.calls[MAX_TAKES:] == [
+        "Both charge.", SKIPPED, "The fix is to let the database decide."]
+    assert entry["segments"][0]["unsure"] == []
+    # The three sentences are joined with the pause that separates chunks.
+    assert len(entry["segments"][0]["pauses"]) == 2
+
+
+def test_a_sentence_the_voice_cannot_say_stops_the_render(
+    tmp_path: Path, settings: VoiceSettings, fake_synthesizer: Any
+) -> None:
+    ears = Ears(lambda text, take: text.replace(SKIPPED, ""))
+    with pytest.raises(PronunciationError, match=r"s06: the voice did not say this in 4 readings"):
+        narrate([RACE], "long", fake_synthesizer(), settings, tmp_path / "out", tmp_path / "c",
+                listener=ears)
+
+
+def test_what_was_heard_is_remembered_with_the_chunk(
+    tmp_path: Path, settings: VoiceSettings, fake_synthesizer: Any
+) -> None:
+    cache = tmp_path / "cache"
+    ears = Ears()
+    narrate(UNITS, "long", fake_synthesizer(), settings, tmp_path / "one", cache, listener=ears)
+    assert ears.calls == 2
+    again = Ears()
+    narrate(UNITS, "long", fake_synthesizer(), settings, tmp_path / "two", cache, listener=again)
+    assert again.calls == 0
+
+
+def test_words_are_respelled_for_the_voice_only(
+    tmp_path: Path, settings: VoiceSettings, fake_synthesizer: Any
+) -> None:
+    lexicon = Lexicon({"retry": "re-try"})
+    synthesizer = fake_synthesizer()
+    entry = narrate(UNITS[:1], "long", synthesizer, settings, tmp_path / "out", tmp_path / "c",
+                    lexicon=lexicon, listener=Ears())
+    assert synthesizer.calls == ["Here is the re-try that matters. It works."]
+    # "re-try" was heard, and that is the word that was meant.
+    assert entry["segments"][0]["unsure"] == []
+
+
+def test_without_a_listener_there_is_one_reading_and_no_check(
+    tmp_path: Path, settings: VoiceSettings, fake_synthesizer: Any
+) -> None:
+    synthesizer = fake_synthesizer()
+    entry = narrate(UNITS, "long", synthesizer, settings, tmp_path / "out", tmp_path / "c")
+    assert entry["listened"] is False
+    assert synthesizer.takes == [0, 0]
+    assert [segment["retakes"] for segment in entry["segments"]] == [0, 0]

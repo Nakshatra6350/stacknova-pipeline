@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from conftest import FakeListener
 
 from channel_os.render import main
 
@@ -14,7 +15,8 @@ SHORT = "Here is the retry that matters. It works every time."
 
 def run(root: Path, reference: Path, synthesizer: Any, *extra: str) -> int:
     argv = ["--root", str(root), "--episode", "900-fixture", "--reference", str(reference)]
-    return main([*argv, *extra], make_synthesizer=lambda settings, prepared: synthesizer)
+    return main([*argv, *extra], make_synthesizer=lambda settings, prepared: synthesizer,
+                make_listener=FakeListener)
 
 
 def timing(root: Path) -> Data:
@@ -115,6 +117,7 @@ def test_the_model_gets_a_prepared_copy_of_the_reference(
         return fake_synthesizer()
 
     argv = ["--root", str(root), "--episode", "900-fixture", "--reference", str(reference)]
-    assert main([*argv, "--only", "short-2"], make_synthesizer=factory) == 0
+    assert main([*argv, "--only", "short-2"], make_synthesizer=factory,
+                make_listener=FakeListener) == 0
     assert seen and seen[0] != reference
     assert reference.read_bytes() == original

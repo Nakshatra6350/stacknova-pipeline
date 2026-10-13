@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 import yaml
+from conftest import FakeListener
 
 from channel_os.render import main
 
@@ -50,7 +51,8 @@ def narrated(project: Any, episode: Data, fake_synthesizer: Any) -> Any:
         root, reference = project(episode)
         argv = ["--root", str(root), "--episode", "900-fixture", "--reference", str(reference),
                 "--only", "short-2", "--allow-draft"]
-        assert main(argv, make_synthesizer=lambda settings, prepared: fake_synthesizer()) == 0
+        assert main(argv, make_synthesizer=lambda settings, prepared: fake_synthesizer(),
+                    make_listener=FakeListener) == 0
         return Path(root)
 
     return build

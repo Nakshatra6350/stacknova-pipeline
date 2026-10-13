@@ -26,6 +26,11 @@ def _split_long(sentence: str, max_chars: int) -> list[str]:
     return pieces
 
 
+def sentences(text: str) -> list[str]:
+    """The sentences of a text, each whole."""
+    return [sentence for sentence in _SENTENCE_END.split(" ".join(text.split())) if sentence]
+
+
 def chunk_text(text: str, max_chars: int) -> list[str]:
     """Pack whole sentences into chunks of at most max_chars characters, keeping every word."""
     units: list[str] = []

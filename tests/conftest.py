@@ -36,16 +36,38 @@ def write_audio(
     return path
 
 
+# What the fake voice said in each file it wrote, by file stem, so the fake ears can hear it,
+# and which take of that text it was.
+SAID: dict[str, str] = {}
+TAKE: dict[str, int] = {}
+
+
 class FakeSynthesizer:
     """Stands in for the voice model: writes a tone that grows with the text and counts calls."""
 
     def __init__(self, identity: str = "fake-v1") -> None:
         self.identity = identity
         self.calls: list[str] = []
+        self.takes: list[int] = []
 
-    def synthesize(self, text: str, out_path: Path) -> None:
+    def synthesize(self, text: str, out_path: Path, take: int = 0) -> None:
         self.calls.append(text)
+        self.takes.append(take)
+        SAID[out_path.stem] = text
+        TAKE[out_path.stem] = take
         write_audio(out_path, [(1.5 + 0.02 * len(text), 0.1)])
+
+
+class FakeListener:
+    """Stands in for speech recognition: hears exactly what the fake voice was given to say."""
+
+    def __init__(self, terms: Any = ()) -> None:
+        self.identity = "fake-ears"
+        self.heard: list[str] = []
+
+    def hear(self, wav: Path) -> str:
+        self.heard.append(wav.stem)
+        return SAID[wav.stem]
 
 
 def _console(steps: list[dict[str, Any]]) -> dict[str, Any]:
@@ -160,3 +182,14 @@ def project(tmp_path: Path) -> Callable[[dict[str, Any]], tuple[Path, Path]]:
 @pytest.fixture
 def fake_synthesizer() -> type[FakeSynthesizer]:
     return FakeSynthesizer
+
+
+@pytest.fixture
+def fake_listener() -> type[FakeListener]:
+    return FakeListener
+
+
+@pytest.fixture(autouse=True)
+def _forget_what_was_said() -> None:
+    SAID.clear()
+    TAKE.clear()

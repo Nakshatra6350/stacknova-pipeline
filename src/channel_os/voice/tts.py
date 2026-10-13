@@ -19,12 +19,17 @@ class Synthesizer(Protocol):
     identity: str
     """Everything that changes the audio for a given text: library, model, settings, voice."""
 
-    def synthesize(self, text: str, out_path: Path) -> None: ...
+    def synthesize(self, text: str, out_path: Path, take: int = 0) -> None:
+        """Write `text` as speech. Each `take` is a different reading of the same text."""
 
 
-def cache_key(identity: str, text: str) -> str:
-    """File name of a synthesised chunk: the same identity and text always give the same audio."""
-    return hashlib.sha256(f"{identity}\n{text}".encode()).hexdigest()
+def cache_key(identity: str, text: str, take: int = 0) -> str:
+    """File name of a synthesised chunk: the same identity, text and take give the same audio.
+
+    Take 0 keeps the name chunks had before takes existed, so that speech stays cached.
+    """
+    voice = identity if take == 0 else f"{identity}|take={take}"
+    return hashlib.sha256(f"{voice}\n{text}".encode()).hexdigest()
 
 
 def require_watermarker() -> None:
@@ -88,7 +93,7 @@ class ChatterboxSynthesizer:
             self._model = model
         return self._model
 
-    def synthesize(self, text: str, out_path: Path) -> None:
+    def synthesize(self, text: str, out_path: Path, take: int = 0) -> None:
         import torch
 
         model = self._load()
@@ -96,7 +101,8 @@ class ChatterboxSynthesizer:
         if self._settings.model == "original":
             options["exaggeration"] = self._settings.exaggeration
             options["cfg_weight"] = self._settings.cfg_weight
-        torch.manual_seed(self._settings.seed)
+        # The model samples, so another seed is another reading of the same words.
+        torch.manual_seed(self._settings.seed + take)
         audio = model.generate(text, **options)
         samples = audio.squeeze(0).clamp(-1.0, 1.0).mul(32767.0).round().to(torch.int16)
         out_path.parent.mkdir(parents=True, exist_ok=True)

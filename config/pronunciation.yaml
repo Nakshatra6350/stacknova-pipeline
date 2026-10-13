@@ -1,0 +1,29 @@
+# How to write words for the voice model when it reads the written form wrong.
+# Read by src/channel_os/voice/lexicon.py. Only the text sent to the voice changes: scripts,
+# captions and the timing of visuals keep the written form.
+#
+# The owner heard "retries" said as "retrees" and "PUT" as "patt" in episode 001 (13 Oct 2026).
+# The voice model learns pronunciation from spelling, so the cure is a spelling it reads right.
+#
+# say:   written form -> how to write it for the voice.
+#        A key in lowercase matches any casing ("Retries" too). A key with a capital in it
+#        matches only as written, so PUT (the HTTP method) is respelled and the verb "put" is not.
+# terms: jargon that speech recognition cannot spell. Every chunk of narration is listened to
+#        (src/channel_os/voice/listen.py) and read again when words are missed; these words only
+#        have to sound close to count as heard ("idempotency" is written down as "item potency").
+say:
+  retry: re-try
+  retries: re-tries
+  retried: re-tried
+  retrying: re-trying
+  GET: get
+  PUT: put
+  POST: post
+  DELETE: delete
+  "409": four oh nine
+terms:
+  - idempotency
+  - idempotent
+  - Idempotency-Key
+  - UUID
+  - Wi-Fi

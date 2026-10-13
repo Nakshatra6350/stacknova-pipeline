@@ -25,6 +25,19 @@ fi
 
 [[ "$ONLY" =~ ^(all|long|short-[0-9]+)$ ]] || { echo "refusing odd target: $ONLY" >&2; exit 1; }
 
+# The cache holds every reading of every chunk and what was heard in it. It is saved even
+# when the render fails, so a run that stops on one sentence does not cost all its speech.
+saved=1
+save_cache() {
+  if [ "$saved" = 0 ]; then
+    saved=1
+    tar -cf "$RUNNER_TEMP/voice-cache.tar" -C .cache/voice . \
+      && gh release upload "$tag" "$RUNNER_TEMP/voice-cache.tar" --clobber \
+      || echo "could not save the voice cache" >&2
+  fi
+}
+trap save_cache EXIT
+
 for ep in $episodes; do
   [[ "$ep" =~ ^[0-9]{3}-[a-z0-9-]+$ ]] || { echo "refusing odd episode id: $ep" >&2; exit 1; }
   tag="ep-$ep"
@@ -40,6 +53,7 @@ for ep in $episodes; do
     gh release create "$tag" --draft --title "Episode $ep renders" \
       --notes "Private render storage for the pipeline. This Release stays a draft."
   fi
+  saved=0
 
   for model in ${MODELS:-default}; do
     [[ "$model" =~ ^(default|original|turbo)$ ]] \
@@ -64,9 +78,18 @@ for ep in $episodes; do
       jq -r '.targets | to_entries[] | "| \(.key) | \(.value.duration) | \(.value.loudness.integrated_lufs) | \(.value.loudness.true_peak_db) | \(.value.segments | length) |"' \
         "$out/timing.json"
       echo
+      # What the listening check did: chunks read again, and places it could not confirm.
+      echo "| target | listened to | chunks read again | places not confirmed |"
+      echo "|---|---|---|---|"
+      jq -r '.targets | to_entries[] | "| \(.key) | \(.value.listened // false) | \([.value.segments[] | .retakes // 0] | add) | \([.value.segments[] | (.unsure // []) | length] | add) |"' \
+        "$out/timing.json"
+      echo
+      jq -r '.targets | to_entries[] | .key as $t | .value.segments[] | .id as $s | (.unsure // [])[] | "- \($t) \($s): meant \"\(.meant)\", heard \"\(.heard)\""' \
+        "$out/timing.json"
+      echo
     } >> "$GITHUB_STEP_SUMMARY"
   done
 
-  tar -cf "$upload/voice-cache.tar" -C .cache/voice .
+  save_cache
   gh release upload "$tag" "$upload"/* --clobber
 done
