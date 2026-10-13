@@ -102,6 +102,41 @@ cached speech. Any setting can be overridden for one run (`--set KEY=VALUE`; wor
 The owner's approved voice, 9 October 2026: original model, `tempo: 0.92`, clarity with an 80 Hz
 high-pass, +2.5 dB at 3 kHz and +2 dB above 7 kHz. A test pins these values.
 
+## Listening and reading again (added 13 October 2026)
+
+The owner heard "retries" said as "retrees" and "PUT" as "patt" in episode 001. Speech
+recognition run over that narration found more than the two words: "retry" is said as
+"re-tree" throughout, two phrases are garbled, and one sentence of segment s06 is never spoken
+(the stall that `max_pause_ms` had cut down to a pause). So "pronunciation overrides", listed
+as out of scope below, came into scope, together with a check that does the listening.
+
+- **Lexicon** (`config/pronunciation.yaml`, `voice/lexicon.py`). `say` maps a written word to a
+  spelling the model reads correctly (`retry: re-try`, `PUT: put`). It is applied to each chunk
+  after chunking, so chunk boundaries do not move, and only to the text sent to the model:
+  scripts, captions and the timing of visuals keep the written form. A lowercase key matches
+  any casing; a key with a capital matches only as written.
+- **Listening** (`voice/listen.py`). Every synthesised chunk is transcribed with faster-whisper
+  (`small.en`, the recogniser M3 uses for alignment) and lined up with the chunk's script.
+  `missed` tells a real miss from what only the recogniser changed: numbers as digits,
+  contractions, words joined or split, endings, homophones, and the jargon in `terms`, which
+  only has to sound close ("idempotency" is written down as "item potency"). The recogniser
+  gets no hints: given the jargon as hot words it wrote those words into silences.
+- **Reading again** (`voice/narrate.py`). A chunk with misses is synthesised again with seed+1,
+  seed+2 and seed+3, and the reading with the least missed is kept. A chunk that loses a phrase
+  in every reading (four words running, or a fifth of its words) is spoken sentence by sentence,
+  which the model manages better. A sentence that still loses a phrase raises
+  `PronunciationError` and the render stops: a narration with a hole in it is not shipped.
+- **What the owner sees.** Each segment in `timing.json` records `retakes` and `unsure` (what
+  was meant and what was heard, for misses too small to stop the render), and the workflow
+  summary lists them, so a reviewer knows where to listen.
+- **Cache.** Take 0 keeps the chunk's old cache name, so speech that was right is not
+  synthesised again; other takes add `|take=N` to the key. What was heard is stored beside each
+  chunk. The cache is uploaded even when the render fails. `--no-listen` skips the check.
+
+Limits, said plainly: speech recognition is not an ear. It can miss a word that is said
+slightly wrong and it can flag one that is fine, so the owner's listen on Telegram stays the
+last check, and a word they hear wrong goes into `config/pronunciation.yaml`.
+
 ## Changes to earlier docs
 
 - `docs/BUILD_PLAN.md` M1: the synthesis cache lives in the draft Release, not `actions/cache`.
@@ -110,6 +145,7 @@ high-pass, +2.5 dB at 3 kHz and +2 dB above 7 kHz. A test pins these values.
 
 ## Out of scope
 
-Pronunciation overrides for technical terms, multi-language voices, splitting long renders
+Pronunciation overrides for technical terms (in scope since 13 October 2026, see "Listening
+and reading again" above), multi-language voices, splitting long renders
 across a job matrix, the `long` render of episode 001 (it is still a draft), and anything that
 sends audio outside the draft Release.

@@ -10,6 +10,13 @@ description: Diagnose and fix a failed GitHub Actions run of the channel pipelin
    - **Credentials** (401/403, invalid_grant, OAuthException) → do NOT try to fix in code. Tell the owner which Setup guide step to redo (6d for YouTube, 7.4–7.5 for Instagram, 5 for Telegram) and which secret to update. Stop.
    - **Platform policy/limit** (quota, rate limit, private-until-audit) → follow `docs/ARCHITECTURE.md`; usually wait or mark `published_manual_pending`.
    - **Content/data** (schema, missing story, caption alignment) → fix the episode via `write-episode`, re-validate.
+   - **The voice said it wrong** ("the voice did not say this in 4 readings", or the owner hears a
+     word wrong) → the voice stage listens to every chunk and reads again what it misses
+     (`voice/listen.py`); the render summary lists what it could not confirm. For a word the
+     model reads wrong every time, add a spelling it reads right to `config/pronunciation.yaml`
+     (`say`); for jargon the recogniser cannot spell, add it to `terms`. If one sentence keeps
+     failing, reword it in the episode. Never raise the limits to let a narration with a hole
+     in it through.
    - **Code bug** → reproduce locally with `DRY_RUN=true`, write a failing test first, fix, run `uv run pytest && uv run ruff check && uv run mypy src`.
 3. Re-run safely: `gh run rerun <id> --failed`. Publishing is idempotent by design — verify `state/queue.json` before re-running publish so nothing double-posts.
 4. Write a short entry in `docs/INCIDENTS.md`: date, symptom, cause, fix, prevention.

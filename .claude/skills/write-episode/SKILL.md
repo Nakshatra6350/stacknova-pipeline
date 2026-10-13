@@ -28,6 +28,11 @@ revisions, the reject reason from `state/queue.json` or the owner's message.
    planner adds those. Add top-level `next: {title, teaser}` so the outro can name the next
    episode. A scene that must also work as a Short has to fit a phone screen; the render says
    when it does not.
+   The narration is read by a voice model that learns pronunciation from spelling. Write
+   numbers the way they are said only when it matters, and when the script uses a word the
+   model is known to say wrong, or new jargon, check `config/pronunciation.yaml`: `say` holds
+   spellings for the voice (the script keeps the normal spelling), `terms` the jargon the
+   listening check should expect.
 5. Production story: use only a story file from the private repo `stories/` with
    `approved_by_owner: true`. If none fits, leave `[STORY:<slug>]` and keep `status: draft`.
 6. Global audience: US dollars or neutral numbers in examples, metric units, no region-only

@@ -54,6 +54,8 @@ from the owner's own notes. Never commit the voice sample or secrets here.
   (`docs/superpowers/specs/2026-10-12-look-v2-design.md`).
 - Voice: **chatterbox-tts** (MIT), reference clip from the private repo, CPU on `ubuntu-latest`.
 - Alignment: **faster-whisper** (`small.en`, word timestamps), matched against the known script text.
+  The voice stage uses the same recogniser to listen to each chunk it synthesises and to read
+  again what was said wrong (`voice/listen.py`).
 - APIs: `google-api-python-client` (YouTube Data API v3), plain `httpx` for Telegram Bot API and Instagram Graph API.
 - Config/data: YAML for humans/agents (`config/`, `content/`), JSON for machine state (`state/`).
 - Tests: `pytest`; lint: `ruff`; types: `mypy --strict` on `src/channel_os/`.
@@ -61,7 +63,8 @@ from the owner's own notes. Never commit the voice sample or secrets here.
 ## 5. Layout
 
 ```
-config/            brand.yaml, platforms.yaml, schedule.yaml, reach.yaml, voice.yaml, themes.yaml
+config/            brand.yaml, platforms.yaml, schedule.yaml, reach.yaml, voice.yaml, themes.yaml,
+                   pronunciation.yaml (words respelled for the voice model)
 assets/fonts/      Inter and JetBrains Mono (OFL), the only faces scenes are drawn in
 content/
   backlog.yaml     ranked topic queue (night agent reads/writes)
@@ -69,7 +72,8 @@ content/
 schemas/           episode.schema.json  (validate every episode.yaml against it)
 src/channel_os/
   voice/           tts.py (chatterbox), loudness.py, reference.py, chunking.py, narrate.py,
-                   polish.py (pace + clarity), wavio.py, settings.py
+                   polish.py (pace + clarity), wavio.py, settings.py, lexicon.py (respelling),
+                   listen.py (speech recognition hears every chunk; missed words are read again)
   scenes/          episode.yaml `visual` -> animation (docs/VISUAL_DSL.md). No browser: theme.py,
                    formats.py, phrases.py, vocabulary.py, spec.py, plan.py (adds captions, intro,
                    outro, transitions) and each stage's <name>_model.py (console, sequence,
