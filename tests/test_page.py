@@ -61,6 +61,9 @@ VISUAL: Data = {
         at(4.7, "row", "keys", key="7f3c", cells=["completed"], conflict=True,
            message="key already claimed"),
         at(5.0, "stamp", "charges", text="CHARGED ONCE", status="ok"),
+        # A step may wait at most 5 s after its phrase, so this one hangs on a later phrase:
+        # "The fix" is spoken 54/85 of the way through 12 s, at about 7.6 s.
+        {"at": "The fix", "action": "highlight", "target": "phone"},
     ],
 }
 
@@ -86,6 +89,7 @@ STATE = r"""(() => {
     names: Object.fromEntries(nodes.map(el => [el.id, style(el.querySelector('.nt')).color])),
     logs: Object.fromEntries(nodes.map(el => [el.id, text(el.querySelector('.lg'))])),
     phone: shown(document.querySelector('.phone')) ? text($('scr')) : null,
+    phoneLit: !!document.querySelector('.phone.hot, #n-phone.hot'),
     wire: text($('wire')),
     items: [...document.querySelectorAll('#p-charges .chg')].map(text),
     stamp: text(document.querySelector('#p-charges .stamp')),
@@ -109,7 +113,8 @@ STATE = r"""(() => {
 
 # The first packet flies from 0.55 s to 1.65 s; the reply leaves at 2.55 s and dies at 3.65 s.
 TIMES = {"start": 0.0, "flying": 1.05, "arrived": 1.7, "charged": 2.2, "lost": 3.7,
-         "error": 4.2, "pending": 4.4, "done": 4.6, "conflict": 4.9, "stamped": 5.6, "end": 11.9}
+         "error": 4.2, "pending": 4.4, "done": 4.6, "conflict": 4.9, "stamped": 5.6,
+         "pointed": 8.2, "end": 11.9}
 
 
 def rgb(colour: str) -> str:
@@ -238,6 +243,17 @@ def test_a_table_row_changes_in_place_and_refuses_a_second_insert(wide: Data) ->
     assert "1 row" in wide["conflict"]["keys"]
     assert "key already claimed" in wide["conflict"]["keys"]
     assert "key already claimed" not in wide["done"]["keys"]
+
+
+def test_a_highlight_on_the_phone_shows_in_both_formats(wide: Data, tall: Data) -> None:
+    # The phone itself in landscape, the card that stands in for it in portrait.
+    for view in (wide, tall):
+        assert view["pointed"]["phoneLit"]
+        assert not view["stamped"]["phoneLit"] and not view["end"]["phoneLit"]
+    # The real phone glows only when a step points at it, not each time a packet leaves it:
+    # its screen already shows that. The card lights up with its packets, as every card does.
+    assert not wide["flying"]["phoneLit"]
+    assert tall["flying"]["phoneLit"]
 
 
 def test_logs_show_what_each_system_last_did(wide: Data) -> None:

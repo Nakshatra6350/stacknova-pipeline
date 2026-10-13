@@ -163,7 +163,11 @@ SN.stages.console = (() => {
     }
     set('wire', wireHTML(t));
     for (const p of D.panels || []) { set('p-' + p.id, panelHTML(p, t)); $('p-' + p.id).classList.toggle('hot', hot.has(p.id)); }
-    if (D.phone && L) set('scr', phoneHTML(t));
+    if (D.phone && L) {
+      set('scr', phoneHTML(t));
+      // The phone glows only when a step points at it; its screen already shows what it does.
+      $('scr').parentElement.classList.toggle('hot', by.highlight.some(s => s.target === 'phone' && t >= s.time && t < s.time + 1.6));
+    }
     if (!L) {
       // Portrait shows one panel: the one the latest step was about.
       const touch = s => s.action === 'row' || s.action === 'item' || s.action === 'stamp' ? s.target
