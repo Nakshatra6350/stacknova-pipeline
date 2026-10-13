@@ -27,6 +27,7 @@ LONG = "long"
 CAPTION_CHARS = 84  # a caption longer than this is split at a comma so it stays on two lines
 SHORT_CAPTION_CHARS = 44  # Shorts read faster and larger: shorter pieces, changing more often
 HANDLE_EDGE = 0.5  # seconds the Instagram handle keeps clear of a scene change
+MOVES = ("slide", "wipe", "zoom", "none")  # the transition styles the page knows
 _SENTENCE = re.compile(r"[^.!?]+[.!?]+[\"')]*\s*|[^.!?]+$")
 
 
@@ -164,6 +165,33 @@ def _handle_windows(scenes: Sequence[Clip], hook: str, shares: Sequence[float], 
     return {index: found for index, found in windows.items() if found}
 
 
+def _moves(scenes: Sequence[Clip], index: int, hook: str, intro: bool, outro: bool,
+           style: str | None) -> dict[str, Any]:
+    """How a scene arrives and leaves, so that a change of scene is seen.
+
+    'scene' is a change within a segment and 'part' a change of segment. The first scene just
+    starts, so frame 1 is a whole picture, and a video with no outro just ends, so a Short
+    loops cleanly. Next to a brand scene the frame goes through black, as that scene does.
+    """
+    if style is None or style == "none":
+        return {}
+    clip = scenes[index]
+    before = scenes[index - 1] if index else None
+    after = scenes[index + 1] if index + 1 < len(scenes) else None
+    enter = None if before is None else "scene" if before.unit == clip.unit else "part"
+    leave: str | None = "part" if outro else None
+    if after is not None:
+        leave = "scene" if after.unit == clip.unit else "part"
+    into_logo = intro and after is not None and clip.unit == hook != after.unit
+    return {
+        "move": style,
+        "enter": enter,
+        "exit": leave,
+        "from_black": bool(intro and before is not None and before.unit == hook != clip.unit),
+        "to_black": bool(into_logo or (after is None and outro)),
+    }
+
+
 def _brand_clip(scene: str, seconds: float, decl: Mapping[str, Any], fps: int) -> Clip:
     spec = SceneSpec("brand", 0.0, seconds, {"scene": scene, **decl}, ())
     return Clip(scene, spec, round(seconds * fps))
@@ -196,6 +224,10 @@ def plan_video(episode: Mapping[str, Any], target: str, entry: Mapping[str, Any]
     windows = _handle_windows(scenes, units[0], wanted.get("at", []),
                               float(wanted.get("seconds", 0)), fps)
     prompt = (video.get("shorts_prompt") or {}).get("seconds", 0) if not long_video else 0
+    style = video.get("transition")
+    if style is not None and style not in MOVES:
+        raise PlanError(f"config/brand.yaml: video.transition {style!r} is not one of "
+                        f"{', '.join(MOVES)}")
 
     clips: list[Clip] = []
     done_content = 0  # content frames before this clip
@@ -217,11 +249,14 @@ def plan_video(episode: Mapping[str, Any], target: str, entry: Mapping[str, Any]
         lines = captions(spoken[clip.unit], narrated["duration"], pauses,
                          unit.get("emphasis") or (),
                          CAPTION_CHARS if long_video else SHORT_CAPTION_CHARS)
-        local = [(max(0.0, when - clip.spec.start), text) for when, text in lines
+        # Seconds into this scene. A caption carried over from the scene before keeps its real
+        # start, which is before 0, so the page can tell it from one that begins here.
+        local = [(round(when - clip.spec.start, 3) + 0.0, text) for when, text in lines
                  if when < clip.spec.end]
         current = [line for line in local if line[0] <= 0.0][-1:] or local[:1]
         chrome["captions"] = [list(line) for line in
                               [*current, *(line for line in local if line[0] > 0.0)]]
+        chrome.update(_moves(scenes, index, units[0], bool(intro), bool(outro), style))
         if long_video:
             chrome["handle"] = windows.get(index, [])
         if prompt and index == len(scenes) - 1:

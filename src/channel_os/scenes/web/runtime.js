@@ -4,6 +4,7 @@
 window.SN = (() => {
   const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
   const ease = p => p < .5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+  const easeIn = p => p * p * p, easeOut = p => 1 - Math.pow(1 - p, 3);
   const seg = (t, a, b) => clamp((t - a) / (b - a));
   const fade = (t, a, d = .3) => ease(seg(t, a, a + d));
   const pop = (t, a, d = .45) => { const p = seg(t, a, a + d); return p <= 0 ? 0 : 1 + .16 * Math.sin(p * Math.PI) * (1 - p); };
@@ -29,6 +30,8 @@ window.SN = (() => {
 
   const stages = {};  // stage name -> { build(clip, root), render(t) }
   let clip = null, stage = null;
+  let movers = [];    // the scene's blocks marked data-in, in the order they arrive
+  let still = false;  // true while measuring: everything is drawn where it settles
 
   // ---- chrome: top bar, caption bar, progress, Instagram lower third, Shorts prompt -----------
   function buildChrome(root) {
@@ -36,8 +39,8 @@ window.SN = (() => {
     if (!c || clip.stage === 'brand') return;
     const landscape = clip.format === 'landscape';
     const part = c.parts > 1 && landscape ? `Part ${String(c.part).padStart(2, '0')} / ${String(c.parts).padStart(2, '0')}` : 'StackNova';
-    let h = `<div class="top abs"><span class="mark"></span><span class="lbl">${part}</span>
-      <span class="ttl disp">${esc(c.title)}</span><span class="pill">${esc(landscape ? c.pill : c.pill_short)}</span></div>`;
+    let h = `<div class="top abs"><span class="mark"></span><span class="lbl" id="partl">${part}</span>
+      <span class="ttl disp" id="partt">${esc(c.title)}</span><span class="pill">${esc(landscape ? c.pill : c.pill_short)}</span><i class="sweep" id="sweep"></i></div>`;
     if (c.captions && c.captions.length) h += '<div class="capbar"><span class="t" id="capt"></span></div>';
     if (c.handle && c.handle.length) h += `<div class="third" id="third"><span class="ig">${ICON.cam}</span><span><small>FOLLOW ON INSTAGRAM</small><b>${esc(c.instagram)}</b></span></div>`;
     if (c.cta) h += '<div class="cta" id="cta"></div>';
@@ -50,8 +53,11 @@ window.SN = (() => {
     const [from, to] = c.progress;
     $('prog').style.width = (100 * (from + (to - from) * clamp(t / clip.duration))) + '%';
     if ($('capt')) {
-      const caption = last(c.captions, t, x => x[0]) || c.captions[0];
+      // A new caption rises into place; one carried over from the scene before (it starts
+      // before 0) is simply there.
+      const caption = last(c.captions, t, x => x[0]) || c.captions[0], p = still ? 1 : easeOut(seg(t, caption[0], caption[0] + .18));
       set('capt', caption[1]);
+      Object.assign($('capt').style, { opacity: p, transform: p < 1 ? `translateY(${10 * (1 - p)}px)` : '' });
     }
     if ($('third')) {
       const slide = Math.max(0, ...c.handle.map(([a, b]) => ease(seg(t, a, a + .6)) * (1 - ease(seg(t, b - .5, b)))));
@@ -80,18 +86,84 @@ window.SN = (() => {
     }
     stage = stages[clip.stage];
     if (!stage) throw new Error(`no stage draws layout "${clip.stage}" yet`);
+    // The scene sits in its own layer, so it can move as one piece under the chrome.
     const root = $('stage');
-    root.innerHTML = ''; root.removeAttribute('style');
-    stage.build(clip, root);
+    root.innerHTML = '<div class="abs" id="scene"></div>'; root.removeAttribute('style');
+    stage.build(clip, $('scene'));
+    movers = [...$('scene').querySelectorAll('[data-in]')].filter(el => el.offsetParent !== null);
     buildChrome(root);
+    root.insertAdjacentHTML('beforeend', '<div class="veil" id="veil" hidden><i></i></div>');
     render(0);
     return true;
   }
 
-  function render(t) { stage.render(t); renderChrome(t); }
+  // ---- moves: how a clip arrives and leaves, so a change of scene is seen ----------------------
+  // The planner says what happens at each end of a clip: chrome.enter and chrome.exit are null,
+  // 'scene' (the same segment goes on) or 'part' (a new segment); from_black and to_black mean
+  // the neighbour is a brand scene, which fades through black. chrome.move names the style.
+  // Each clip animates only itself, so two clips never have to be drawn together.
+  function renderMoves(t) {
+    const c = clip.chrome || {}, scene = $('scene'), veil = $('veil'), top = $('partt');
+    if (clip.stage === 'brand' || !c.move) return;
+    // `end` is the last frame's time, less a hair so that frame is the finished state.
+    const D = clip.duration, end = D - 1 / 30 - 1e-4, wide = clip.format === 'landscape';
+    const W = wide ? 1920 : 1080, H = wide ? 1080 : 1920, k = wide ? 1 : 1.3;
+    const outSpan = Math.min(.3, D / 5), inSpan = Math.min(.36, D / 4);
+    const leaving = c.exit && !still ? seg(t, end - outSpan, end) : 0;   // 0, then 1 on the last frame
+    const arriving = c.enter && !still ? 1 - seg(t, 0, inSpan) : 0;      // 1 on the first frame, then 0
+    const gone = easeIn(leaving), here = easeOut(1 - arriving);
+    let transform = '', opacity = 1, blur = 0, light = 1, block = () => 1;
+
+    if (c.move === 'slide') {
+      // Out: the whole scene slides off to the left. In: its blocks rise into place one by one.
+      transform = leaving ? `translateX(${-130 * k * gone}px)` : '';
+      opacity = 1 - gone;
+      const gap = Math.min(.045, inSpan / 8);
+      block = i => c.enter && !still ? easeOut(seg(t, i * gap, i * gap + inSpan)) : 1;
+    } else if (c.move === 'zoom') {
+      // Out: the scene swells and dissolves. In: the next one settles from slightly small.
+      transform = leaving ? `scale(${1 + .07 * gone})` : arriving ? `scale(${.93 + .07 * here})` : '';
+      opacity = leaving ? 1 - gone : here;
+      blur = 7 * Math.max(gone, 1 - here);
+    }
+    if (c.move === 'wipe') {
+      // A dark blade with a bright edge crosses: it covers the old scene, then uncovers the new.
+      const whole = c.exit === 'part' && leaving || c.enter === 'part' && arriving;
+      const covering = ease(leaving), cleared = ease(1 - arriving);
+      const y0 = whole ? 0 : wide ? 74 : 346, y1 = whole ? H : wide ? 920 : 1052;
+      veil.hidden = !(leaving || arriving);
+      veil.className = 'veil' + (arriving ? ' back' : '') + (c.to_black && leaving || c.from_black && arriving ? ' black' : '');
+      Object.assign(veil.style, { top: y0 + 'px', height: (y1 - y0) + 'px',
+        left: (arriving ? W * cleared : 0) + 'px', width: (arriving ? W * (1 - cleared) : W * covering) + 'px' });
+    } else {
+      veil.hidden = true;
+      // Next to a brand scene the whole frame goes to black, and comes back from it.
+      if (c.to_black && leaving) light = 1 - ease(leaving);
+      if (c.from_black && arriving) light = ease(1 - arriving);
+    }
+    Object.assign(scene.style, { transform, opacity, filter: blur > .05 ? `blur(${blur.toFixed(2)}px)` : '' });
+    $('stage').style.filter = light < 1 ? `brightness(${light.toFixed(3)})` : '';
+    let slowest = 1;
+    movers.forEach((el, i) => {
+      const p = block(i); slowest = Math.min(slowest, p);
+      el.style.opacity = p < 1 ? p : ''; el.style.transform = p < 1 ? `translateY(${36 * k * (1 - p)}px)` : '';
+    });
+    scene.style.setProperty('--in', slowest);  // small parts drawn over the blocks wait for them
+    if (top) {
+      // A new segment rolls its title in and runs a light along the top bar.
+      const out = c.exit === 'part' ? gone : 0, into = c.enter === 'part' && !still ? easeOut(seg(t, .05, .5)) : 1;
+      for (const el of [$('partl'), top]) Object.assign(el.style, { opacity: Math.min(1 - out, into), transform: out ? `translateY(${-16 * out}px)` : into < 1 ? `translateY(${18 * (1 - into)}px)` : '' });
+      const run = c.enter === 'part' && !still ? seg(t, .1, 1.0) : 0;
+      Object.assign($('sweep').style, { left: (-24 + 124 * ease(run)) + '%', opacity: Math.sin(Math.PI * run) });
+    }
+  }
+
+  function render(t) { stage.render(t); renderChrome(t); renderMoves(t); }
 
   // Parts marked data-safe that leave the format's content area, as readable descriptions.
   function unsafe([x0, y0, x1, y1]) {
+    // Measured with everything settled: a block on its way in is not out of place.
+    still = true; render(0);
     const origin = $('stage').getBoundingClientRect(), found = [];
     for (const el of document.querySelectorAll('[data-safe]')) {
       if (el.offsetParent === null) continue;
@@ -124,7 +196,7 @@ window.SN = (() => {
         }
       }
     }
-    render(0);
+    still = false; render(0);
     return found;
   }
 

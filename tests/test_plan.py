@@ -260,6 +260,61 @@ def test_every_scene_carries_the_captions_spoken_during_it() -> None:
     assert first[1][0] == pytest.approx(2.3, abs=0.05)
 
 
+def test_a_caption_carried_into_a_scene_keeps_its_real_start() -> None:
+    # The second scene begins in the middle of the last sentence. Its caption started before
+    # the scene did, and the page must not bring it in again as if it were new.
+    visual = [scene([press("tapped Pay")]), scene([press("per payment")], **{"from": "one key"})]
+    plan = plan_video(short_episode(visual), "short-1", entry(("short-1", 0.0, 6.0), duration=6.0),
+                      BRAND)
+    (carried,) = plan.clips[1].chrome["captions"]
+    assert carried[1] == "The fix is one key per payment."
+    assert carried[0] < 0
+
+
+# ---- transitions ---------------------------------------------------------------------------
+
+MOVING: dict[str, Any] = {**BRAND, "video": {**BRAND["video"], "transition": "slide"}}
+
+
+def moves(plan: Any) -> list[tuple[Any, ...]]:
+    return [(clip.unit, clip.chrome["enter"], clip.chrome["exit"], clip.chrome["from_black"],
+             clip.chrome["to_black"]) for clip in plan.clips if clip.spec.layout != "brand"]
+
+
+def test_a_long_video_changes_scene_visibly_and_goes_through_black_at_brand_scenes() -> None:
+    episode, record = long_episode(3)
+    episode["segments"][1]["visual"] = [scene([press("tapped Pay")]),
+                                        scene([press("one key")], **{"from": "The fix"})]
+    plan = plan_video(episode, "long", record, MOVING)
+    assert [clip.unit for clip in plan.clips] == ["s01", "intro", "s02", "s02", "s03", "outro"]
+    assert moves(plan) == [
+        # The first scene just starts, so frame 1 is a whole picture; then the logo.
+        ("s01", None, "part", False, True),
+        ("s02", "part", "scene", True, False),
+        ("s02", "scene", "part", False, False),
+        ("s03", "part", "part", False, True),
+    ]
+    assert {clip.chrome["move"] for clip in plan.clips if clip.spec.layout != "brand"} == {"slide"}
+
+
+def test_a_short_starts_and_ends_on_a_whole_picture_so_it_loops() -> None:
+    visual = [scene([press("tapped Pay")]), scene([press("one key")], **{"from": "The fix"})]
+    plan = plan_video(short_episode(visual), "short-1", entry(("short-1", 0.0, 6.0), duration=6.0),
+                      MOVING)
+    assert moves(plan) == [("short-1", None, "scene", False, False),
+                           ("short-1", "scene", None, False, False)]
+
+
+def test_transitions_can_be_turned_off_and_an_unknown_style_is_refused() -> None:
+    episode, record = long_episode(2)
+    for off in (BRAND, {**BRAND, "video": {**BRAND["video"], "transition": "none"}}):
+        plan = plan_video(episode, "long", record, off)
+        assert all("move" not in clip.chrome for clip in plan.clips)
+    spin = {**BRAND, "video": {**BRAND["video"], "transition": "spin"}}
+    with pytest.raises(PlanError, match=r"video\.transition 'spin' is not one of slide, wipe"):
+        plan_video(episode, "long", record, spin)
+
+
 def test_captions_mark_the_emphasis_and_split_long_sentences() -> None:
     text = "The fix: send an idempotency key, one random ID per payment, reused on every retry."
     whole = captions(text, 8.0, [], emphasis=["idempotency key"])

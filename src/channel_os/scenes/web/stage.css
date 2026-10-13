@@ -12,6 +12,14 @@ body{font-family:Inter,sans-serif;color:var(--ink);-webkit-font-smoothing:antial
 body[data-format=landscape] #stage{width:1920px;height:1080px}
 body[data-format=portrait] #stage{width:1080px;height:1920px}
 .abs{position:absolute}
+/* The scene's own layer: it moves as one piece when a clip arrives or leaves (runtime.js). */
+#scene{inset:0}
+.tick{opacity:var(--in,1)}
+.veil{position:absolute;z-index:9;background:var(--stage)}
+.veil.black{background:#000}
+.veil i{position:absolute;top:0;bottom:0;right:-7px;width:14px;background:linear-gradient(180deg,var(--b1),var(--b2) 45%,var(--b3) 75%,var(--b4));box-shadow:0 0 34px 6px rgba(255,77,141,.55)}
+.veil.back i{right:auto;left:-7px}
+.top .sweep{position:absolute;bottom:-3px;left:-24%;width:24%;height:3px;opacity:0;background:linear-gradient(90deg,transparent,var(--b2),var(--b4),transparent);box-shadow:0 0 16px rgba(255,138,61,.7)}
 .mono{font-family:"JetBrains Mono",monospace}
 .disp{font-family:"Inter Display",Inter,sans-serif;font-weight:800;letter-spacing:-.015em}
 .grad{background:var(--brand);-webkit-background-clip:text;background-clip:text;color:transparent}

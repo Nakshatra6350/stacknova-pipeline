@@ -257,7 +257,7 @@ def test_a_long_video_shows_the_whole_room(wide: Data) -> None:
 def test_captions_are_centred_and_carry_no_step_number(wide: Data, tall: Data) -> None:
     # The owner's request of 12 October 2026: captions in the middle, no step counter.
     for view, frame in ((wide, 1920), (tall, 1080)):
-        bar = view["start"]["bar"]
+        bar = view["flying"]["bar"]
         assert (bar["align"], bar["justify"], bar["parts"]) == ("center", "center", 1)
         left, _, right, _ = bar["text"]
         assert (left + right) / 2 == pytest.approx(frame / 2, abs=3)
@@ -269,9 +269,92 @@ def test_captions_are_centred_and_carry_no_step_number(wide: Data, tall: Data) -
 def test_a_short_keeps_its_caption_in_the_middle_band(tall: Data) -> None:
     # docs/CAPTIONS_SPEC.md: captions sit near y=1180, clear of the scene above (to y=1040)
     # and of the platform's buttons below (from y=1440).
-    _, top, _, bottom = tall["start"]["bar"]["text"]
+    _, top, _, bottom = tall["flying"]["bar"]["text"]
     assert top >= 1040 and bottom <= 1300
     assert (top + bottom) / 2 == pytest.approx(1180, abs=30)
+
+
+# ---- transitions ------------------------------------------------------------------------------
+
+MOVES_STATE = r"""(() => {
+  const $ = id => document.getElementById(id), scene = $('scene'), veil = $('veil');
+  const blocks = [...document.querySelectorAll('[data-in]')].filter(el => el.offsetParent);
+  const number = value => value === '' ? 1 : parseFloat(value);
+  return {
+    scene: { opacity: number(scene.style.opacity), transform: scene.style.transform,
+             filter: scene.style.filter },
+    blocks: blocks.map(el => number(el.style.opacity)),
+    light: $('stage').style.filter,
+    title: number($('partt').style.opacity),
+    veil: veil.hidden ? null : { width: parseFloat(veil.style.width),
+                                 height: parseFloat(veil.style.height), black: veil.className },
+  };
+})()"""
+LAST = 12.0 - 1 / 30  # the last frame of a 12 s clip
+MOMENTS = {"first": 0.0, "arriving": 0.2, "settled": 2.0, "last": LAST}
+
+
+def moving(brand: Data, style: str) -> Data:
+    return {**brand, "video": {**brand["video"], "transition": style}}
+
+
+def test_a_scene_arrives_block_by_block_and_slides_away(brand: Data, themes: Any) -> None:
+    # The second segment of a long video: it follows the logo and is followed by the outro,
+    # so it also comes up from black and goes back to it.
+    clip = long_plan(moving(brand, "slide")).clips[2]
+    view = browser.probe(clip_data(clip, LANDSCAPE, themes.themes["control"]), LANDSCAPE,
+                         MOMENTS, MOVES_STATE)
+    assert set(view["first"]["blocks"]) == {0} and view["first"]["light"] == "brightness(0)"
+    assert view["first"]["title"] == 0
+    arriving = view["arriving"]["blocks"]
+    assert arriving == sorted(arriving, reverse=True) and arriving[0] > arriving[-1]
+    settled = view["settled"]
+    assert set(settled["blocks"]) == {1} and settled["light"] == "" and settled["title"] == 1
+    assert settled["scene"] == {"opacity": 1, "transform": "", "filter": ""}
+    last = view["last"]
+    assert last["scene"]["opacity"] == 0 and last["scene"]["transform"] == "translateX(-130px)"
+    assert last["light"] == "brightness(0)" and last["title"] == 0
+    assert all(moment["veil"] is None for moment in view.values())
+
+
+def test_a_short_is_whole_on_its_first_and_last_frame(brand: Data, themes: Any) -> None:
+    visual = [VISUAL, {**VISUAL, "from": "The fix",
+                       "steps": [{"at": "one key", "action": "tap", "target": "phone"}]}]
+    episode = {"id": "001-test", "segments": [],
+               "shorts": [{"id": "short-1", "source": "standalone", "script": SCRIPT,
+                           "visual": visual, "hook_on_screen": "This retry charged you twice"}]}
+    entry = {"duration": 12.0,
+             "segments": [{"id": "short-1", "start": 0.0, "duration": 12.0, "pauses": []}]}
+    first, second = plan_video(episode, "short-1", entry, moving(brand, "slide")).clips
+    theme = themes.themes["nova"]
+    opening = browser.probe(clip_data(first, PORTRAIT, theme), PORTRAIT,
+                            {"first": 0.0, "last": first.frames / 30 - 1 / 30}, MOVES_STATE)
+    assert set(opening["first"]["blocks"]) == {1} and opening["first"]["scene"]["opacity"] == 1
+    assert opening["last"]["scene"]["opacity"] == 0 and opening["last"]["light"] == ""
+    closing = browser.probe(clip_data(second, PORTRAIT, theme), PORTRAIT,
+                            {"first": 0.0, "last": second.frames / 30 - 1 / 30}, MOVES_STATE)
+    assert set(closing["first"]["blocks"]) == {0}
+    # It ends as a whole picture, so the loop back to frame 1 is clean.
+    assert set(closing["last"]["blocks"]) == {1} and closing["last"]["scene"]["opacity"] == 1
+
+
+def test_the_wipe_covers_the_frame_and_the_zoom_dissolves_the_scene(
+    brand: Data, themes: Any
+) -> None:
+    theme = themes.themes["control"]
+    wipe = browser.probe(clip_data(long_plan(moving(brand, "wipe")).clips[2], LANDSCAPE, theme),
+                         LANDSCAPE, MOMENTS, MOVES_STATE)
+    # A change of segment is wiped across the whole frame, in black next to a brand scene.
+    assert wipe["first"]["veil"] == {"width": 1920, "height": 1080, "black": "veil back black"}
+    assert wipe["settled"]["veil"] is None
+    assert wipe["last"]["veil"] == {"width": 1920, "height": 1080, "black": "veil black"}
+    assert wipe["first"]["light"] == "" and set(wipe["first"]["blocks"]) == {1}
+    zoom = browser.probe(clip_data(long_plan(moving(brand, "zoom")).clips[2], LANDSCAPE, theme),
+                         LANDSCAPE, MOMENTS, MOVES_STATE)
+    assert zoom["first"]["scene"]["transform"] == "scale(0.93)"
+    assert zoom["first"]["scene"]["opacity"] == 0 and "blur" in zoom["first"]["scene"]["filter"]
+    assert zoom["settled"]["scene"] == {"opacity": 1, "transform": "", "filter": ""}
+    assert zoom["last"]["scene"]["transform"] == "scale(1.07)"
 
 
 def test_a_short_shows_one_panel_at_a_time_and_no_phone(tall: Data) -> None:

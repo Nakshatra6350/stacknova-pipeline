@@ -118,10 +118,21 @@ Added by the planner from `config/brand.yaml`; episodes do not write them.
   One that would fall in the hook, or be cut short by a scene change, waits for the next scene
   with room for it; if no scene has room it is left out.
 - **Intro** (long videos): the first segment plays (the hook), then a 4.3 s logo scene, then the
-  rest. Narration is cut at the start of the second segment. The intro has no sound yet: two
-  rounds of synthesised stings were rejected, so the owner will pick a licensed one. It goes in
-  the private repo (`brand/intro.wav` or `brand/intro.mp3`), the render workflow fetches it like
-  the voice reference, and `--intro-sound` lays it under the logo.
+  rest. Narration is cut at the start of the second segment. Its sound is synthesised like the
+  outro's: the owner asked for that on 13 October 2026 ("make intro just like you did with
+  outro", energetic, easy on the ears) after two earlier rounds without a beat were rejected.
+  Until one of the options is chosen and moved into `brand/sound.py` the intro is silent.
+  `--intro-sound FILE` (and `brand/intro.wav` in the private repo, which `render.yml` fetches)
+  remains a way to lay any other file under the logo.
+- **Transitions** (asked for on 13 October 2026: "apply animations when switching between hook,
+  intro, slides, outro to show that slide is changed"). Each clip animates only itself, so no
+  two clips are ever drawn together: a scene's blocks arrive at its start and the scene leaves
+  at its end. A change within a segment (`scene`) moves the scene only; a change of segment
+  (`part`) also rolls the title in the top bar and runs a light along it. Next to the intro or
+  the outro the frame goes through black, as those scenes do. The very first scene just starts
+  and a Short just ends, so frame 1 and a Short's last frame are whole pictures (thumbnails,
+  loops). `video.transition` in `config/brand.yaml` picks the style: `slide`, `wipe`, `zoom` or
+  `none`. A new caption rises into place; one carried over from the scene before does not.
 - **Outro** (long videos): 12 s, no voice, the chosen music; comment, like, subscribe, share,
   Instagram, and a frame for YouTube's next-video element. The next episode's title comes from a
   new optional `next: {title, teaser}` in `episode.yaml`.

@@ -23,13 +23,14 @@ SN.stages.console = (() => {
            stamp: of('stamp'), note: of('note'), highlight: of('highlight'), send: of('send') };
 
     const cards = [...(D.phone && !L ? [{ id: 'phone', sub: 'your phone' }] : []), ...D.systems];
-    const node = s => `<div class="node${s.id === 'phone' ? ' you' : ''}" id="n-${s.id}" data-safe style="--hue:var(--${lane[s.id]})"></div>`;
-    const panel = p => `<div class="panel" id="p-${p.id}" data-safe style="--hue:var(--${p.lane ? lane[p.lane] || 'b' : 'b'})"></div>`;
+    // data-in marks the blocks that arrive one after another when the scene comes on.
+    const node = s => `<div class="node${s.id === 'phone' ? ' you' : ''}" id="n-${s.id}" data-safe data-in style="--hue:var(--${lane[s.id]})"></div>`;
+    const panel = p => `<div class="panel" id="p-${p.id}" data-safe data-in style="--hue:var(--${p.lane ? lane[p.lane] || 'b' : 'b'})"></div>`;
     root.insertAdjacentHTML('beforeend', `<div class="main">
-      ${D.phone ? '<div class="phone" data-safe><div class="scr" id="scr"></div></div>' : ''}
+      ${D.phone ? '<div class="phone" data-safe data-in><div class="scr" id="scr"></div></div>' : ''}
       <div class="board"><div class="systems${cards.length > 3 ? ' tight' : ''}">${cards.map(node).join('')}</div>
-        <div class="trackrow"><div class="track" id="track"></div></div>
-        <div class="lower"><div class="panel" id="wire" data-safe></div>
+        <div class="trackrow" data-in><div class="track" id="track"></div></div>
+        <div class="lower"><div class="panel" id="wire" data-safe data-in></div>
           ${(D.panels || []).length ? `<div class="side">${D.panels.map(panel).join('')}</div>` : ''}</div></div></div>`);
 
     // Where things ended up: packets are placed from the measured layout, not from numbers.
