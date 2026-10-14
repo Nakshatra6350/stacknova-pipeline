@@ -267,7 +267,8 @@ what arrives. Use it for retry storms, many producers, many clients.
 
 A short listing in an editor window. Write it for the screen: **at most 10 lines of at most 60
 characters**, original to the episode, and true to the sample under `samples/`. Keywords,
-strings, numbers and comments are coloured for `language: sql | go | java | js | python | text`.
+strings, numbers and comments are coloured for `language: sql | go | java | js | python | lua |
+text` (Lua for scripts that run inside Redis).
 
 ```yaml
 - layout: code

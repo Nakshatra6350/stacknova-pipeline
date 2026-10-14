@@ -22,12 +22,15 @@ say:
   retries: [re tries, ree tries, re-tries]
   retried: [re tried, ree tried, re-tried]
   retrying: [re trying, ree trying, re-trying]
+  Retry-After: [re try after, ree try after, re-try after]   # the HTTP header (episode 005)
   StackNova: Stack Nova       # the channel's name, said as two words (welcome line, 14 Oct 2026)
   GET: get
   PUT: put
   POST: post
   DELETE: delete
   "409": four oh nine
+  "429": four twenty nine     # the status code, as engineers say it (episode 005, 14 Oct 2026)
+  RateLimit: Rate Limit       # the draft's header name, one word on screen
 terms:
   - Debezium
   - PostgreSQL

@@ -131,6 +131,11 @@ def test_code_is_tokenised_per_language() -> None:
     assert [kind for _, _, kind in code_model.tokens("VALUES ($1, 'in_progress')", "sql")] == [
         "keyword", "number", "string"]
     assert code_model.tokens("select nothing here", "text") == []
+    # Lua, for scripts that run inside Redis (episode 005).
+    lua = "if ok then tok = tok - 1 end -- one token"
+    found = [(lua[start:end], kind) for start, end, kind in code_model.tokens(lua, "lua")]
+    assert ("if", "keyword") in found and ("end", "keyword") in found
+    assert ("1", "number") in found and ("-- one token", "comment") in found
 
 
 def test_line_ranges() -> None:

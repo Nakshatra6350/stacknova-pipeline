@@ -76,14 +76,15 @@ class Listener(Protocol):
 
 
 def _numbers(tokens: Sequence[str]) -> list[str]:
-    """Number words as digits ("a hundred" -> 100, "twenty four" -> 24), as recognisers write."""
+    """Number words as digits ("a hundred" -> 100, "twenty four" -> 24, "fifty thousand" ->
+    50000), as recognisers write."""
     out: list[str] = []
     index = 0
     while index < len(tokens):
         word = tokens[index]
         following = tokens[index + 1] if index + 1 < len(tokens) else ""
-        if word in ("a", "one") and following == "hundred":
-            value, index = 100, index + 2
+        if word in ("a", "one") and following in ("hundred", "thousand"):
+            value, index = 1, index + 1
         elif word in _UNITS and following == "hundred":
             value, index = 100 * _UNITS[word], index + 2
         elif word in _TENS:
@@ -96,6 +97,8 @@ def _numbers(tokens: Sequence[str]) -> list[str]:
             out.append(word)
             index += 1
             continue
+        if index < len(tokens) and tokens[index] in ("hundred", "thousand"):
+            value, index = value * (100 if tokens[index] == "hundred" else 1000), index + 1
         out.append(str(value))
     return out
 
@@ -103,6 +106,7 @@ def _numbers(tokens: Sequence[str]) -> list[str]:
 def words(text: str) -> list[str]:
     """Text as the words to compare: lowercase, no punctuation, numbers as digits."""
     text = text.lower().replace(_CURLY_APOSTROPHE, "'")
+    text = re.sub(r"(?<=\d),(?=\d{3}\b)", "", text)  # 50,000 is one number
     for short, long in _CONTRACTIONS.items():
         text = re.sub(rf"\b{re.escape(short)}\b", long, text)
     tokens = re.findall(r"[a-z0-9]+(?:'[a-z]+)?", text.replace("-", " "))

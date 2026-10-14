@@ -13,7 +13,8 @@ from channel_os.scenes.vocabulary import STATUSES
 ACTIONS = frozenset({"show", "highlight", "note", "focus"})
 MAX_LINES = 10
 MAX_CHARS = 60  # a longer line would have to shrink too far to stay readable in portrait
-COMMENT = {"sql": "--", "go": "//", "java": "//", "js": "//", "python": "#", "text": None}
+COMMENT = {"sql": "--", "go": "//", "java": "//", "js": "//", "python": "#", "lua": "--",
+           "text": None}
 # Words coloured as keywords, per language. A listing shows a few of them, not a grammar.
 _WORDS = {
     "sql": (
@@ -36,6 +37,9 @@ _WORDS = {
     "python": (
         "def return if elif else for while in not and or with as try except finally raise "
         "None True False import from class lambda async await pass"
+    ),
+    "lua": (
+        "local function return if then else elseif end for while do in not and or nil true false"
     ),
     "text": "",
 }
