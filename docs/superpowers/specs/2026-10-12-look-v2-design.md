@@ -203,6 +203,19 @@ Accepted on 13 October 2026, against the render GitHub made of commit `5ea70ab` 
 - [x] The owner approves: the look on 13 October ("this good for start ... we can go ahead with
       this"), then the merge ("merge") after watching the GitHub render.
 
+M2 stayed open after that merge, for two things the owner heard in the accepted render:
+
+- [x] Words said wrong ("retries" as "retrees", "PUT" as "patt"): the voice stage respells words
+      for the voice (`config/pronunciation.yaml`), listens to every chunk with speech
+      recognition and reads again what it misses (M1 design, "Listening and reading again").
+- [x] Captions ahead of the speech, by up to 3 s: captions and scene steps are now timed from
+      when each word is said (`captions/align.py`, `segments[].words` in `timing.json`).
+      Measured on the render of commit `dd656f3` (run 38540733406): the median caption is
+      0.01 s from its first word, every Short within 0.35 s.
+- [x] `pytest` (348 tests), `ruff`, `mypy` pass; CI green on GitHub.
+- [x] The owner approved on 14 October 2026 ("approve") after watching that render, and
+      `m2-pronunciation` was merged into `main`. M2 is finished.
+
 Carried forward, not part of this milestone: Short 2 (56.7 s) and Short 3 (26.2 s) are outside
 the 30 to 50 second guideline, and segment 9 waits for the owner's production story, so
 episode 001 stays a draft.
