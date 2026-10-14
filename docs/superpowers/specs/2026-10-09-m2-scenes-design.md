@@ -106,7 +106,9 @@ long video uses `rotation[(episode number - 1) mod n]` and Short k uses
 **Timing.** The voice stage records the pauses of each segment in `timing.json`. A step's time is
 found by locating its phrase in the text and interpolating between anchors, where anchors are
 clause boundaries matched to measured pauses. Word-level alignment in M3 can replace this
-without changing the DSL.
+without changing the DSL. (It did, on 14 October 2026: the anchors are now the measured start
+of each word, `segments[].words` in `timing.json`; pauses remain the fallback. Placed from
+pauses, a run of captions in episode 001 came three seconds before their words.)
 
 **Layout safety.** Portrait content stays inside x 60-1020, y 260-1040 so captions (M3) and
 platform UI never cover it. Text is fitted to its slot; a part that leaves the content area

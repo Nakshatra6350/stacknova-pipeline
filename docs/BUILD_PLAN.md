@@ -71,6 +71,12 @@ spec. Render episode 001 segments in render.yml.
 
 ## M3 — Assembly, captions, thumbnails, carousels (2 days)
 **Goal:** final files ready to post.
+
+> Already done (14 October 2026, during M2): word alignment. `captions/align.py` matches the
+> recogniser's word times to the script, the voice stage writes them to `timing.json`
+> (`segments[].words`), and preview captions and scene steps are timed from them. The owner saw
+> preview captions run up to three seconds ahead of the speech when they were placed from
+> pauses. M3 builds the burned-in word-by-word captions and the SRT on the same word times.
 **Acceptance:** `long.mp4`, `short-1..3.mp4`, `reel-1..3.mp4`, `carousel-1/01..10.jpg`, `thumb-a/b/c.jpg`, `en.srt`, translated `.srt`, `manifest.json`; captions meet every test in docs/CAPTIONS_SPEC.md; encode H.264 high, AAC 192k, faststart.
 
 ```text

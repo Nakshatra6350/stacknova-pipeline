@@ -51,10 +51,15 @@ Rules:
 
 ### How a phrase becomes a time
 
-The voice stage measures the pauses in each narration and stores them in `timing.json`. Clause
-ends in the text are matched to those pauses; a phrase's time is interpolated between them. A
-phrase right after a pause is exact; one in the middle of a long clause can be a few tenths of
-a second off.
+The voice stage listens to each finished segment and stores when each word is said in
+`timing.json` (`words`, matched to the script by `captions/align.py`). A phrase lands on its
+first word; a word the recogniser did not catch is placed between the timed words around it.
+Captions are timed the same way, so a caption appears as its first word is said.
+
+A narration rendered without listening (`--no-listen`) has no word times. Then clause ends in
+the text are matched to the pauses measured in the audio and a phrase is interpolated between
+them. That is an estimate: on episode 001 it slipped by a clause and showed a run of captions
+three seconds early, which is why word times replaced it on 14 October 2026.
 
 ## 2. Formats, safe area and looks
 

@@ -69,7 +69,12 @@ concatenation the narration is measured again; outside -14 +/- 1 LUFS or above -
 render fails.
 
 **Timing.** `timing.json` holds one entry per target: narration path, duration, pause length,
-model, measured loudness, and each segment's file, start and duration.
+model, measured loudness, and each segment's file, start and duration. Since M2 each segment
+also has its `pauses`, and since 14 October 2026 its `words`: `[offset, start, end]` for each
+script word the recogniser heard in the finished segment, the offset counted in the segment's
+text with whitespace collapsed. Captions and scene steps are timed from `words`; `pauses` are
+the fallback for a narration rendered with `--no-listen`. What was heard is cached under the
+segment file's content, so a Short cut from the long video is not heard twice.
 
 **Status gate.** An episode with validation errors never renders. A status other than
 `ready_to_render` is skipped unless `--allow-draft` is passed.
