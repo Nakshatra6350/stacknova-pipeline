@@ -224,6 +224,55 @@ class Ears:
         heard = self.mishear(text, take)
         return text if heard is None else heard
 
+    def hear_words(self, wav: Path) -> list[tuple[str, float, float]]:
+        return []
+
+
+def chunk_lines(said: list[str]) -> list[str]:
+    """What was reported about chunks, without each segment's line about its word times."""
+    return [line for line in said if " chunk " in line]
+
+
+class Timer(Ears):
+    """Ears that also say when each word of a finished segment starts: word n at n/2 s."""
+
+    def __init__(self, texts: dict[str, str]) -> None:
+        super().__init__()
+        self.texts = texts
+        self.timed: list[str] = []
+
+    def hear_words(self, wav: Path) -> list[tuple[str, float, float]]:
+        self.timed.append(wav.name)
+        words = self.texts[wav.stem.removeprefix("seg-")].split()
+        return [(word, n / 2, n / 2 + 0.4) for n, word in enumerate(words)]
+
+
+def test_the_finished_segments_are_timed_word_by_word(
+    tmp_path: Path, settings: VoiceSettings, fake_synthesizer: Any
+) -> None:
+    # Captions and scene steps are placed on these times, not guessed from the pauses.
+    timer = Timer({unit.id: unit.text for unit in UNITS})
+    said: list[str] = []
+    entry = narrate(UNITS, "long", fake_synthesizer(), settings, tmp_path / "one",
+                    tmp_path / "cache", listener=timer, report=said.append)
+    first = entry["segments"][0]
+    text = UNITS[0].text
+    assert [text[offset:].split()[0] for offset, _, _ in first["words"]] == text.split()
+    assert [start for _, start, _ in first["words"]] == [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5]
+    assert "s01: 8 of 8 words timed for captions and scenes" in said
+    # The same segment made again is not heard again: its words are in the cache.
+    again = narrate(UNITS, "short-9", fake_synthesizer(), settings, tmp_path / "two",
+                    tmp_path / "cache", listener=timer)
+    assert timer.timed == ["seg-s01.wav", "seg-s02.wav"]
+    assert again["segments"][0]["words"] == first["words"]
+
+
+def test_without_a_listener_no_word_is_timed(
+    tmp_path: Path, settings: VoiceSettings, fake_synthesizer: Any
+) -> None:
+    entry = narrate(UNITS, "long", fake_synthesizer(), settings, tmp_path / "out", tmp_path / "c")
+    assert [segment["words"] for segment in entry["segments"]] == [[], []]
+
 
 def test_a_chunk_said_wrong_is_read_again(
     tmp_path: Path, settings: VoiceSettings, fake_synthesizer: Any
@@ -240,8 +289,8 @@ def test_a_chunk_said_wrong_is_read_again(
     assert (second["retakes"], second["unsure"]) == (0, [])
     assert synthesizer.calls == [UNITS[0].text, UNITS[0].text, UNITS[1].text]
     assert synthesizer.takes == [0, 1, 0]
-    # One line per reading: this is the whole log of a render.
-    assert said == [
+    # One line per reading: this is the log of a render.
+    assert chunk_lines(said) == [
         "s01 chunk 1/1: meant [retry] heard [re tree]",
         "s01 chunk 1/1: reading 2: said as written",
         "s02 chunk 1/1: said as written",
@@ -268,7 +317,7 @@ def test_the_best_reading_is_kept_when_none_is_clean(
     segment = entry["segments"][0]
     assert segment["retakes"] == 1
     assert segment["unsure"] == [{"meant": "matters", "heard": "mutters"}]
-    assert said[-1] == "s01 chunk 1/1: reading 3 is kept"
+    assert chunk_lines(said)[-1] == "s01 chunk 1/1: reading 3 is kept"
 
 
 def test_reading_again_stops_when_it_changes_nothing(
@@ -285,7 +334,7 @@ def test_reading_again_stops_when_it_changes_nothing(
     segment = entry["segments"][0]
     assert segment["retakes"] == 0
     assert segment["unsure"] == [{"meant": "retry", "heard": "re tree"}]
-    assert said == [
+    assert chunk_lines(said) == [
         "s01 chunk 1/1: meant [retry] heard [re tree]",
         "s01 chunk 1/1: reading 2: meant [retry] heard [re tree]",
         "s01 chunk 1/1: reading 1 is kept",
@@ -350,7 +399,7 @@ def test_a_skipped_sentence_is_spoken_again_on_its_own(
     assert (entry["segments"][0]["retakes"], entry["segments"][0]["unsure"]) == (1, [])
     # The three sentences are joined with the pause that separates chunks.
     assert len(entry["segments"][0]["pauses"]) == 2
-    assert said[3:] == [
+    assert chunk_lines(said)[3:] == [
         "s06 chunk 1/1: a phrase is lost in every reading, so each sentence is read alone",
         "s06 chunk 1/1 sentence 1/3: said as written",
         "s06 chunk 1/1 sentence 2/3: said as written",

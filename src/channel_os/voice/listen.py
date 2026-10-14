@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from channel_os.assemble.ffmpeg import FfmpegError
+from channel_os.captions.align import HeardWord
 
 # Small words whose loss or swap nobody hears as a mistake.
 WEAK = frozenset(
@@ -68,6 +69,10 @@ class Listener(Protocol):
     """Everything that changes what is heard in a given file: recogniser, model, hints."""
 
     def hear(self, wav: Path) -> str: ...
+
+    def hear_words(self, wav: Path) -> list[HeardWord]:
+        """Each word heard, with the seconds at which it starts and ends."""
+        ...
 
 
 def _numbers(tokens: Sequence[str]) -> list[str]:
@@ -179,7 +184,7 @@ class WhisperListener:
         self._model: Any = None
         self.identity = f"faster-whisper|{model}"
 
-    def hear(self, wav: Path) -> str:
+    def _transcribe(self, wav: Path, word_timestamps: bool) -> list[Any]:
         import numpy as np
 
         if self._model is None:
@@ -203,5 +208,13 @@ class WhisperListener:
         # allows for its spelling of jargon instead.
         segments, _ = self._model.transcribe(
             samples, beam_size=5, temperature=0.0, condition_on_previous_text=False,
+            word_timestamps=word_timestamps,
         )
-        return " ".join(segment.text.strip() for segment in segments)
+        return list(segments)
+
+    def hear(self, wav: Path) -> str:
+        return " ".join(segment.text.strip() for segment in self._transcribe(wav, False))
+
+    def hear_words(self, wav: Path) -> list[HeardWord]:
+        return [(word.word.strip(), float(word.start), float(word.end))
+                for segment in self._transcribe(wav, True) for word in segment.words or ()]

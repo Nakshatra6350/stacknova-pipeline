@@ -362,6 +362,39 @@ def test_a_mix_is_the_same_every_time_a_video_is_rendered() -> None:
     assert mix_styles(["slide"], 3, "any") == ["slide", "slide", "slide"]
 
 
+S02 = ("If anything fails, the client retries. Clean. But that picture hides a question: when "
+       "the client gets no response, what actually happened? There are three possibilities.")
+# Segment s02 of episode 001 as rendered on 14 October 2026: one silence after "retries." was
+# measured as three, and the pauses after it are where the clauses really end.
+S02_PAUSES = [(1.6, 1.83), (1.83, 1.98), (1.98, 2.15), (2.61, 2.95), (5.0, 5.44), (8.1, 8.4)]
+S02_SAID = {"If": 0.0, "Clean.": 2.2, "But": 3.07, "when": 5.53, "There": 8.47}
+
+
+def test_captions_start_as_their_first_word_is_said() -> None:
+    plain = " ".join(S02.split())
+    words = [(plain.index(word), start, start + 0.3) for word, start in S02_SAID.items()]
+    lines = captions(S02, 10.0, S02_PAUSES, words=words)
+    starts = {text.split()[0]: when for when, text in lines}
+    assert starts == {"If": 0.0, "Clean.": 2.2, "But": 3.07, "when": 5.53, "There": 8.47}
+    # Placed by the pauses alone, the split silence takes two clause ends too many, and the
+    # caption for "when the client gets no response" comes over a second before its words.
+    guessed = {text.split()[0]: when for when, text in captions(S02, 10.0, S02_PAUSES)}
+    assert guessed["when"] < 5.53 - 1.0
+
+
+def test_scenes_and_captions_take_the_word_times_from_timing_json() -> None:
+    visual = [scene([press("tapped Pay")]), scene([press("one key")], **{"from": "The fix"})]
+    record = entry(("short-1", 0.0, 6.0), duration=6.0)
+    record["segments"][0]["words"] = [[SCRIPT.index("So you"), 2.6, 2.8],
+                                      [SCRIPT.index("The fix"), 4.4, 4.6]]
+    plan = plan_video(short_episode(visual), "short-1", record, BRAND)
+    first, second = plan.clips
+    # The second scene starts as "The fix" is said, and its caption is on from its first frame.
+    assert first.frames == round(4.4 * 30)
+    assert first.chrome["captions"][1][0] == 2.6
+    assert second.chrome["captions"][0][0] == 0.0
+
+
 def test_captions_mark_the_emphasis_and_split_long_sentences() -> None:
     text = "The fix: send an idempotency key, one random ID per payment, reused on every retry."
     whole = captions(text, 8.0, [], emphasis=["idempotency key"])

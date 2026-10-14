@@ -69,6 +69,9 @@ class FakeListener:
         self.heard.append(wav.stem)
         return SAID[wav.stem]
 
+    def hear_words(self, wav: Path) -> list[tuple[str, float, float]]:
+        return []  # a finished segment is not one thing the fake voice said
+
 
 def _console(steps: list[dict[str, Any]]) -> dict[str, Any]:
     """A visual the console stage can draw: a phone, a server, a gateway and its charges."""

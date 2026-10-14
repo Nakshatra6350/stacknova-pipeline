@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from channel_os.captions.align import TimedWord, align, script_words
 from channel_os.reach.lint import STORY_PLACEHOLDER
 from channel_os.voice.chunking import chunk_text, sentences
 from channel_os.voice.lexicon import Lexicon
@@ -81,6 +82,22 @@ def select_units(episode: Mapping[str, Any], only: str) -> list[Unit]:
     if not units:
         raise ValueError(f"{only}: nothing to narrate yet, it is all story placeholders")
     return units
+
+
+def _when_said(text: str, wav: Path, listener: Listener, cache_dir: Path) -> list[TimedWord]:
+    """When each word of `text` is said in a finished segment.
+
+    What the listener heard is kept in the cache under the file's content, so a segment that
+    comes out the same (a Short cut from the long video, or a render run again) is not heard
+    twice.
+    """
+    digest = hashlib.sha256(wav.read_bytes() + listener.identity.encode()).hexdigest()[:24]
+    note = cache_dir / f"words-{digest}.json"
+    if not note.exists():
+        note.write_text(json.dumps(listener.hear_words(wav)), encoding="utf-8")
+    heard = [(str(word), float(start), float(end))
+             for word, start, end in json.loads(note.read_text(encoding="utf-8"))]
+    return align(text, heard)
 
 
 def _heard(wav: Path, listener: Listener) -> str:
@@ -241,7 +258,9 @@ def narrate(
     `lexicon` respells words the voice reads wrong. With a `listener`, every chunk is heard
     and read again until it says what the script says; each segment's record then tells how
     many chunks needed another reading (`retakes`) and what could not be confirmed (`unsure`),
-    and `report` is told about each as it happens.
+    and `report` is told about each as it happens. The finished segment is heard once more for
+    when each word is said (`words`: offset in the normalised text, start, end), which is what
+    captions and scene steps are timed from.
     """
     lexicon = lexicon or Lexicon()
     voice_dir = out_dir / "voice" / target_name
@@ -272,6 +291,11 @@ def narrate(
                         f"{unit.id}: {end - start:.1f} s of silence at {start:.1f} s; "
                         "the voice model stalled and the pause cap did not catch it"
                     )
+            words: list[TimedWord] = []
+            if listener is not None:
+                words = _when_said(unit.text, segment, listener, cache_dir)
+                report(f"{unit.id}: {len(words)} of {len(script_words(unit.text))} words "
+                       "timed for captions and scenes")
             segments.append(
                 {
                     "id": unit.id,
@@ -279,6 +303,7 @@ def narrate(
                     "start": round(cursor, 3),
                     "duration": round(duration, 3),
                     "pauses": [list(pause) for pause in pauses],
+                    "words": [list(word) for word in words],
                     "retakes": retakes,
                     "unsure": [{"meant": miss.meant, "heard": miss.heard} for miss in unsure],
                 }

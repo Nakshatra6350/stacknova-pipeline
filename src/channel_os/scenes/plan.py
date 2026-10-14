@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from itertools import accumulate, pairwise
 from typing import Any
 
+from channel_os.captions.align import TimedWord
 from channel_os.scenes.formats import FPS, frame_count
 from channel_os.scenes.phrases import anchors, normalise, time_at
 from channel_os.scenes.spec import SceneSpec, SpecError, build_scenes
@@ -79,6 +80,16 @@ def declared_theme(episode: Mapping[str, Any], target: str) -> str | None:
     return theme
 
 
+def _pauses(segment: Mapping[str, Any]) -> list[tuple[float, float]]:
+    return [(float(start), float(end)) for start, end in segment["pauses"]]
+
+
+def _words(segment: Mapping[str, Any]) -> list[TimedWord]:
+    """When each word of a segment is said, as the voice stage measured it (none: unmeasured)."""
+    return [(int(offset), float(start), float(end))
+            for offset, start, end in segment.get("words") or ()]
+
+
 def plan_clips(episode: Mapping[str, Any], target: str, entry: Mapping[str, Any],
                fps: int = FPS) -> list[Clip]:
     """The scene clips of a target, in order. `entry` is the target's record in timing.json."""
@@ -91,9 +102,9 @@ def plan_clips(episode: Mapping[str, Any], target: str, entry: Mapping[str, Any]
         if visuals.get(unit.id) is None:
             raise PlanError(f"{unit.id}: it has no visual to draw")
         segment = timed[unit.id]
-        pauses = [(float(start), float(end)) for start, end in segment["pauses"]]
         try:
-            scenes = build_scenes(visuals[unit.id], unit.text, segment["duration"], pauses)
+            scenes = build_scenes(visuals[unit.id], unit.text, segment["duration"],
+                                  _pauses(segment), _words(segment))
         except SpecError as exc:
             raise PlanError(f"{unit.id}: {exc}") from exc
         cuts.extend((segment["start"] + scene.start, unit.id, scene) for scene in scenes)
@@ -110,13 +121,15 @@ def plan_clips(episode: Mapping[str, Any], target: str, entry: Mapping[str, Any]
 
 
 def captions(text: str, duration: float, pauses: Sequence[tuple[float, float]],
-             emphasis: Sequence[str] = (), limit: int = CAPTION_CHARS) -> list[tuple[float, str]]:
+             emphasis: Sequence[str] = (), limit: int = CAPTION_CHARS,
+             words: Sequence[TimedWord] = ()) -> list[tuple[float, str]]:
     """The narration as caption lines: (when it starts being spoken, HTML with <b> emphasis).
 
-    A sentence longer than `limit` characters is split at its punctuation.
+    A sentence longer than `limit` characters is split at its punctuation. With `words`, the
+    narration's measured word times, a line starts as its first word is said.
     """
     plain = normalise(text)
-    points = anchors(text, duration, pauses)
+    points = anchors(text, duration, pauses, words)
     pieces: list[tuple[int, str]] = []
     for match in _SENTENCE.finditer(plain):
         start, sentence = match.start(), match.group()
@@ -129,9 +142,9 @@ def captions(text: str, duration: float, pauses: Sequence[tuple[float, float]],
             pieces.append((start, sentence[:cut]))
             start, sentence = start + cut, sentence[cut:]
         pieces.append((start, sentence))
-    words = sorted({word for word in emphasis if word}, key=len, reverse=True)
-    pattern = re.compile("|".join(re.escape(html.escape(word, quote=False)) for word in words),
-                         re.IGNORECASE) if words else None
+    marked = sorted({word for word in emphasis if word}, key=len, reverse=True)
+    pattern = re.compile("|".join(re.escape(html.escape(word, quote=False)) for word in marked),
+                         re.IGNORECASE) if marked else None
     lines: list[tuple[float, str]] = []
     for start, piece in pieces:
         shown = html.escape(piece.strip(), quote=False)
@@ -274,10 +287,9 @@ def plan_video(episode: Mapping[str, Any], target: str, entry: Mapping[str, Any]
             "instagram": handles.get("instagram", ""),
         }
         narrated = timed[clip.unit]
-        pauses = [(float(a), float(b)) for a, b in narrated["pauses"]]
-        lines = captions(spoken[clip.unit], narrated["duration"], pauses,
+        lines = captions(spoken[clip.unit], narrated["duration"], _pauses(narrated),
                          unit.get("emphasis") or (),
-                         CAPTION_CHARS if long_video else SHORT_CAPTION_CHARS)
+                         CAPTION_CHARS if long_video else SHORT_CAPTION_CHARS, _words(narrated))
         # Seconds into this scene. A caption carried over from the scene before keeps its real
         # start, which is before 0, so the page can tell it from one that begins here.
         local = [(round(when - clip.spec.start, 3) + 0.0, text) for when, text in lines

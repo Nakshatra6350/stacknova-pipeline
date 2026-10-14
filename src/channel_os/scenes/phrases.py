@@ -1,16 +1,20 @@
 """Map a phrase in the narration to a time (M2).
 
-Speech does not move through text at an even rate: the pauses sit at clause ends. Placing a
-phrase by its character position alone was up to 0.9 s early on the owner's narration. So the
-voice stage records each segment's pauses, and here clause ends in the text are matched to
-those pauses to make anchors; a phrase's time is interpolated between the anchors around it.
+A phrase's time is interpolated between anchors: points in the text whose time is known. The
+best anchors are the words themselves: the voice stage writes down when each word is said
+(captions/align.py), and with those a phrase lands on its first word.
 
-Word-level alignment (M3) can replace this module without changing its callers.
+A narration without word times (rendered with --no-listen, or before 14 October 2026) is
+anchored on its pauses instead. Speech does not move through text at an even rate: the pauses
+sit at clause ends, so clause ends in the text are matched to the measured pauses. That is an
+estimate, and it can slip by a clause, which put a run of captions three seconds early.
 """
 
 import re
 from collections.abc import Sequence
 from itertools import pairwise
+
+from channel_os.captions.align import TimedWord
 
 Anchor = tuple[int, float]  # (character offset in the normalised text, seconds)
 
@@ -29,9 +33,23 @@ def clause_ends(text: str) -> list[int]:
     return [match.end() for match in _CLAUSE_END.finditer(normalise(text))]
 
 
-def anchors(text: str, duration: float, pauses: Sequence[tuple[float, float]]) -> list[Anchor]:
-    """Known (offset, time) points: the two ends, plus clause ends matched to measured pauses."""
+def anchors(text: str, duration: float, pauses: Sequence[tuple[float, float]],
+            words: Sequence[TimedWord] = ()) -> list[Anchor]:
+    """Known (offset, time) points.
+
+    With word times, every timed word is an anchor at its start. Without them: the two ends,
+    plus clause ends matched to measured pauses.
+    """
     length = len(normalise(text))
+    if words:
+        timed: list[Anchor] = [] if words[0][0] == 0 else [(0, 0.0)]
+        for offset, start, _ in words:
+            if timed and (offset <= timed[-1][0] or start < timed[-1][1]):
+                continue
+            timed.append((offset, min(start, duration)))
+        if timed[-1][0] < length:
+            timed.append((length, max(duration, timed[-1][1])))
+        return timed
     result: list[Anchor] = [(0, 0.0)]
     ends = [end for end in clause_ends(text) if 0 < end < length]
     first_free = 0

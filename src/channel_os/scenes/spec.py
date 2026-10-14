@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from itertools import pairwise
 from typing import Any
 
+from channel_os.captions.align import TimedWord
 from channel_os.scenes import (
     cards_model,
     code_model,
@@ -133,14 +134,19 @@ def problems(visual: Any, text: str) -> list[str]:
 
 
 def build_scenes(
-    visual: Any, text: str, duration: float, pauses: Sequence[tuple[float, float]]
+    visual: Any, text: str, duration: float, pauses: Sequence[tuple[float, float]],
+    words: Sequence[TimedWord] = (),
 ) -> list[SceneSpec]:
-    """Scenes covering the whole narration unit, each with its steps at scene-local times."""
+    """Scenes covering the whole narration unit, each with its steps at scene-local times.
+
+    `words` are the narration's word times from timing.json; without them, phrases are placed
+    by the pauses.
+    """
     blocks = scene_blocks(visual)
     issues = problems(visual, text)
     if issues:
         raise SpecError("; ".join(issues))
-    anchor_list = anchors(text, duration, pauses)
+    anchor_list = anchors(text, duration, pauses, words)
     offsets = _offsets(blocks, text)
     starts = [0.0, *(time_at(start, anchor_list) for start, _ in offsets[1:])]
     ends = [*starts[1:], duration]

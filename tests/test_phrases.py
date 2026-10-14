@@ -68,6 +68,18 @@ def test_a_phrase_that_is_not_spoken_is_an_error() -> None:
         at("blockchain")
 
 
+def test_measured_word_times_are_used_when_there_are_some() -> None:
+    # Each word is placed where it was said, whatever the pauses suggest.
+    plain = " ".join(TEXT.split())
+    words = [(plain.index("Here's why"), 4.9, 5.2), (plain.index("When your"), 6.1, 6.3),
+             (plain.index("The fix"), 15.0, 15.3)]
+    points = anchors(TEXT, DURATION, PAUSES, words)
+    assert phrase_time("Here's why", TEXT, points) == 4.9
+    assert phrase_time("The fix", TEXT, points) == 15.0
+    # Before the first timed word, time runs from zero.
+    assert 0.0 < phrase_time("got an error", TEXT, points) < 4.9
+
+
 def test_leading_and_trailing_silence_are_not_clause_pauses() -> None:
     padded = [(0.0, 0.3), *PAUSES, (32.4, 32.66)]
     assert at("Here's why", pauses=padded) == pytest.approx(at("Here's why"))
