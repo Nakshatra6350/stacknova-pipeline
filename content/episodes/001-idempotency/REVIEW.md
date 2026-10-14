@@ -22,7 +22,8 @@ None left. One was found and fixed before the render:
   key can never replay another client's saved response; Stripe scopes keys per account. The
   fingerprint check limits the damage but does not remove it: the same body under a
   colliding key would replay someone else's answer. Add one sentence and the composite key.
-  Not done: it changes s06, which Short 2 is cut from, so it waits for the owner's word.
+  The owner's decision, 14 October 2026: leave episode 001 as it is, and do not make this
+  mistake again. Now a rule in CONTENT_RULES §3 and a blocker in the review-episode skill.
 - **s05 `client.go`**: `req, _ := http.NewRequest(...)` drops an error. It can only fail on a
   malformed method or URL, and the sample says so, but a viewer could copy the habit.
   Acceptable for a ten-line listing; the narration does not claim otherwise.

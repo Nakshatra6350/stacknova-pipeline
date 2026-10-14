@@ -17,6 +17,9 @@ check each one before setting `status: ready_to_render`; `reach/lint.py` enforce
 - Two-pass fact check: (1) write; (2) re-read as a sceptical senior engineer, list every factual claim in `fact_check[]` with a source URL or "derived from code sample N". Claims without either are removed.
 - No invented numbers (latencies, percentages, company stats). Use numbers only from a cited source or from a benchmark we ran.
 - Prefer "usually / in most setups" over absolute claims unless the spec guarantees it.
+- Designs and code are production-correct, not only correct in a demo: anything a client can
+  name (idempotency keys, cache keys, locks, rate limits, stored responses) is scoped by account
+  or tenant, so one client can never read or block another's. Say so on screen when it matters.
 
 ## 4. Episode shape (long form)
 1. **Hook** (≤ 15 s): failure, puzzle or stakes.

@@ -14,6 +14,11 @@ Act as two reviewers in turn and write findings to `content/episodes/<id>/REVIEW
   listed sample, explained line by line, in one language for the episode (Shorts need none).
   Fewer, or a listing that is only shown and not explained → blocker.
 - Oversimplifications that would mislead an interviewer or a production engineer.
+- Multi-tenant and security correctness of every design and listing: anything a client can
+  name (idempotency keys, cache keys, locks, rate limits, saved responses) is scoped by the
+  owner of the data (account, tenant, user), so one client can never reach another's. A
+  global key where production scopes it per account → blocker. (Missed in episode 001, whose
+  key table is global; the owner left that episode as it is on 14 October 2026.)
 - Anything copied or closely paraphrased from a book or the mastery track → blocker.
 
 ## Reviewer 2 — YouTube/Instagram growth editor
