@@ -28,6 +28,8 @@ say:
   DELETE: delete
   "409": four oh nine
 terms:
+  - Debezium
+  - PostgreSQL
   - idempotency
   - idempotent
   - Idempotency-Key

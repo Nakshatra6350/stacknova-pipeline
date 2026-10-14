@@ -1,0 +1,865 @@
+# Episode 002 — the dual-write problem and the outbox pattern. Written 14 October 2026 for the
+# launch on 19 October. Follows 001 (its outro names this episode) and leads into 003 (Kafka).
+id: 002-outbox-pattern
+version: 1
+status: draft            # draft | ready_to_render | rendering | rendered | published
+pillar: money-systems
+series: how-it-breaks
+language: en
+target_versions:
+  java: "25"
+  postgresql: "18"
+estimated_minutes: 9
+next:                           # shown on the outro of the long video
+  title: "Inside Kafka"
+  teaser: "Topics, partitions, consumer groups, and the exact moment duplicates are born."
+
+keywords:
+  primary: outbox pattern
+  secondary:
+    - transactional outbox
+    - dual write problem
+    - event driven architecture
+    - microservices patterns
+    - change data capture
+
+packaging:
+  titles:                       # ≤ 60 chars; top 2 go to YouTube A/B test
+    - "Outbox Pattern: Why Your Events Go Missing"
+    - "Outbox Pattern Explained: Never Lose an Event Again"
+    - "Outbox Pattern: The Fix for the Dual-Write Bug"
+    - "Outbox Pattern in Java, Line by Line"
+    - "Transactional Outbox Pattern, Animated"
+  thumbnail_texts:              # 2–4 words, must not repeat the title
+    - "EVENT LOST?"
+    - "2 WRITES = 1 BUG"
+    - "ONE TABLE FIXES IT"
+  description: |
+    Your customer paid, the database says paid, and the confirmation never went out. Saving and
+    publishing are two writes, and no order of two writes survives a crash between them. Here's
+    the transactional outbox pattern, line by line in Java: one transaction, a relay with
+    SKIP LOCKED, and idempotent consumers.
+
+    {chapters}
+
+    Previous: why your payment got charged twice (idempotency) — {previous_link}
+    Next: inside Kafka — {next_link}
+
+    Sources:
+    {sources}
+  tags:
+    - outbox pattern
+    - transactional outbox
+    - dual write problem
+    - event driven architecture
+    - microservices
+    - kafka
+    - debezium
+    - change data capture
+    - postgresql
+    - java
+    - distributed systems
+    - system design interview
+    - backend engineering
+  pinned_comment: "Have you ever lost an event between your database and your queue? How did you find out? 👇"
+
+segments:
+  - id: s01
+    title: The order nobody heard about
+    narration: >-
+      Your customer paid. The payment row says paid. But the receipt email never went out, the
+      warehouse never packed the order, and the ledger shows nothing. Your code did two things:
+      save the payment, then publish an event. The first worked. The second never happened. No
+      error reached the customer, and no alert fired. In the next few minutes: why two writes
+      can't be made safe by being careful. The one table that fixes it. And why the fix brings
+      back last episode's idea.
+    emphasis: [two things, never happened, one table]
+    visual:
+      layout: console
+      phone:
+        title: Checkout
+        total: "$100.00"
+        method: "Visa •••• 4242"
+        items: [["Headphones", "$89.00"], ["Shipping", "$11.00"]]
+      systems:
+        - {id: api, name: "Payments service", sub: "POST /v1/payments", idle: "listening on :8080"}
+        - {id: db, name: "PostgreSQL", sub: "payments", idle: "waiting"}
+        - {id: broker, name: "Message broker", sub: "payments.paid", idle: "no messages"}
+      panels:
+        - {id: payments, kind: table, title: payments, columns: [id, status], unique: id, lane: db}
+        - {id: heard, kind: list, title: "who heard about it", unit: listeners, empty: "Nobody has heard yet.", lane: broker}
+      steps:
+        - {at: "Your customer paid", action: tap, target: phone}
+        - at: "Your customer paid"
+          action: send
+          target: "phone->api"
+          params:
+            delay: 0.1
+            label: "POST /payments"
+            wire:
+              title: "Pay"
+              method: POST
+              path: /v1/payments
+              headers: {Content-Type: application/json}
+              hi: []
+              body: {amount: 100, currency: USD, source: card_visa_4242}
+        - {at: "The payment row says paid", action: send, target: "api->db", params: {label: "UPDATE paid"}}
+        - {at: "The payment row says paid", action: row, target: payments, params: {delay: 0.5, key: "pay_A19", cells: [paid], status: ok}}
+        - {at: "The payment row says paid", action: log, target: db, params: {delay: 0.5, text: "UPDATE pay_A19 → paid"}}
+        - {at: "The payment row says paid", action: screen, target: phone, params: {delay: 0.8, state: success, text: "$100.00 · receipt #A19", attempt: "paid"}}
+        - {at: "receipt email never went out", action: item, target: heard, params: {text: "email service", value: "no receipt", status: bad}}
+        - {at: "warehouse never packed", action: item, target: heard, params: {text: "warehouse", value: "not packed", status: bad}}
+        - {at: "the ledger shows nothing", action: item, target: heard, params: {text: "ledger", value: "no entry", status: bad}}
+        - {at: "save the payment", action: highlight, target: db}
+        - {at: "then publish an event", action: send, target: "api->broker", params: {label: "payments.paid", lost: 0.6}}
+        - {at: "The first worked", action: highlight, target: payments}
+        - {at: "The second never happened", action: log, target: broker, params: {text: "nothing arrived"}}
+        - {at: "The second never happened", action: stamp, target: heard, params: {delay: 0.2, text: "NOBODY TOLD", status: bad}}
+        - {at: "No error reached", action: note, target: wire, params: {text: "No error for the customer. No alert for you.", status: bad}}
+        - {at: "why two writes", action: note, target: wire, params: {text: "Two writes: the database, then the broker."}}
+        - {at: "The one table", action: highlight, target: db}
+        - {at: "last episode's idea", action: highlight, target: api}
+
+  - id: s02
+    title: Save, then publish
+    narration: >-
+      Here's how most of us write it. Update the payment in the database and commit. Then publish
+      an event to the message broker, so the email service, the warehouse and the ledger can react.
+      It works in every test. Here it is in Java. The try block opens a connection and runs the
+      update. Auto-commit is on, so the row is saved the moment the update runs. Then, on its own
+      line, outside any transaction, the publish. Between those two lines, anything can happen. A
+      deploy can restart the process. The broker can be down for a minute. The network can drop
+      the message. Each time, the database says paid, and nobody else ever hears about it.
+    emphasis: [two lines, nobody else]
+    visual:
+      # Scene 1: the code path most of us carry in our heads.
+      - layout: sequence
+        header: ["SAVE, THEN PUBLISH", "TWO WRITES"]
+        actors:
+          - {id: svc, label: "payments service", kind: service}
+          - {id: db, label: "PostgreSQL", kind: store}
+          - {id: broker, label: "message broker", kind: service}
+        steps:
+          - {at: "Update the payment", action: message, target: "svc->db", params: {text: "UPDATE paid"}}
+          - {at: "and commit", action: message, target: "db->svc", params: {text: "committed", role: reply, status: ok}}
+          - {at: "Then publish", action: message, target: "svc->broker", params: {text: "payments.paid"}}
+          - {at: "can react", action: message, target: "broker->svc", params: {text: "ack", role: reply, status: ok}}
+          - {at: "works in every test", action: badge, target: svc, params: {text: "WORKS IN TESTS", status: ok}}
+      # Scene 2: the same thing in Java, line by line.
+      - layout: code
+        from: "Here it is in Java"
+        header: ["IN CODE", "SAVE, THEN PUBLISH"]
+        title: NaivePayments.java
+        language: java
+        reveal: true
+        lines:
+          - "public void markPaid(long id) throws Exception {"
+          - "  try (var conn = db.getConnection();"
+          - "       var update = conn.prepareStatement("
+          - "         \"UPDATE payments SET status='paid' WHERE id=?\")) {"
+          - "    update.setLong(1, id);"
+          - "    update.executeUpdate(); // committed"
+          - "  }"
+          - "  broker.publish(\"payments.paid\", id, paidEvent(id));"
+          - "}"
+        steps:
+          - {at: "Here it is in Java", action: show, target: "1"}
+          - {at: "opens a connection and runs the update", action: show, target: "2-7"}
+          - {at: "opens a connection and runs the update", action: highlight, target: "2-6"}
+          - {at: "Auto-commit is on", action: highlight, target: "6"}
+          - {at: "saved the moment", action: note, target: "6", params: {text: "auto-commit: saved right here", status: info}}
+          - {at: "on its own", action: show, target: "8-9"}
+          - {at: "on its own", action: highlight, target: "8"}
+          - {at: "outside any transaction", action: note, target: "8", params: {text: "a second write, tied to nothing", status: bad}}
+      # Scene 3: what can happen between the two lines.
+      - layout: sequence
+        from: "Between those two lines"
+        header: ["BETWEEN TWO LINES", "ANYTHING CAN HAPPEN"]
+        actors:
+          - {id: svc, label: "payments service", kind: service}
+          - {id: db, label: "PostgreSQL", kind: store}
+          - {id: broker, label: "message broker", kind: service}
+        steps:
+          - {at: "Between those two lines", action: message, target: "svc->db", params: {text: "UPDATE paid"}}
+          - {at: "Between those two lines", action: message, target: "db->svc", params: {text: "committed", role: reply, status: ok}}
+          - {at: "A deploy can restart", action: divider, target: all, params: {text: "deploy: the process restarts"}}
+          - {at: "The broker can be down", action: note, target: broker, params: {text: "down for a minute", status: bad}}
+          - {at: "drop the message", action: message, target: "svc->broker", params: {text: "payments.paid ✕", role: error, status: bad}}
+          - {at: "the database says paid", action: badge, target: db, params: {text: "PAID", status: ok}}
+          - {at: "nobody else ever hears", action: badge, target: broker, params: {text: "NEVER SENT", status: bad}}
+
+  - id: s03
+    title: Flip it? Wrap it?
+    narration: >-
+      Saving and publishing are two writes. Can you make them safe by flipping the order? Publish
+      first, then save. Now a crash after the publish sends an event for a payment that was never
+      saved. The email goes out for money that never arrived. Put the publish inside the database
+      transaction, before the commit? The broker has the message the moment you send it, even if
+      the commit then fails. And your transaction can't reach the broker: it covers the database,
+      not Kafka. No order of two writes survives a crash between them.
+    emphasis: [two writes, never saved, No order]
+    visual:
+      layout: cards
+      header: ["TWO WRITES", "ANY ORDER FAILS"]
+      cards:
+        - id: first
+          title: "save, then publish"
+          lines: [{id: v, key: "if it crashes", value: "?"}]
+        - id: flip
+          title: "publish, then save"
+          hidden: true
+          lines: [{id: v, key: "if it crashes", value: "?"}]
+        - id: inside
+          title: "publish, then commit"
+          hidden: true
+          lines: [{id: v, key: "if commit fails", value: "?"}]
+      steps:
+        - {at: "Saving and publishing are two writes", action: set, target: first.v, params: {value: "event lost", status: bad}}
+        - {at: "Saving and publishing are two writes", action: mark, target: first, params: {status: bad}}
+        - {at: "flipping the order", action: show, target: flip}
+        - {at: "a crash after the publish", action: set, target: flip.v, params: {value: "event, no payment", status: bad}}
+        - {at: "never saved", action: mark, target: flip, params: {status: bad}}
+        - {at: "inside the database transaction", action: show, target: inside}
+        - {at: "even if the commit then fails", action: set, target: inside.v, params: {value: "event, no payment", status: bad}}
+        - {at: "can't reach the broker", action: mark, target: inside, params: {status: bad}}
+        - {at: "No order of two writes", action: focus, target: all}
+
+  - id: s04
+    title: One write, not two
+    narration: >-
+      The fix is to stop writing twice. Write once, to the database. In the same transaction that
+      marks the payment paid, insert a row into a second table: the outbox. That row is the event:
+      its topic, the payment it belongs to, and the message to send. One transaction, so the
+      database keeps its usual promise: both rows commit, or neither does. Here it is in Java.
+      Turn auto-commit off, so nothing is saved until we say so. Mark the payment paid. Add the
+      event to the outbox. Commit. If anything fails, roll back, and neither row exists. The
+      event can't be lost now, and it can't exist without its payment.
+    emphasis: [the outbox, both rows commit, neither]
+    visual:
+      # Scene 1: one transaction, two rows.
+      - layout: console
+        systems:
+          - {id: api, name: "Payments service", sub: "markPaid(pay_A19)", idle: "ready"}
+          - {id: db, name: "PostgreSQL", sub: "one transaction", idle: "waiting"}
+        panels:
+          - {id: payments, kind: table, title: payments, columns: [id, status], unique: id, lane: db}
+          - {id: outbox, kind: table, title: outbox, columns: [id, topic, payment], unique: id, lane: api}
+        steps:
+          - {at: "stop writing twice", action: note, target: wire, params: {text: "One write, not two."}}
+          - {at: "Write once, to the database", action: send, target: "api->db", params: {label: "BEGIN"}}
+          - {at: "Write once, to the database", action: log, target: db, params: {delay: 0.5, text: "BEGIN"}}
+          - {at: "marks the payment paid", action: send, target: "api->db", params: {label: "UPDATE payments"}}
+          - {at: "marks the payment paid", action: row, target: payments, params: {delay: 0.5, key: "pay_A19", cells: [paid], status: info}}
+          - {at: "insert a row into a second table", action: send, target: "api->db", params: {label: "INSERT INTO outbox"}}
+          - {at: "insert a row into a second table", action: row, target: outbox, params: {delay: 0.5, key: "1", cells: [payments.paid, pay_A19], status: info}}
+          - {at: "the outbox", action: highlight, target: outbox}
+          - {at: "That row is the event", action: note, target: wire, params: {text: "The event, as a row: topic, payment, message."}}
+          - {at: "One transaction", action: send, target: "api->db", params: {label: "COMMIT"}}
+          - {at: "both rows commit", action: row, target: payments, params: {key: "pay_A19", cells: [paid], status: ok}}
+          - {at: "both rows commit", action: row, target: outbox, params: {key: "1", cells: [payments.paid, pay_A19], status: ok}}
+          - {at: "both rows commit", action: log, target: db, params: {text: "COMMIT → 2 rows"}}
+          - {at: "or neither does", action: note, target: wire, params: {text: "A crash before COMMIT: neither row exists.", status: ok}}
+      # Scene 2: the transaction in Java.
+      - layout: code
+        from: "Here it is in Java"
+        header: ["IN CODE", "ONE TRANSACTION"]
+        title: OutboxPayments.java
+        language: java
+        reveal: true
+        lines:
+          - "conn.setAutoCommit(false); // one transaction"
+          - "try {"
+          - "  setPaid(conn, id);                   // UPDATE payments"
+          - "  addEvent(conn, \"payments.paid\", id); // INSERT INTO outbox"
+          - "  conn.commit();                       // both, or neither"
+          - "} catch (SQLException e) {"
+          - "  conn.rollback();                     // or none"
+          - "  throw e;"
+          - "}"
+        steps:
+          - {at: "Here it is in Java", action: show, target: "1"}
+          - {at: "Turn auto-commit off", action: highlight, target: "1"}
+          - {at: "nothing is saved until we say so", action: note, target: "1", params: {text: "nothing is saved before commit", status: info}}
+          - {at: "Mark the payment paid", action: show, target: "2-3"}
+          - {at: "Mark the payment paid", action: highlight, target: "3"}
+          - {at: "Add the event to the outbox", action: show, target: "4"}
+          - {at: "Add the event to the outbox", action: highlight, target: "4"}
+          - {at: "Commit. If anything", action: show, target: "5"}
+          - {at: "Commit. If anything", action: highlight, target: "5"}
+          - {at: "roll back", action: show, target: "6-9"}
+          - {at: "roll back", action: highlight, target: "6-8"}
+          - {at: "neither row exists", action: note, target: "7", params: {text: "rolled back: no payment change, no event", status: ok}}
+          - {at: "without its payment", action: focus, target: all}
+
+  - id: s05
+    title: The relay
+    narration: >-
+      Something still has to deliver what's in the outbox. That's the relay: a small loop, often a
+      background thread in the same service. It asks the database for the oldest events not yet
+      published. Here's the query. It takes up to a hundred rows that have no published time yet,
+      oldest first. And it locks them with SKIP LOCKED: if another relay already holds a row, this
+      one skips it instead of waiting. So you can run several relays, and no two pick the same
+      row. Then, for each row, the relay publishes the message and marks the row as published. It
+      commits once, at the end. If it crashes before that commit, the whole batch is still
+      unpublished, and the next run sends it again.
+    emphasis: [the relay, SKIP LOCKED, sends it again]
+    visual:
+      # Scene 1: what the relay does.
+      - layout: console
+        systems:
+          - {id: relay, name: "Relay", sub: "a loop in the service", idle: "waiting for work"}
+          - {id: db, name: "PostgreSQL", sub: "outbox", idle: "waiting"}
+          - {id: broker, name: "Message broker", sub: "payments.paid", idle: "no messages"}
+        panels:
+          - {id: outbox, kind: table, title: outbox, columns: [id, topic, published], unique: id, lane: db}
+          - {id: sent, kind: list, title: "broker · messages", unit: messages, empty: "Nothing sent yet.", lane: broker}
+        steps:
+          - {at: "Something still has to deliver", action: row, target: outbox, params: {key: "1", cells: [payments.paid, "no"], status: info}}
+          - {at: "Something still has to deliver", action: row, target: outbox, params: {delay: 0.4, key: "2", cells: [payments.paid, "no"], status: info}}
+          - {at: "That's the relay", action: highlight, target: relay}
+          - {at: "a small loop", action: log, target: relay, params: {text: "loop: one batch at a time"}}
+          - {at: "asks the database", action: send, target: "relay->db", params: {label: "SELECT … SKIP LOCKED"}}
+          - {at: "not yet", action: log, target: db, params: {text: "2 rows, locked for this relay"}}
+          - {at: "not yet", action: highlight, target: outbox}
+      # Scene 2: the query.
+      - layout: code
+        from: "Here's the query"
+        header: ["IN CODE", "PICK A BATCH"]
+        title: OutboxRelay.java · PICK
+        language: sql
+        reveal: true
+        lines:
+          - "SELECT id, topic, payment_id, payload FROM outbox"
+          - "WHERE published_at IS NULL"
+          - "ORDER BY id LIMIT 100"
+          - "FOR UPDATE SKIP LOCKED"
+        steps:
+          - {at: "Here's the query", action: show, target: "1-4"}
+          - {at: "up to a hundred rows", action: highlight, target: "3"}
+          - {at: "no published time yet", action: highlight, target: "2"}
+          - {at: "oldest first", action: highlight, target: "3"}
+          - {at: "locks them with SKIP LOCKED", action: highlight, target: "4"}
+          - {at: "skips it instead of waiting", action: note, target: "4", params: {text: "rows another relay holds are skipped", status: info}}
+          - {at: "no two pick the same", action: note, target: "4", params: {text: "several relays, never the same row", status: ok}}
+      # Scene 3: publish, mark, commit.
+      - layout: code
+        from: "Then, for each row"
+        header: ["IN CODE", "PUBLISH, MARK, COMMIT"]
+        title: OutboxRelay.java
+        language: java
+        reveal: true
+        lines:
+          - "while (rows.next()) {"
+          - "  broker.publish(rows.getString(\"topic\"),"
+          - "                 rows.getLong(\"payment_id\"),"
+          - "                 rows.getString(\"payload\"));"
+          - "  done.setLong(1, rows.getLong(\"id\"));"
+          - "  done.executeUpdate();      // published_at = now()"
+          - "}"
+          - "conn.commit();               // all marked, together"
+        steps:
+          - {at: "Then, for each row", action: show, target: "1-4"}
+          - {at: "publishes the message", action: highlight, target: "2-4"}
+          - {at: "marks the row as published", action: show, target: "5-7"}
+          - {at: "marks the row as published", action: highlight, target: "5-6"}
+          - {at: "commits once", action: show, target: "8"}
+          - {at: "commits once", action: highlight, target: "8"}
+          - {at: "If it crashes before that commit", action: note, target: "8", params: {text: "crash before here: the batch goes out again", status: bad}}
+          - {at: "sends it again", action: highlight, target: "2-4"}
+
+  - id: s06
+    title: The catch
+    narration: >-
+      And that's the catch. The relay published a message, then crashed before it could mark the
+      row. On restart, it sends the same event again. The outbox gives you at-least-once delivery,
+      not exactly-once. Sound familiar? It's last episode's lesson from the other side: the
+      consumer must be idempotent. Here's the ledger service in Java. Before it does anything, it
+      inserts two things into a table of processed events: its own name, and the event's id. The
+      primary key is that pair, not the event id alone, so the email service keeps a record of its
+      own and handles each event once too. If the pair is already there, zero rows change. It's a duplicate,
+      so roll back and do nothing. Otherwise, write the ledger entry, and commit both together.
+      The event takes effect once, however often it arrives.
+    emphasis: [at-least-once, idempotent, takes effect once]
+    visual:
+      # Scene 1: published, crashed, published again.
+      - layout: sequence
+        header: ["THE CATCH", "AT LEAST ONCE"]
+        actors:
+          - {id: relay, label: "relay", kind: service}
+          - {id: outbox, label: "outbox", kind: store}
+          - {id: ledger, label: "ledger service", kind: service}
+        steps:
+          - {at: "The relay published a message", action: message, target: "relay->ledger", params: {text: "event e7"}}
+          - {at: "crashed before it could mark", action: note, target: relay, params: {text: "crash: row 7 not marked", status: bad}}
+          - {at: "On restart", action: divider, target: all, params: {text: "restart"}}
+          - {at: "sends the same event again", action: message, target: "outbox->relay", params: {text: "row 7: not published", role: reply}}
+          - {at: "sends the same event again", action: message, target: "relay->ledger", params: {text: "event e7 (again)", role: retry}}
+          - {at: "at-least-once delivery", action: note, target: ledger, params: {text: "e7 arrived twice", status: bad}}
+          - {at: "the consumer must be idempotent", action: badge, target: ledger, params: {text: "MUST BE IDEMPOTENT", status: info}}
+      # Scene 2: the idempotent consumer in Java.
+      - layout: code
+        from: "Here's the ledger service"
+        header: ["IN CODE", "AN IDEMPOTENT CONSUMER"]
+        title: LedgerConsumer.java
+        language: java
+        reveal: true
+        lines:
+          - "seen.setString(1, \"ledger\");          // this consumer"
+          - "seen.setObject(2, event.id());        // this event"
+          - "if (seen.executeUpdate() == 0) {      // seen before"
+          - "  conn.rollback();                    // a duplicate:"
+          - "  return;                             // do nothing"
+          - "}"
+          - "addLedgerEntry(conn, event);          // the effect"
+          - "conn.commit();                        // both, or neither"
+        steps:
+          - {at: "Here's the ledger service", action: show, target: "1-2"}
+          - {at: "its own name", action: highlight, target: "1"}
+          - {at: "the event's id", action: highlight, target: "2"}
+          - {at: "The primary key is that pair", action: note, target: "2", params: {text: "PRIMARY KEY (consumer, event_id)", status: info}}
+          - {at: "zero rows change", action: show, target: "3-6"}
+          - {at: "zero rows change", action: highlight, target: "3"}
+          - {at: "roll back and do nothing", action: highlight, target: "4-5"}
+          - {at: "write the ledger entry", action: show, target: "7-8"}
+          - {at: "write the ledger entry", action: highlight, target: "7-8"}
+          - {at: "however often it arrives", action: note, target: "8", params: {text: "applied once per consumer", status: ok}}
+
+  - id: s07
+    title: Order
+    narration: >-
+      Events have an order, too. A payment is created, then paid, then refunded, and every consumer
+      must see it in that order. The outbox already has an order: its id. Publish in that order,
+      and send each event with the payment's id as its message key. Kafka keeps messages with the
+      same key in one partition, in the order they were written. So one payment's events stay in
+      sequence, while different payments flow in parallel. More on partitions next episode.
+    emphasis: [message key, one partition, in sequence]
+    visual:
+      layout: cards
+      header: ["ORDER", "PAY_A19: ONE SEQUENCE"]
+      cards:
+        - id: created
+          title: "1 · created"
+          lines: [{id: k, key: "message key", value: "?"}]
+        - id: paid
+          title: "2 · paid"
+          hidden: true
+          lines: [{id: k, key: "message key", value: "?"}]
+        - id: refunded
+          title: "3 · refunded"
+          hidden: true
+          lines: [{id: k, key: "message key", value: "?"}]
+      steps:
+        - {at: "Events have an order", action: highlight, target: created}
+        - {at: "then paid", action: show, target: paid}
+        - {at: "then refunded", action: show, target: refunded}
+        - {at: "in that order", action: highlight, target: refunded}
+        - {at: "its id", action: focus, target: all}
+        - {at: "as its message key", action: set, target: created.k, params: {value: pay_A19, status: info}}
+        - {at: "as its message key", action: set, target: paid.k, params: {value: pay_A19, status: info}}
+        - {at: "as its message key", action: set, target: refunded.k, params: {value: pay_A19, status: info}}
+        - {at: "stay in sequence", action: mark, target: created, params: {status: ok}}
+        - {at: "stay in sequence", action: mark, target: paid, params: {status: ok}}
+        - {at: "stay in sequence", action: mark, target: refunded, params: {status: ok}}
+        - {at: "flow in parallel", action: highlight, target: paid}
+
+  - id: s08
+    title: Reading the log
+    narration: >-
+      There's a second way to empty an outbox table: read the database's own log. PostgreSQL writes
+      every change to its write-ahead log before it touches the table, so it can recover from a
+      crash. Change data capture tools, like Debezium, read that log and turn each new outbox row
+      into a message. No polling queries, and less delay. Debezium even ships an outbox router built
+      for exactly this table. The trade-off is one more system to run and watch. Start with
+      polling, and move to the log when the outbox gets busy.
+    emphasis: [write-ahead log, Debezium, one more system]
+    visual:
+      layout: console
+      systems:
+        - {id: db, name: "PostgreSQL", sub: "write-ahead log", idle: "writing"}
+        - {id: cdc, name: "Debezium", sub: "change data capture", idle: "waiting"}
+        - {id: broker, name: "Message broker", sub: "payments.paid", idle: "no messages"}
+      panels:
+        - {id: wal, kind: list, title: "write-ahead log", unit: records, empty: "No changes yet.", lane: db}
+        - {id: sent, kind: list, title: "broker · messages", unit: messages, empty: "Nothing sent yet.", lane: broker}
+      steps:
+        - {at: "read the database's own log", action: highlight, target: db}
+        - {at: "writes every change", action: item, target: wal, params: {text: "UPDATE payments pay_A19", value: "paid"}}
+        - {at: "writes every change", action: item, target: wal, params: {delay: 0.4, text: "INSERT outbox 1", value: "payments.paid"}}
+        - {at: "before it touches the table", action: log, target: db, params: {text: "log first, table second"}}
+        - {at: "recover from a crash", action: note, target: wire, params: {text: "The log exists for crash recovery and replication."}}
+        - {at: "Change data capture tools", action: highlight, target: cdc}
+        - {at: "read that log", action: send, target: "db->cdc", params: {label: "WAL: INSERT outbox 1"}}
+        - {at: "into a message", action: send, target: "cdc->broker", params: {label: "payments.paid · pay_A19"}}
+        - {at: "into a message", action: item, target: sent, params: {delay: 0.6, text: "payments.paid", value: "pay_A19", status: ok}}
+        - {at: "No polling queries", action: note, target: wire, params: {text: "No polling queries. Less delay.", status: ok}}
+        - {at: "outbox router", action: log, target: cdc, params: {text: "outbox event router"}}
+        - {at: "one more system", action: highlight, target: cdc}
+        - {at: "one more system", action: note, target: wire, params: {text: "One more system to run and to watch.", status: bad}}
+        - {at: "Start with", action: note, target: wire, params: {text: "Poll first. Read the log when the outbox gets busy.", status: info}}
+
+  - id: s09
+    title: From production
+    narration: >-
+      This isn't only a textbook problem. In 2019, Netflix engineers wrote publicly about keeping
+      many data stores in sync. They had looked at dual writes, at log tables like this outbox, and
+      at distributed transactions, and found limits in each. So they built a platform called
+      Delta. It reads changes from each database's transaction log, sends them through Kafka, and
+      lets other services enrich and store them. They also wrote that, in extreme cases, events can
+      still be lost, so they trace messages to catch it. Even at that scale, the shape is the same:
+      a write you can trust, and delivery you can check.
+    emphasis: [Netflix, Delta, delivery you can check]
+    visual:
+      layout: cards
+      header: ["FROM PRODUCTION", "NETFLIX, 2019"]
+      title: "keeping many data stores in sync"
+      cards:
+        - id: dual
+          title: "dual writes"
+          lines: [{id: v, key: verdict, value: "?"}]
+        - id: logt
+          title: "log tables"
+          lines: [{id: v, key: verdict, value: "?"}]
+        - id: dist
+          title: "distributed transactions"
+          lines: [{id: v, key: verdict, value: "?"}]
+        - id: delta
+          title: "Delta"
+          hidden: true
+          lines: [{id: v, key: reads, value: "?"}]
+      steps:
+        - {at: "Netflix engineers", action: focus, target: all}
+        - {at: "dual writes", action: highlight, target: dual}
+        - {at: "at log tables", action: highlight, target: logt}
+        - {at: "distributed transactions", action: highlight, target: dist}
+        - {at: "found limits in each", action: set, target: dual.v, params: {value: limits, status: bad}}
+        - {at: "found limits in each", action: set, target: logt.v, params: {value: limits, status: bad}}
+        - {at: "found limits in each", action: set, target: dist.v, params: {value: limits, status: bad}}
+        - {at: "a platform called", action: show, target: delta}
+        - {at: "transaction log", action: set, target: delta.v, params: {value: "the transaction log", status: info}}
+        - {at: "sends them through Kafka", action: mark, target: delta, params: {status: ok}}
+        - {at: "still be lost", action: badge, target: delta, params: {text: "TRACE EVERY MESSAGE", status: info}}
+        - {at: "a write you can trust", action: highlight, target: delta}
+
+  - id: s10
+    title: The trade-offs
+    narration: >-
+      What does it cost? The outbox grows with every event, so delete published rows, or partition
+      the table by day and drop old days. Dropping a partition removes a whole day at once, instead
+      of deleting rows one by one. The relay adds delay: up to one polling interval, plus
+      the time to publish. Alert on the age of the oldest unpublished row. Every business
+      transaction writes one more row. And every consumer must be idempotent, always. Skip the
+      outbox when nobody downstream needs to hear about a change.
+    emphasis: [oldest unpublished row, idempotent]
+    visual:
+      layout: cards
+      header: ["THE TRADE-OFFS", "WHAT IT COSTS"]
+      title: "the outbox isn't free"
+      cards:
+        - id: growth
+          title: "table growth"
+          text: "one row per event"
+          hidden: true
+          lines: [{id: v, key: "clean up", value: "?"}]
+        - id: delay
+          title: "delay"
+          text: "the relay polls"
+          hidden: true
+          lines: [{id: v, key: "watch", value: "?"}]
+        - id: write
+          title: "one more write"
+          text: "in every transaction"
+          hidden: true
+          lines: [{id: v, key: "per change", value: "+1 row"}]
+        - id: consumers
+          title: "consumers"
+          text: "duplicates arrive"
+          hidden: true
+          lines: [{id: v, key: "must be", value: "?"}]
+      steps:
+        - {at: "grows with every event", action: show, target: growth}
+        - {at: "delete published rows", action: set, target: growth.v, params: {value: "delete sent rows", status: info}}
+        - {at: "drop old days", action: set, target: growth.v, params: {value: "drop old days", status: ok}}
+        - {at: "The relay adds delay", action: show, target: delay}
+        - {at: "Alert on the age", action: set, target: delay.v, params: {value: "oldest unsent row", status: info}}
+        - {at: "writes one more row", action: show, target: write}
+        - {at: "every consumer must be idempotent", action: show, target: consumers}
+        - {at: "every consumer must be idempotent", action: set, target: consumers.v, params: {value: idempotent, status: ok}}
+        - {at: "Skip the outbox", action: focus, target: all}
+
+  - id: s11
+    title: Recap and next
+    narration: >-
+      Recap. Saving and publishing are two writes, and no order of two writes survives a crash
+      between them. So write once: put the event in an outbox table, in the same transaction as
+      the change. A relay publishes it, at least once. And every consumer is idempotent, with its
+      own record of the events it has handled. Next episode: where do those events go? Inside
+      Kafka: topics, partitions, consumer groups, and the exact moment duplicates are born. See
+      you there.
+    emphasis: [write once, at least once, Inside Kafka]
+    visual:
+      # Scene 1: the whole pattern in four moves.
+      - layout: cards
+        header: ["RECAP", "THE OUTBOX IN FOUR MOVES"]
+        cards:
+          - {id: two, title: "two writes", text: "always break somewhere"}
+          - {id: once, title: "one transaction", text: "change + outbox row", hidden: true}
+          - {id: relay, title: "a relay", text: "publishes at least once", hidden: true}
+          - {id: idem, title: "idempotent consumers", text: "each keeps its own record", hidden: true}
+        steps:
+          - {at: "two writes", action: mark, target: two, params: {status: bad}}
+          - {at: "write once", action: show, target: once}
+          - {at: "in the same transaction", action: mark, target: once, params: {status: ok}}
+          - {at: "A relay publishes it", action: show, target: relay}
+          - {at: "at least once", action: mark, target: relay, params: {status: ok}}
+          - {at: "every consumer is idempotent", action: show, target: idem}
+          - {at: "its own record", action: mark, target: idem, params: {status: ok}}
+      # Scene 2: what the next episode is about.
+      - layout: cards
+        from: "Next episode"
+        header: ["NEXT EPISODE", "003"]
+        cards:
+          - {id: topics, title: "topics", text: "where events go"}
+          - {id: partitions, title: "partitions", text: "where order lives"}
+          - {id: groups, title: "consumer groups", text: "who reads what"}
+          - {id: next, title: "Inside Kafka", text: "next episode", hidden: true}
+        steps:
+          - {at: "where do those events go", action: highlight, target: topics}
+          - {at: "partitions", action: highlight, target: partitions}
+          - {at: "consumer groups", action: highlight, target: groups}
+          - {at: "duplicates are born", action: show, target: next}
+          - {at: "duplicates are born", action: mark, target: next, params: {status: ok}}
+          - {at: "See you there", action: highlight, target: next}
+
+shorts:
+  - id: short-1
+    source: standalone
+    hook_on_screen: "Your order saved. Your event vanished."
+    script: >-
+      Your customer paid, the database says paid, and the confirmation email never went out.
+      Here's why. Your code made two writes: update the database, then publish an event. The
+      process restarted between them, and the event was lost. Flipping the order just loses it the
+      other way. The fix is the outbox pattern: write the event as a row, in the same transaction
+      as the payment. Both commit, or neither. A relay publishes the row afterwards. One write you
+      can trust.
+    visual:
+      # Scene 1: two writes, and the second one never happens.
+      - layout: console
+        phone:
+          title: Checkout
+          total: "$100.00"
+          method: "Visa •••• 4242"
+          items: [["Headphones", "$89.00"], ["Shipping", "$11.00"]]
+        systems:
+          - {id: api, name: "Payments service", sub: "POST /v1/payments", idle: "listening on :8080"}
+          - {id: db, name: "PostgreSQL", sub: "payments", idle: "waiting"}
+          - {id: broker, name: "Message broker", sub: "payments.paid", idle: "no messages"}
+        panels:
+          - {id: payments, kind: table, title: payments, columns: [id, status], unique: id, lane: db}
+          - {id: heard, kind: list, title: "who heard about it", unit: listeners, empty: "Nobody has heard yet.", lane: broker}
+        steps:
+          - {at: "Your customer paid", action: tap, target: phone}
+          - {at: "Your customer paid", action: send, target: "phone->api", params: {delay: 0.1, label: "POST /payments"}}
+          - {at: "the database says paid", action: send, target: "api->db", params: {label: "UPDATE paid"}}
+          - {at: "the database says paid", action: row, target: payments, params: {delay: 0.5, key: "pay_A19", cells: [paid], status: ok}}
+          - {at: "the database says paid", action: screen, target: phone, params: {delay: 0.7, state: success, text: "$100.00 · receipt #A19", attempt: "paid"}}
+          - {at: "email never went out", action: item, target: heard, params: {text: "email service", value: "no email", status: bad}}
+          - {at: "Here's why", action: highlight, target: api}
+          - {at: "two writes", action: note, target: wire, params: {text: "Two writes: the database, then the broker."}}
+          - {at: "then publish an event", action: send, target: "api->broker", params: {label: "payments.paid", lost: 0.55}}
+          - {at: "The process restarted", action: log, target: api, params: {text: "restarted by a deploy"}}
+          - {at: "the event was lost", action: stamp, target: heard, params: {text: "EVENT LOST", status: bad}}
+          - {at: "Flipping the order", action: note, target: wire, params: {text: "Publish first? Now a crash sends an event for nothing.", status: bad}}
+      # Scene 2: the outbox. One transaction, then a relay.
+      - layout: console
+        from: "The fix is the outbox pattern"
+        systems:
+          - {id: api, name: "Payments service", sub: "one transaction", idle: "ready"}
+          - {id: db, name: "PostgreSQL", sub: "payments + outbox", idle: "waiting"}
+          - {id: broker, name: "Message broker", sub: "payments.paid", idle: "no messages"}
+        panels:
+          - {id: outbox, kind: table, title: outbox, columns: [id, topic, published], unique: id, lane: db}
+          - {id: sent, kind: list, title: "broker · messages", unit: messages, empty: "Nothing sent yet.", lane: broker}
+        steps:
+          - {at: "The fix is the outbox pattern", action: highlight, target: db}
+          - {at: "write the event as a row", action: send, target: "api->db", params: {label: "UPDATE + INSERT outbox"}}
+          - {at: "in the same transaction", action: row, target: outbox, params: {key: "1", cells: [payments.paid, "no"], status: info}}
+          - {at: "Both commit", action: log, target: db, params: {text: "COMMIT → 2 rows"}}
+          - {at: "or neither", action: note, target: wire, params: {text: "Both rows commit, or neither does.", status: ok}}
+          - {at: "A relay publishes", action: send, target: "db->broker", params: {label: "payments.paid"}}
+          - {at: "A relay publishes", action: row, target: outbox, params: {delay: 0.6, key: "1", cells: [payments.paid, "yes"], status: ok}}
+          - {at: "A relay publishes", action: item, target: sent, params: {delay: 0.6, text: "payments.paid", value: "pay_A19", status: ok}}
+          - {at: "One write you can trust", action: stamp, target: sent, params: {text: "NOTHING LOST", status: ok}}
+    youtube_title: "Your Order Saved. Your Event Vanished. #Shorts"
+    instagram_caption: |
+      The payment saved. The confirmation never went out. 📭
+      Two writes (database, then broker) can't be made safe by ordering them.
+      The outbox pattern: one transaction, then a relay.
+      Save this for your next system design interview.
+    pillar_hashtags: money-systems
+  - id: short-2
+    source: segments
+    segments: [s03]
+    hook_on_screen: "Flipping the order won't save you"
+    youtube_title: "Save Then Publish? Publish Then Save? Both Break #Shorts"
+    instagram_caption: |
+      Database first or broker first? Either way, a crash in between breaks it. 💥
+      Two writes have no safe order. One transaction does.
+    pillar_hashtags: money-systems
+  - id: short-3
+    source: segments
+    segments: [s07]
+    hook_on_screen: "Your events arrive out of order"
+    youtube_title: "How to Keep Events in Order (Message Keys) #Shorts"
+    instagram_caption: |
+      Created, paid, refunded: in that order, or your consumers break. 🔢
+      Same message key → same partition → same order.
+    pillar_hashtags: distributed-systems
+  - id: short-4
+    source: segments
+    segments: [s08]
+    hook_on_screen: "Your database already logs every change"
+    youtube_title: "Change Data Capture in 35 Seconds #Shorts"
+    instagram_caption: |
+      Your database already writes every change to a log. 📜
+      Debezium reads it and turns outbox rows into messages, no polling needed.
+    pillar_hashtags: distributed-systems
+  - id: short-5
+    source: standalone
+    hook_on_screen: "Ten workers, one queue table"
+    script: >-
+      Ten workers, one queue table. How do they avoid grabbing the same job? Not with a status
+      column: two workers can read the same pending row at the same moment. Use the database's own
+      row locks. Select the oldest pending rows, for update, skip locked. Each worker locks the rows
+      it takes, and every other worker skips them instead of waiting. No double work, no blocking,
+      and no extra queue to run. It's how an outbox relay scales, in one line of SQL.
+    visual:
+      # Scene 1: two workers, one table, a status column is not enough.
+      - layout: sequence
+        header: ["ONE QUEUE TABLE", "MANY WORKERS"]
+        actors:
+          - {id: w1, label: "worker 1", kind: service}
+          - {id: jobs, label: "jobs table", kind: store}
+          - {id: w2, label: "worker 2", kind: service}
+        steps:
+          - {at: "Ten workers", action: highlight, target: jobs}
+          - {at: "Not with a status column", action: message, target: "w1->jobs", params: {text: "pending job?"}}
+          - {at: "read the same pending row", action: message, target: "w2->jobs", params: {text: "pending job?", same_row: true}}
+          - {at: "at the same moment", action: message, target: "jobs->w1", params: {text: "job 1", role: reply}}
+          - {at: "at the same moment", action: message, target: "jobs->w2", params: {text: "job 1", role: reply, same_row: true, status: bad}}
+          - {at: "Use the database's own", action: divider, target: all, params: {text: "FOR UPDATE SKIP LOCKED"}}
+          - {at: "Each worker locks the rows it takes", action: message, target: "jobs->w1", params: {text: "jobs 1-2, locked", role: reply, status: ok}}
+          - {at: "skips them instead of waiting", action: message, target: "jobs->w2", params: {text: "jobs 3-4", role: reply, status: ok}}
+          - {at: "No double work", action: badge, target: jobs, params: {text: "NO DOUBLE WORK", status: ok}}
+      # Scene 2: the one line.
+      - layout: code
+        from: "It's how an outbox relay scales"
+        header: ["ONE LINE", "OF SQL"]
+        title: pick.sql
+        language: sql
+        lines:
+          - "SELECT id, payload FROM jobs"
+          - "WHERE status = 'pending'"
+          - "ORDER BY id LIMIT 10"
+          - "FOR UPDATE SKIP LOCKED;"
+        steps:
+          - {at: "It's how an outbox relay scales", action: highlight, target: "4"}
+          - {at: "one line of SQL", action: note, target: "4", params: {text: "locked rows are skipped, not waited for", status: ok}}
+    youtube_title: "How Many Workers Share One Queue Table (SKIP LOCKED) #Shorts"
+    instagram_caption: |
+      Many workers, one jobs table, zero double work. 🔒
+      SELECT … FOR UPDATE SKIP LOCKED: each worker skips rows another one holds.
+      Save this for the next time you build a queue in Postgres.
+    pillar_hashtags: database-internals
+
+carousel:
+  slides:
+    - {headline: "Your order saved. Your event vanished.", body: "The dual-write bug, in 5 slides"}
+    - {headline: "Save, then publish = 2 writes", body: "A crash between them loses the event"}
+    - {headline: "Flip the order? Still 2 writes", body: "Now a crash sends an event for a payment that never happened"}
+    - {headline: "The outbox: 1 transaction", body: "UPDATE payments + INSERT INTO outbox, then COMMIT"}
+    - {headline: "A relay publishes, at least once", body: "So every consumer must be idempotent"}
+    - {headline: "Follow @stacknova.dev", body: "Animated deep dive on YouTube: StackNova"}
+
+code_samples:
+  - lang: java
+    path: samples/java/payments/NaivePayments.java
+    purpose: Save, then publish — the dual write, line by line
+    shown_in: [s02]
+  - lang: java
+    path: samples/java/payments/OutboxPayments.java
+    purpose: The business change and the outbox row in one transaction
+    shown_in: [s04]
+  - lang: java
+    path: samples/java/payments/OutboxRelay.java
+    purpose: The relay — pick a batch with SKIP LOCKED, publish, mark, commit
+    shown_in: [s05]
+  - lang: java
+    path: samples/java/payments/LedgerConsumer.java
+    purpose: An idempotent consumer with its own processed-events record
+    shown_in: [s06]
+
+sources:
+  - title: "microservices.io — Pattern: Transactional outbox"
+    url: https://microservices.io/patterns/data/transactional-outbox.html
+  - title: "Confluent — Understanding the Dual-Write Problem and Its Solutions"
+    url: https://www.confluent.io/blog/dual-write-problem/
+  - title: "PostgreSQL 18 — SELECT, the locking clause (SKIP LOCKED)"
+    url: https://www.postgresql.org/docs/current/sql-select.html
+  - title: "PostgreSQL 18 — Write-Ahead Logging (WAL)"
+    url: https://www.postgresql.org/docs/current/wal-intro.html
+  - title: "Debezium — Outbox Event Router"
+    url: https://debezium.io/documentation/reference/stable/transformations/outbox-event-router.html
+  - title: "Apache Kafka — Introduction (keys, partitions, ordering)"
+    url: https://kafka.apache.org/intro
+  - title: "Java SE 25 — java.sql.Connection (auto-commit, commit, rollback)"
+    url: https://docs.oracle.com/en/java/javase/25/docs/api/java.sql/java/sql/Connection.html
+  - title: "InfoQ — Delta: a Data Synchronization and Enrichment Platform by Netflix (2019)"
+    url: https://www.infoq.com/news/2019/11/data-synchronization-netflix
+  - title: "Netflix TechBlog — Delta: A Data Synchronization and Enrichment Platform"
+    url: https://netflixtechblog.com/delta-a-data-synchronization-and-enrichment-platform-e82c36a79aee
+
+fact_check:
+  - claim: "Publishing first leaves an event with no matching database update; reordering two writes cannot make them atomic"
+    source: https://www.confluent.io/blog/dual-write-problem/
+  - claim: "A database transaction covers the database and does not usually extend to Kafka"
+    source: https://www.confluent.io/blog/dual-write-problem/
+  - claim: "With an outbox, messages are sent if and only if the database transaction commits; the relay can publish a message more than once, so consumers must be idempotent"
+    source: https://microservices.io/patterns/data/transactional-outbox.html
+  - claim: "New JDBC connections are in auto-commit mode; with auto-commit off, statements form a transaction ended by commit or rollback"
+    source: https://docs.oracle.com/en/java/javase/25/docs/api/java.sql/java/sql/Connection.html
+  - claim: "SKIP LOCKED skips rows that cannot be locked immediately, avoiding contention with multiple consumers of a queue-like table"
+    source: https://www.postgresql.org/docs/current/sql-select.html
+  - claim: "PostgreSQL logs changes in the write-ahead log before writing data files, and uses the log for crash recovery"
+    source: https://www.postgresql.org/docs/current/wal-intro.html
+  - claim: "Debezium's outbox event router turns rows of an outbox table into messages, keyed by the aggregate id"
+    source: https://debezium.io/documentation/reference/stable/transformations/outbox-event-router.html
+  - claim: "Kafka writes events with the same key to the same partition and consumers read a partition in the order written"
+    source: https://kafka.apache.org/intro
+  - claim: "Netflix (2019) found issues with dual writes, log tables and distributed transactions, built Delta to read changes from transaction logs through Kafka, and traces messages because events can still be lost in extreme situations"
+    source: https://www.infoq.com/news/2019/11/data-synchronization-netflix
+  - claim: "The consumer applies an event once by recording (consumer, event id) under a primary key in the same transaction as the effect"
+    source: "derived from code sample samples/java/payments/LedgerConsumer.java"
+
+story_ref: public-postmortem-netflix-delta   # public engineering write-up (owner's choice, 14 Oct 2026)
+
+localizations:
+  hi:
+    title: "Outbox Pattern: आपके इवेंट क्यों खो जाते हैं"
+    description: "पेमेंट सेव हो गया, पर इवेंट कभी नहीं गया। डेटाबेस और मैसेज ब्रोकर में दो अलग-अलग लिखना (dual write) क्यों टूटता है, और outbox pattern इसे एक transaction से कैसे ठीक करता है — Java कोड के साथ, लाइन दर लाइन।"
+  es:
+    title: "Patrón Outbox: por qué se pierden tus eventos"
+    description: "El pago se guardó, pero el evento nunca salió. Por qué escribir en la base de datos y en el broker de mensajes por separado (dual write) falla, y cómo el patrón outbox lo resuelve con una sola transacción, con código Java línea por línea."
+  pt:
+    title: "Padrão Outbox: por que seus eventos somem"
+    description: "O pagamento foi salvo, mas o evento nunca saiu. Por que gravar no banco de dados e no broker de mensagens separadamente (dual write) falha, e como o padrão outbox resolve isso com uma única transação, com código Java linha por linha."
+  id:
+    title: "Outbox Pattern: kenapa event kamu hilang"
+    description: "Pembayaran tersimpan, tapi event tidak pernah terkirim. Kenapa menulis ke database dan message broker secara terpisah (dual write) gagal, dan bagaimana outbox pattern memperbaikinya dengan satu transaksi, lengkap dengan kode Java baris demi baris."
+  vi:
+    title: "Outbox Pattern: vì sao sự kiện của bạn biến mất"
+    description: "Thanh toán đã lưu, nhưng sự kiện không bao giờ được gửi. Vì sao ghi riêng vào cơ sở dữ liệu và message broker (dual write) lại hỏng, và outbox pattern sửa nó bằng một giao dịch duy nhất như thế nào, kèm mã Java từng dòng."
+  ar:
+    title: "نمط Outbox: لماذا تضيع أحداثك"
+    description: "تم حفظ الدفع، لكن الحدث لم يُرسل أبدًا. لماذا تفشل الكتابة المنفصلة في قاعدة البيانات ووسيط الرسائل (dual write)، وكيف يصلح نمط outbox ذلك بمعاملة واحدة، مع شرح كود Java سطرًا بسطر."
+
+next_episode: 003-kafka
