@@ -91,5 +91,10 @@ for ep in $episodes; do
   done
 
   save_cache
-  gh release upload "$tag" "$upload"/* --clobber
+  # An episode the render skipped (a draft pushed to main, say) leaves nothing to upload.
+  if compgen -G "$upload/*" > /dev/null; then
+    gh release upload "$tag" "$upload"/* --clobber
+  else
+    echo "nothing rendered for $ep"
+  fi
 done
