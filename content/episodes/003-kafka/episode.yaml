@@ -1,0 +1,743 @@
+# Episode 003 — inside Kafka: topics, partitions, consumer groups, and where duplicates are born.
+# Written 14 October 2026 for the launch on 19 October. Follows 002 (outbox) and leads into 004
+# (retry storms).
+id: 003-kafka
+version: 1
+status: draft            # draft | ready_to_render | rendering | rendered | published
+pillar: distributed-systems
+series: how-it-breaks
+language: en
+target_versions:
+  go: "1.27"
+  kafka: "4.1"
+estimated_minutes: 9
+next:                           # shown on the outro of the long video
+  title: "Retry Storms"
+  teaser: "When every client retries at the same moment, a healthy system goes down. Here's how, and how to stop it."
+
+keywords:
+  primary: apache kafka
+  secondary:
+    - what is apache kafka
+    - kafka consumer group
+    - kafka partitions
+    - kafka offsets
+    - exactly once semantics
+
+packaging:
+  titles:                       # ≤ 60 chars; top 2 go to YouTube A/B test
+    - "What Is Apache Kafka? Topics, Partitions, Consumer Groups"
+    - "Apache Kafka Explained: Where Duplicate Messages Come From"
+    - "Apache Kafka, Animated: How Messages Really Flow"
+    - "Apache Kafka Consumer Groups and Offsets, Explained"
+    - "Apache Kafka Is Not a Queue (and Why That Matters)"
+  thumbnail_texts:              # 2–4 words, must not repeat the title
+    - "NOT A QUEUE"
+    - "WHY TWICE?"
+    - "THE LOG WINS"
+  description: |
+    Your outbox published each event once, and the ledger still applied one twice. Kafka didn't
+    break: it's a log, not a queue. Topics, partitions, offsets and consumer groups, animated,
+    with a producer and a consumer in Go, and the exact moment a duplicate is born.
+
+    {chapters}
+
+    Previous: the outbox pattern — {previous_link}
+    Next: retry storms — {next_link}
+
+    Sources:
+    {sources}
+  tags:
+    - apache kafka
+    - what is kafka
+    - kafka tutorial
+    - kafka partitions
+    - kafka consumer group
+    - kafka offsets
+    - exactly once semantics
+    - at least once delivery
+    - event streaming
+    - distributed systems
+    - golang
+    - system design interview
+    - backend engineering
+  pinned_comment: "Have you ever been bitten by a Kafka rebalance or a duplicate message? What happened? 👇"
+
+segments:
+  - id: s01
+    title: Applied twice
+    narration: >-
+      Last episode, the outbox published each payment event once. And the ledger still recorded one
+      payment twice. Kafka wasn't broken, and nobody misconfigured it. It did exactly what it
+      promises, and that promise isn't what most of us think. In the next few minutes: what a topic
+      really is, and how partitions and consumer groups share the work. Then the exact moment a
+      duplicate is born, and a neat way to make it harmless.
+    emphasis: [twice, what it promises, duplicate is born]
+    visual:
+      layout: console
+      systems:
+        - {id: relay, name: "Outbox relay", sub: "payments service", idle: "waiting"}
+        - {id: kafka, name: "Kafka", sub: "topic payments.paid", idle: "0 messages"}
+        - {id: ledger, name: "Ledger service", sub: "group: ledger", idle: "waiting"}
+      panels:
+        - {id: log, kind: list, title: "payments.paid · the log", unit: messages, empty: "Nothing written yet.", lane: kafka}
+        - {id: entries, kind: list, title: "ledger · entries", unit: entries, empty: "No entries yet.", lane: ledger}
+      steps:
+        - {at: "published each payment event once", action: send, target: "relay->kafka", params: {label: "pay_A19 · paid"}}
+        - {at: "published each payment event once", action: item, target: log, params: {delay: 0.6, text: "offset 41", value: "pay_A19 paid"}}
+        - {at: "published each payment event once", action: log, target: kafka, params: {delay: 0.6, text: "appended at offset 41"}}
+        - {at: "recorded one", action: send, target: "kafka->ledger", params: {label: "offset 41"}}
+        - {at: "recorded one", action: item, target: entries, params: {delay: 0.6, text: "pay_A19", value: "+$100.00"}}
+        - {at: "payment twice", action: send, target: "kafka->ledger", params: {label: "offset 41 (again)", role: retry}}
+        - {at: "payment twice", action: item, target: entries, params: {delay: 0.6, text: "pay_A19", value: "+$100.00", status: bad}}
+        - {at: "payment twice", action: stamp, target: entries, params: {delay: 0.8, text: "APPLIED TWICE", status: bad}}
+        - {at: "Kafka wasn't broken", action: highlight, target: kafka}
+        - {at: "nobody misconfigured it", action: note, target: wire, params: {text: "No bug in Kafka. No bad setting."}}
+        - {at: "exactly what it promises", action: note, target: wire, params: {text: "It kept its promise. The promise is not \"exactly once\".", status: info}}
+        - {at: "what a topic", action: highlight, target: log}
+        - {at: "partitions and consumer groups", action: highlight, target: ledger}
+        - {at: "a duplicate is born", action: highlight, target: entries}
+
+  - id: s02
+    title: Not a queue
+    narration: >-
+      Most of us picture Kafka as a queue. A producer puts a message in, one consumer takes it out,
+      and it's gone. That picture is behind a lot of broken systems. Kafka isn't a queue. It's a
+      log. Messages are appended to the end, and reading one doesn't remove it. That one difference
+      explains almost everything in this episode.
+    emphasis: [a queue, a log]
+    visual:
+      layout: cards
+      header: ["THE PICTURE", "QUEUE OR LOG?"]
+      cards:
+        - id: queue
+          title: "a queue"
+          text: "take a message out"
+          lines: [{id: v, key: "after reading", value: "?"}]
+        - id: log
+          title: "a log"
+          text: "append, and keep"
+          hidden: true
+          lines: [{id: v, key: "after reading", value: "?"}]
+      steps:
+        - {at: "picture Kafka as a queue", action: highlight, target: queue}
+        - {at: "one consumer takes it out", action: apply, target: queue, params: {line: v, value: "taken"}}
+        - {at: "it's gone", action: set, target: queue.v, params: {value: "gone", status: info}}
+        - {at: "broken systems", action: mark, target: queue, params: {status: bad}}
+        - {at: "Kafka isn't a queue", action: show, target: log}
+        - {at: "It's a", action: mark, target: log, params: {status: ok}}
+        - {at: "appended to the end", action: apply, target: log, params: {line: v, value: "still there", status: ok}}
+        - {at: "doesn't remove it", action: apply, target: log, params: {line: v, value: "still there", status: ok}}
+
+  - id: s03
+    title: Topics, partitions, keys
+    narration: >-
+      A topic is that log. Messages stay for as long as the topic's retention says, whether anyone
+      has read them or not. Each message gets a number in its log, called its offset. One log would
+      be limited to one machine, so a topic is split into partitions, spread over the brokers. The
+      producer picks a partition from the message key: same key, same partition, and Kafka keeps
+      each partition in the order it was written. That's how one payment's events stay in order.
+      Here's a producer in Go, with the franz-go client. The record names the topic, uses the
+      payment id as its key, and carries the event as its value. ProduceSync waits for the broker
+      to acknowledge it. If it returns an error, the message may or may not be in the log.
+    emphasis: [retention, offset, same key, same partition]
+    visual:
+      # Scene 1: one topic, two partitions, keys deciding where each message goes.
+      - layout: console
+        systems:
+          - {id: svc, name: "Payments service", sub: "producer", idle: "ready"}
+          - {id: kafka, name: "Kafka", sub: "topic payments.paid", idle: "2 partitions"}
+        panels:
+          - {id: p0, kind: list, title: "partition 0", unit: messages, empty: "empty", lane: kafka}
+          - {id: p1, kind: list, title: "partition 1", unit: messages, empty: "empty", lane: svc}
+        steps:
+          - {at: "A topic is that log", action: highlight, target: kafka}
+          - {at: "Messages stay", action: note, target: wire, params: {text: "Kept until the topic's retention runs out, read or not."}}
+          - {at: "called its offset", action: send, target: "svc->kafka", params: {label: "key pay_A19 · created"}}
+          - {at: "called its offset", action: item, target: p1, params: {delay: 0.6, text: "offset 0", value: "pay_A19 created"}}
+          - {at: "split into partitions", action: send, target: "svc->kafka", params: {label: "key pay_B77 · created"}}
+          - {at: "split into partitions", action: item, target: p0, params: {delay: 0.6, text: "offset 0", value: "pay_B77 created"}}
+          - {at: "same key, same partition", action: send, target: "svc->kafka", params: {label: "key pay_A19 · paid"}}
+          - {at: "same key, same partition", action: item, target: p1, params: {delay: 0.6, text: "offset 1", value: "pay_A19 paid", status: ok}}
+          - {at: "in the order it was written", action: highlight, target: p1}
+          - {at: "stay in order", action: note, target: wire, params: {text: "Same key → same partition → same order.", status: ok}}
+      # Scene 2: the producer in Go.
+      - layout: code
+        from: "Here's a producer in Go"
+        header: ["IN CODE", "A PRODUCER"]
+        title: producer.go
+        language: go
+        reveal: true
+        lines:
+          - "rec := &kgo.Record{"
+          - "  Topic: \"payments.paid\","
+          - "  Key:   []byte(paymentID), // same key, same partition"
+          - "  Value: event,"
+          - "}"
+          - "if err := cl.ProduceSync(ctx, rec).FirstErr(); err != nil {"
+          - "  return err // no ack: it may or may not be in the log"
+          - "}"
+        steps:
+          - {at: "Here's a producer in Go", action: show, target: "1-5"}
+          - {at: "names the topic", action: highlight, target: "2"}
+          - {at: "payment id as its key", action: highlight, target: "3"}
+          - {at: "as its value", action: highlight, target: "4"}
+          - {at: "ProduceSync waits", action: show, target: "6-8"}
+          - {at: "ProduceSync waits", action: highlight, target: "6"}
+          - {at: "If it returns an error", action: highlight, target: "7"}
+          - {at: "may or may not be in the log", action: note, target: "7", params: {text: "an error is not proof it wasn't written", status: bad}}
+
+  - id: s04
+    title: Consumer groups
+    narration: >-
+      Reading a topic doesn't use it up. A consumer reads a partition from an offset, and saves how
+      far it got by committing an offset back to Kafka. Consumers with the same group id share a
+      topic: each partition is read by exactly one consumer in the group. Add consumers to go
+      faster, but only up to the number of partitions, because a partition never has two readers
+      in one group. A second service, with a group id of its own, reads every message again, from
+      its own offsets. That's also how a brand new service can start at the beginning and replay
+      the whole history.
+    emphasis: [committing an offset, exactly one consumer, its own offsets]
+    visual:
+      layout: cards
+      header: ["CONSUMER GROUPS", "WHO READS WHAT"]
+      cards:
+        - id: p0
+          title: "partition 0"
+          lines: [{id: o, key: "ledger group", value: "?"}]
+        - id: p1
+          title: "partition 1"
+          lines: [{id: o, key: "ledger group", value: "?"}]
+        - id: p2
+          title: "partition 2"
+          lines: [{id: o, key: "ledger group", value: "?"}]
+      steps:
+        - {at: "doesn't use it up", action: highlight, target: p0}
+        - {at: "reads a partition from an offset", action: set, target: p0.o, params: {value: "A, at 41", status: info}}
+        - {at: "committing an offset", action: set, target: p0.o, params: {value: "A, committed 42", status: ok}}
+        - {at: "same group id", action: set, target: p1.o, params: {value: "B", status: info}}
+        - {at: "same group id", action: set, target: p2.o, params: {value: "C", status: info}}
+        - {at: "exactly one consumer in the group", action: mark, target: p0, params: {status: ok}}
+        - {at: "exactly one consumer in the group", action: mark, target: p1, params: {status: ok}}
+        - {at: "exactly one consumer in the group", action: mark, target: p2, params: {status: ok}}
+        - {at: "up to the number of partitions", action: focus, target: all}
+        - {at: "never has two readers", action: highlight, target: p1}
+        - {at: "A second service", action: apply, target: p0, params: {role: retry}}
+        - {at: "A second service", action: apply, target: p1, params: {role: retry}}
+        - {at: "A second service", action: apply, target: p2, params: {role: retry}}
+        - {at: "from its own offsets", action: focus, target: all}
+
+  - id: s05
+    title: A consumer in Go
+    narration: >-
+      Here's a consumer in Go. It joins the group called ledger, subscribes to payments dot paid,
+      and turns auto-commit off, so it decides when a message counts as done. Auto-commit would
+      save offsets in the background on a timer, whether or not your code had finished with the
+      records. The loop polls for a
+      batch of records and applies each one. Only after the whole batch is applied does it commit
+      their offsets. If it crashes before that commit, whoever gets the partition next starts from
+      the last committed offset, and sees that batch again.
+    emphasis: [auto-commit off, commit their offsets]
+    visual:
+      # Scene 1: joining the group.
+      - layout: code
+        header: ["IN CODE", "JOIN A GROUP"]
+        title: consumer.go
+        language: go
+        reveal: true
+        lines:
+          - "return kgo.NewClient("
+          - "  kgo.SeedBrokers(brokers...),"
+          - "  kgo.ConsumerGroup(\"ledger\"), // share the partitions"
+          - "  kgo.ConsumeTopics(\"payments.paid\"),"
+          - "  kgo.DisableAutoCommit(), // we say when it's done"
+          - ")"
+        steps:
+          - {at: "Here's a consumer in Go", action: show, target: "1-2"}
+          - {at: "joins the group called ledger", action: show, target: "3"}
+          - {at: "joins the group called ledger", action: highlight, target: "3"}
+          - {at: "subscribes to", action: show, target: "4"}
+          - {at: "subscribes to", action: highlight, target: "4"}
+          - {at: "turns auto-commit off", action: show, target: "5-6"}
+          - {at: "turns auto-commit off", action: highlight, target: "5"}
+          - {at: "counts as done", action: note, target: "5", params: {text: "commits happen when the code says", status: info}}
+      # Scene 2: apply, then commit.
+      - layout: code
+        from: "The loop polls"
+        header: ["IN CODE", "APPLY, THEN COMMIT"]
+        title: consumer.go
+        language: go
+        reveal: true
+        lines:
+          - "for ctx.Err() == nil {"
+          - "  fetches := cl.PollFetches(ctx)"
+          - "  fetches.EachRecord(func(r *kgo.Record) {"
+          - "    apply(ctx, r) // the effect, idempotent"
+          - "  })"
+          - "  if err := cl.CommitUncommittedOffsets(ctx); err != nil {"
+          - "    log.Printf(\"commit failed, these come again: %v\", err)"
+          - "  }"
+          - "}"
+        steps:
+          - {at: "The loop polls", action: show, target: "1-2"}
+          - {at: "The loop polls", action: highlight, target: "2"}
+          - {at: "applies each one", action: show, target: "3-5"}
+          - {at: "applies each one", action: highlight, target: "3-4"}
+          - {at: "commit their offsets", action: show, target: "6-9"}
+          - {at: "commit their offsets", action: highlight, target: "6"}
+          - {at: "If it crashes before that commit", action: highlight, target: "4"}
+          - {at: "sees that batch again", action: note, target: "6", params: {text: "crash before here: the batch comes again", status: bad}}
+
+  - id: s06
+    title: Where duplicates are born
+    narration: >-
+      Here's the exact moment a duplicate is born. The consumer applies three records, then crashes
+      before its commit. Or it's too slow between polls, and the group decides it has failed and
+      hands its partition to another member. That's a rebalance. Either way, the new owner starts
+      at the last committed offset, and applies the same three records again. Commit first, then
+      apply? Then a crash after the commit skips those records forever. That's the whole choice:
+      at-least-once, or at-most-once. Choose at-least-once, and make the consumer idempotent, like
+      the ledger from last episode. Kafka gives you a neat way to do that. Every record already has
+      a unique address: its topic, its partition and its offset. Here it is in Go. Open a
+      transaction. Claim the record: move this partition's stored offset past it, but only if the
+      stored offset hasn't passed it already. If it has, this is a replay, so skip it. Otherwise
+      write the ledger entry, and commit the effect and the offset together.
+    emphasis: [rebalance, at-least-once, at-most-once, unique address]
+    visual:
+      # Scene 1: apply, crash, rebalance, apply again.
+      - layout: sequence
+        header: ["THE MOMENT", "APPLY, CRASH, AGAIN"]
+        actors:
+          - {id: a, label: "consumer A", kind: service}
+          - {id: part, label: "partition 3", kind: store}
+          - {id: b, label: "consumer B", kind: service}
+        steps:
+          - {at: "applies three records", action: message, target: "part->a", params: {text: "41, 42, 43"}}
+          - {at: "applies three records", action: note, target: a, params: {text: "applied 41-43"}}
+          - {at: "crashes before its commit", action: note, target: a, params: {text: "crash: last commit 40", status: bad}}
+          - {at: "That's a rebalance", action: divider, target: all, params: {text: "rebalance: partition 3 → B"}}
+          - {at: "starts at the last committed offset", action: message, target: "part->b", params: {text: "41, 42, 43 (again)", role: retry}}
+          - {at: "applies the same three records again", action: note, target: b, params: {text: "applied 41-43 again", status: bad}}
+          - {at: "Commit first, then", action: note, target: a, params: {text: "commit first: a crash loses 41-43", status: bad}}
+          - {at: "Choose at-least-once", action: badge, target: b, params: {text: "MAKE IT IDEMPOTENT", status: info}}
+      # Scene 2: an idempotent apply, keyed by the record's own address.
+      - layout: code
+        from: "Here it is in Go"
+        header: ["IN CODE", "APPLY ONCE"]
+        title: apply.go
+        language: go
+        reveal: true
+        lines:
+          - "defer tx.Rollback() // a no-op once committed"
+          - "if fresh, err := claim(ctx, tx, r); err != nil || !fresh {"
+          - "  return err // replayed: applied before, skip it"
+          - "}"
+          - "if err := addEntry(ctx, tx, r.Value); err != nil {"
+          - "  return err"
+          - "}"
+          - "return tx.Commit() // effect and offset, together"
+        steps:
+          - {at: "Here it is in Go", action: show, target: "1"}
+          - {at: "Open a transaction", action: highlight, target: "1"}
+          - {at: "Claim the record", action: show, target: "2-4"}
+          - {at: "Claim the record", action: highlight, target: "2"}
+          - {at: "only if the", action: note, target: "2", params: {text: "UPDATE … SET next_offset = offset+1 WHERE next_offset <= offset", status: info}}
+          - {at: "this is a replay", action: highlight, target: "3"}
+          - {at: "write the ledger entry", action: show, target: "5-8"}
+          - {at: "write the ledger entry", action: highlight, target: "5"}
+          - {at: "commit the effect and the offset together", action: highlight, target: "8"}
+          - {at: "commit the effect and the offset together", action: note, target: "8", params: {text: "applied once, however often it arrives", status: ok}}
+
+  - id: s07
+    title: Producer duplicates
+    narration: >-
+      Duplicates are born on the producer side too. The producer sends a message, the broker writes
+      it, and the acknowledgement is lost. So the producer sends it again, and the log holds it
+      twice. Kafka's answer is the idempotent producer. The broker gives each producer an id, the
+      producer numbers its messages, and the broker drops a number it has already written. Kafka's
+      own producer turns this on by default since version 3.0. It covers retries of one send, not
+      your code sending the same event twice. For that, the event needs an id of its own, and the
+      consumer checks it.
+    emphasis: [idempotent producer, by default]
+    visual:
+      # Scene 1: the lost acknowledgement.
+      - layout: sequence
+        header: ["THE PRODUCER", "A LOST ACK"]
+        actors:
+          - {id: prod, label: "producer", kind: service}
+          - {id: broker, label: "broker", kind: store}
+        steps:
+          - {at: "The producer sends a message", action: message, target: "prod->broker", params: {text: "pay_A19 paid"}}
+          - {at: "the broker writes", action: note, target: broker, params: {text: "written at 41"}}
+          - {at: "the acknowledgement is lost", action: message, target: "broker->prod", params: {text: "ack ✕", role: error, status: bad}}
+          - {at: "sends it again", action: message, target: "prod->broker", params: {text: "pay_A19 paid (retry)", role: retry}}
+          - {at: "holds it twice", action: note, target: broker, params: {text: "written at 42: twice", status: bad}}
+      # Scene 2: the idempotent producer.
+      - layout: sequence
+        from: "Kafka's answer"
+        header: ["THE FIX", "IDEMPOTENT PRODUCER"]
+        actors:
+          - {id: prod, label: "producer · id 12", kind: service}
+          - {id: broker, label: "broker", kind: store}
+        steps:
+          - {at: "gives each producer an id", action: highlight, target: prod}
+          - {at: "numbers its messages", action: message, target: "prod->broker", params: {text: "id 12 · seq 7"}}
+          - {at: "numbers its messages", action: note, target: broker, params: {text: "written at 41"}}
+          - {at: "drops a number", action: message, target: "prod->broker", params: {text: "id 12 · seq 7 (retry)", role: retry}}
+          - {at: "already written", action: note, target: broker, params: {text: "seq 7 seen: dropped", status: ok}}
+          - {at: "by default", action: badge, target: prod, params: {text: "ON SINCE KAFKA 3.0", status: ok}}
+          - {at: "not your code", action: note, target: prod, params: {text: "two sends of one event: still two", status: bad}}
+
+  - id: s08
+    title: Exactly-once, inside Kafka
+    narration: >-
+      Kafka does offer exactly-once, in one place. With transactions, a service can read from one
+      topic, write its results to another, and save its read position, all in one atomic step.
+      That's exactly-once processing, as long as everything stays inside Kafka. The moment the
+      effect leaves Kafka, a row in your database, an email, a charge, you're back to
+      at-least-once. And back to idempotent consumers.
+    emphasis: [inside Kafka, at-least-once, idempotent consumers]
+    visual:
+      layout: cards
+      header: ["EXACTLY-ONCE", "WHERE IT HOLDS"]
+      cards:
+        - id: inside
+          title: "inside Kafka"
+          text: "read, write, save position"
+          lines: [{id: v, key: guarantee, value: "?"}]
+        - id: outside
+          title: "leaves Kafka"
+          text: "a row, an email, a charge"
+          hidden: true
+          lines: [{id: v, key: guarantee, value: "?"}]
+      steps:
+        - {at: "Kafka does offer exactly-once", action: highlight, target: inside}
+        - {at: "all in one atomic step", action: apply, target: inside, params: {line: v, value: "one transaction"}}
+        - {at: "exactly-once processing", action: set, target: inside.v, params: {value: "exactly once", status: ok}}
+        - {at: "stays inside Kafka", action: mark, target: inside, params: {status: ok}}
+        - {at: "leaves Kafka", action: show, target: outside}
+        - {at: "back to", action: set, target: outside.v, params: {value: "at least once", status: bad}}
+        - {at: "back to idempotent consumers", action: mark, target: outside, params: {status: bad}}
+
+  - id: s09
+    title: From production
+    narration: >-
+      Here's why a log matters. In a 2017 write-up, Slack described an outage from about a year
+      before. Their background jobs, like posting messages, push notifications and billing, ran
+      through a job queue in Redis, in memory. Contention in their database slowed the jobs down,
+      the queue grew, and Redis hit its memory limit. New jobs couldn't be added, so everything
+      that relied on the queue failed. Even after the database recovered, the queue stayed locked
+      up. Their fix: put Kafka in front of Redis. Jobs land in a durable log first, and a relay
+      feeds Redis at a rate it can take. A slow consumer now fills a log on disk, not a server's
+      memory, and the producers keep working.
+    emphasis: [Slack, memory limit, Kafka in front of Redis]
+    visual:
+      # Scene 1: the queue in memory fills up.
+      - layout: console
+        systems:
+          - {id: web, name: "Web app", sub: "enqueues jobs", idle: "busy"}
+          - {id: redis, name: "Redis", sub: "job queue, in memory", idle: "0 jobs"}
+          - {id: db, name: "Database", sub: "the jobs need it", idle: "ok"}
+        panels:
+          - {id: queue, kind: list, title: "redis · jobs waiting", unit: jobs, empty: "Empty.", lane: redis}
+        steps:
+          - {at: "In a 2017 write-up", action: note, target: wire, params: {text: "Slack Engineering, 2017: an outage from the year before."}}
+          - {at: "posting messages", action: send, target: "web->redis", params: {label: "post message"}}
+          - {at: "push notifications", action: send, target: "web->redis", params: {label: "push"}}
+          - {at: "and billing", action: send, target: "web->redis", params: {label: "billing"}}
+          - {at: "in memory", action: highlight, target: redis}
+          - {at: "Contention in their database", action: log, target: db, params: {text: "contention: slow"}}
+          - {at: "the queue grew", action: item, target: queue, params: {text: "jobs waiting", value: "thousands"}}
+          - {at: "hit its memory limit", action: log, target: redis, params: {text: "out of memory"}}
+          - {at: "hit its memory limit", action: stamp, target: queue, params: {text: "FULL", status: bad}}
+          - {at: "everything that relied on the queue failed", action: note, target: wire, params: {text: "No room for new jobs: everything that needed one failed.", status: bad}}
+          - {at: "stayed locked up", action: note, target: wire, params: {text: "The database recovered. The queue did not.", status: bad}}
+      # Scene 2: Kafka in front.
+      - layout: console
+        from: "Their fix"
+        systems:
+          - {id: web, name: "Web app", sub: "enqueues jobs", idle: "busy"}
+          - {id: kafka, name: "Kafka", sub: "durable log", idle: "0 jobs"}
+          - {id: relay, name: "Relay", sub: "feeds Redis", idle: "waiting"}
+          - {id: redis, name: "Redis", sub: "job queue", idle: "ok"}
+        steps:
+          - {at: "put Kafka in front of Redis", action: highlight, target: kafka}
+          - {at: "Jobs land in a durable log first", action: send, target: "web->kafka", params: {label: "job"}}
+          - {at: "Jobs land in a durable log first", action: log, target: kafka, params: {delay: 0.5, text: "kept on disk"}}
+          - {at: "a relay", action: send, target: "kafka->relay", params: {label: "job"}}
+          - {at: "at a rate it can take", action: send, target: "relay->redis", params: {label: "job, rate-limited"}}
+          - {at: "at a rate it can take", action: log, target: relay, params: {text: "rate limit: Redis keeps up"}}
+
+  - id: s10
+    title: The trade-offs
+    narration: >-
+      Kafka isn't free either. The partition count caps how many consumers in a group can work at
+      once, so choose it with care. Choose keys with care too: one very busy key puts all of its
+      traffic on a single partition. Every message stays until its retention runs out, and that's
+      disk you pay for. Watch consumer lag: how far each group is behind the end of the log. A
+      message that always fails blocks its partition, because order is kept, so send it to a
+      dead-letter topic and move on. And while a rebalance moves partitions, those partitions
+      aren't being read.
+    emphasis: [consumer lag, dead-letter topic, rebalance]
+    visual:
+      layout: cards
+      header: ["THE TRADE-OFFS", "WHAT IT COSTS"]
+      cards:
+        - id: parts
+          title: "partitions"
+          text: "cap the parallelism"
+          hidden: true
+          lines: [{id: v, key: "choose", value: "?"}]
+        - id: disk
+          title: "retention"
+          text: "every message stays"
+          hidden: true
+          lines: [{id: v, key: "costs", value: "disk"}]
+        - id: lag
+          title: "consumer lag"
+          text: "how far behind"
+          hidden: true
+          lines: [{id: v, key: "watch", value: "?"}]
+        - id: poison
+          title: "a poison message"
+          text: "always fails"
+          hidden: true
+          lines: [{id: v, key: "send to", value: "?"}]
+      steps:
+        - {at: "The partition count", action: show, target: parts}
+        - {at: "choose it with care", action: set, target: parts.v, params: {value: "with care", status: info}}
+        - {at: "Every message stays", action: show, target: disk}
+        - {at: "Watch consumer lag", action: show, target: lag}
+        - {at: "behind the end of the log", action: set, target: lag.v, params: {value: "per group", status: info}}
+        - {at: "A message that always fails", action: show, target: poison}
+        - {at: "dead-letter topic", action: set, target: poison.v, params: {value: "dead-letter topic", status: ok}}
+        - {at: "while a rebalance", action: focus, target: all}
+
+  - id: s11
+    title: Recap and next
+    narration: >-
+      Recap. Kafka is a log, not a queue: messages stay, and each consumer group keeps its own place
+      with committed offsets. Partitions split the work and keep each key in order. Duplicates are
+      born when a consumer fails between applying and committing, and when a producer retries. The
+      idempotent producer stops the second kind; idempotent consumers handle the first. Next
+      episode: what happens when every client retries at the same moment. Retry storms, and how
+      they take down healthy systems.
+    emphasis: [a log, not a queue, Retry storms]
+    visual:
+      # Scene 1: four things to remember.
+      - layout: cards
+        header: ["RECAP", "KAFKA IN FOUR LINES"]
+        cards:
+          - {id: log, title: "a log", text: "messages stay"}
+          - {id: parts, title: "partitions", text: "work split, key order kept", hidden: true}
+          - {id: born, title: "duplicates", text: "crash, rebalance, retry", hidden: true}
+          - {id: fix, title: "idempotent", text: "producer and consumer", hidden: true}
+        steps:
+          - {at: "Kafka is a log", action: mark, target: log, params: {status: ok}}
+          - {at: "Partitions split the work", action: show, target: parts}
+          - {at: "Duplicates are", action: show, target: born}
+          - {at: "when a producer retries", action: mark, target: born, params: {status: bad}}
+          - {at: "The idempotent producer", action: show, target: fix}
+          - {at: "idempotent consumers handle", action: mark, target: fix, params: {status: ok}}
+      # Scene 2: the next episode.
+      - layout: fanin
+        from: "Next episode"
+        header: ["NEXT EPISODE", "004"]
+        sources:
+          - {id: app, label: "mobile app"}
+          - {id: web, label: "web client"}
+          - {id: mesh, label: "service mesh"}
+          - {id: jobs, label: "batch jobs"}
+        target: {id: api, label: "a healthy service", title: api}
+        counter: "retries in one second"
+        steps:
+          - {at: "every client retries", action: fire, target: app, params: {role: retry}}
+          - {at: "every client retries", action: fire, target: web, params: {role: retry}}
+          - {at: "at the same moment", action: fire, target: mesh, params: {role: retry}}
+          - {at: "at the same moment", action: fire, target: jobs, params: {role: retry}}
+          - {at: "Retry storms", action: badge, target: api, params: {text: "RETRY STORM", status: bad}}
+          - {at: "take down healthy systems", action: highlight, target: api}
+
+shorts:
+  - id: short-1
+    source: standalone
+    hook_on_screen: "Kafka is not a queue"
+    script: >-
+      Kafka is not a queue. In a queue, a consumer takes a message and it's gone. Kafka keeps every
+      message in a log, for as long as you configure. Each consumer group remembers how far it has
+      read, with an offset. So two services can read the same messages, a new service can replay
+      last week, and a crashed consumer picks up where its group left off. A queue forgets. A log
+      remembers.
+    visual:
+      layout: cards
+      header: ["KAFKA", "QUEUE OR LOG?"]
+      cards:
+        - id: queue
+          title: "a queue"
+          lines: [{id: v, key: "after reading", value: "?"}]
+        - id: log
+          title: "a log"
+          hidden: true
+          lines: [{id: v, key: "after reading", value: "?"}]
+      steps:
+        - {at: "Kafka is not a queue", action: highlight, target: queue}
+        - {at: "a consumer takes a message", action: apply, target: queue, params: {line: v, value: "taken"}}
+        - {at: "it's gone", action: set, target: queue.v, params: {value: "gone", status: bad}}
+        - {at: "Kafka keeps every", action: show, target: log}
+        - {at: "in a log", action: set, target: log.v, params: {value: "kept", status: ok}}
+        - {at: "with an offset", action: apply, target: log, params: {line: v, value: "kept", status: ok}}
+        - {at: "two services can read", action: apply, target: log, params: {role: retry}}
+        - {at: "replay last week", action: apply, target: log, params: {role: retry}}
+        - {at: "picks up where", action: mark, target: log, params: {status: ok}}
+        - {at: "A queue forgets", action: mark, target: queue, params: {status: bad}}
+        - {at: "A log remembers", action: highlight, target: log}
+    youtube_title: "Kafka Is Not a Queue #Shorts"
+    instagram_caption: |
+      Kafka doesn't delete a message when you read it. 📜
+      It's a log: every consumer group keeps its own offset.
+      Save this for your next system design interview.
+    pillar_hashtags: distributed-systems
+  - id: short-2
+    source: segments
+    segments: [s04]
+    hook_on_screen: "More consumers won't always help"
+    youtube_title: "Kafka Consumer Groups in 40 Seconds #Shorts"
+    instagram_caption: |
+      One partition, one reader per group. 👥
+      That's why adding consumers stops helping at the partition count.
+    pillar_hashtags: distributed-systems
+  - id: short-3
+    source: segments
+    segments: [s07]
+    hook_on_screen: "Your producer just wrote it twice"
+    youtube_title: "How Kafka Stops Duplicate Writes (Idempotent Producer) #Shorts"
+    instagram_caption: |
+      Lost ack → retry → the same message twice. 🔁
+      The idempotent producer numbers its messages so the broker can drop the repeat.
+    pillar_hashtags: distributed-systems
+  - id: short-4
+    source: segments
+    segments: [s08]
+    hook_on_screen: "Kafka's exactly-once has a catch"
+    youtube_title: "Kafka Exactly-Once: Where It Stops #Shorts"
+    instagram_caption: |
+      Exactly-once holds inside Kafka. 🎯
+      The moment your effect leaves it (a DB row, an email), you're at-least-once again.
+    pillar_hashtags: distributed-systems
+  - id: short-5
+    source: standalone
+    hook_on_screen: "Your consumer will process this twice"
+    script: >-
+      Your Kafka consumer will process some messages twice. Here's the exact moment. It processes a
+      batch, then crashes before committing its offset. The partition moves to another consumer,
+      which starts from the last commit, and processes the batch again. Commit first instead? Then
+      a crash after the commit loses the batch. So process, then commit, and make processing
+      idempotent: record each message id in the same transaction as its effect, and skip ids you've
+      already seen.
+    visual:
+      layout: sequence
+      header: ["KAFKA", "WHERE DUPLICATES COME FROM"]
+      actors:
+        - {id: a, label: "consumer A", kind: service}
+        - {id: part, label: "partition 3", kind: store}
+        - {id: b, label: "consumer B", kind: service}
+      steps:
+        - {at: "Here's the exact moment", action: message, target: "part->a", params: {text: "41, 42, 43"}}
+        - {at: "It processes a batch", action: note, target: a, params: {text: "processed 41-43"}}
+        - {at: "crashes before committing", action: note, target: a, params: {text: "crash: last commit 40", status: bad}}
+        - {at: "The partition moves", action: divider, target: all, params: {text: "partition 3 → B"}}
+        - {at: "starts from the last commit", action: message, target: "part->b", params: {text: "41, 42, 43 (again)", role: retry}}
+        - {at: "processes the batch again", action: note, target: b, params: {text: "processed 41-43 again", status: bad}}
+        - {at: "make processing", action: note, target: b, params: {text: "seen 41? skip it", status: ok}}
+        - {at: "skip ids", action: badge, target: b, params: {text: "IDEMPOTENT", status: ok}}
+    youtube_title: "Why Kafka Consumers See Messages Twice #Shorts"
+    instagram_caption: |
+      Process → crash → no commit → replay. 💥
+      That's at-least-once. Make your consumer idempotent.
+      Save this before your next Kafka incident.
+    pillar_hashtags: distributed-systems
+
+carousel:
+  slides:
+    - {headline: "Kafka is not a queue", body: "It's a log. 5 slides on what that changes."}
+    - {headline: "A topic is a log", body: "Messages stay until retention ends, read or not"}
+    - {headline: "Partitions split the work", body: "Same key → same partition → same order"}
+    - {headline: "Groups share partitions", body: "Each partition: one consumer per group, its own offset"}
+    - {headline: "Duplicates are born here", body: "Crash between apply and commit → replay. Be idempotent."}
+    - {headline: "Follow @stacknova.dev", body: "Animated deep dive on YouTube: StackNova"}
+
+code_samples:
+  - lang: go
+    path: samples/go/producer.go
+    purpose: A producer that keys each event by payment id and waits for the acknowledgement
+    shown_in: [s03]
+  - lang: go
+    path: samples/go/consumer.go
+    purpose: A consumer group member with auto-commit off — apply, then commit
+    shown_in: [s05]
+  - lang: go
+    path: samples/go/apply.go
+    purpose: Apply a record once, storing the partition's next offset in the same transaction
+    shown_in: [s06]
+
+sources:
+  - title: "Apache Kafka — Introduction (retention, partitions, keys, ordering)"
+    url: https://kafka.apache.org/intro
+  - title: "Confluent — Kafka message delivery guarantees (idempotent producer, at-least-once, transactions)"
+    url: https://docs.confluent.io/kafka/design/delivery-semantics.html
+  - title: "Confluent — Kafka consumer design (groups, offsets, rebalancing)"
+    url: https://docs.confluent.io/kafka/design/consumer-design.html
+  - title: "Confluent — Kafka consumer (max.poll.interval.ms)"
+    url: https://docs.confluent.io/platform/current/clients/consumer.html
+  - title: "KIP-679 — Producer will enable the strongest delivery guarantee by default (Kafka 3.0)"
+    url: https://cwiki.apache.org/confluence/display/KAFKA/KIP-679%3A+Producer+will+enable+the+strongest+delivery+guarantee+by+default
+  - title: "franz-go — kgo package (Go client for Kafka)"
+    url: https://pkg.go.dev/github.com/twmb/franz-go/pkg/kgo
+  - title: "Slack Engineering — Scaling Slack's Job Queue (2017)"
+    url: https://slack.engineering/scaling-slacks-job-queue/
+
+fact_check:
+  - claim: "Kafka does not delete events after consumption; retention is configured per topic"
+    source: https://kafka.apache.org/intro
+  - claim: "Topics are partitioned over brokers; events with the same key go to the same partition, read in the order written"
+    source: https://kafka.apache.org/intro
+  - claim: "Each partition is consumed by exactly one consumer within a consumer group at any time; committed offsets mark progress"
+    source: https://docs.confluent.io/kafka/design/consumer-design.html
+  - claim: "A consumer that does not poll within max.poll.interval.ms is assumed to have failed, and its partitions go to another member"
+    source: https://docs.confluent.io/platform/current/clients/consumer.html
+  - claim: "Processing before saving the position is at-least-once (a crash replays); saving first is at-most-once (a crash loses)"
+    source: https://docs.confluent.io/kafka/design/delivery-semantics.html
+  - claim: "The idempotent producer: the broker assigns each producer an id and deduplicates by sequence number"
+    source: https://docs.confluent.io/kafka/design/delivery-semantics.html
+  - claim: "Since Kafka 3.0 the producer enables idempotence (and acks=all) by default"
+    source: https://cwiki.apache.org/confluence/display/KAFKA/KIP-679%3A+Producer+will+enable+the+strongest+delivery+guarantee+by+default
+  - claim: "Kafka transactions give exactly-once for consume-process-produce inside Kafka; external systems need coordination"
+    source: https://docs.confluent.io/kafka/design/delivery-semantics.html
+  - claim: "Slack's Redis job queue hit its memory limit after database contention slowed jobs, stayed locked after recovery, and Slack put Kafka in front of Redis"
+    source: https://slack.engineering/scaling-slacks-job-queue/
+  - claim: "The consumer commits offsets only after applying the batch, with auto-commit off"
+    source: "derived from code sample samples/go/consumer.go"
+
+story_ref: public-postmortem-slack-job-queue   # public engineering write-up (owner's choice, 14 Oct 2026)
+
+localizations:
+  hi:
+    title: "Apache Kafka क्या है? Topics, Partitions, Consumer Groups"
+    description: "Kafka एक queue नहीं, एक log है। Topics, partitions, offsets और consumer groups को animation के साथ समझिए, Go में producer और consumer के साथ — और जानिए duplicate message ठीक किस पल पैदा होता है।"
+  es:
+    title: "¿Qué es Apache Kafka? Topics, particiones y grupos"
+    description: "Kafka no es una cola: es un log. Topics, particiones, offsets y grupos de consumidores, animados, con un productor y un consumidor en Go, y el momento exacto en que nace un mensaje duplicado."
+  pt:
+    title: "O que é Apache Kafka? Tópicos, partições e grupos"
+    description: "Kafka não é uma fila: é um log. Tópicos, partições, offsets e grupos de consumidores, animados, com um produtor e um consumidor em Go, e o momento exato em que nasce uma mensagem duplicada."
+  id:
+    title: "Apa itu Apache Kafka? Topic, Partition, Consumer Group"
+    description: "Kafka bukan antrean, melainkan log. Topic, partition, offset, dan consumer group dalam animasi, dengan producer dan consumer di Go, serta momen tepat munculnya pesan duplikat."
+  vi:
+    title: "Apache Kafka là gì? Topic, Partition, Consumer Group"
+    description: "Kafka không phải hàng đợi mà là một log. Topic, partition, offset và consumer group qua hoạt hình, kèm producer và consumer viết bằng Go, và đúng thời điểm một thông điệp trùng lặp xuất hiện."
+  ar:
+    title: "ما هو Apache Kafka؟ المواضيع والأقسام ومجموعات المستهلكين"
+    description: "Kafka ليس طابورًا بل سجلّ. المواضيع والأقسام والإزاحات ومجموعات المستهلكين بالرسوم المتحركة، مع منتج ومستهلك بلغة Go، واللحظة التي تولد فيها الرسالة المكررة."
+
+next_episode: 004-retry-storms

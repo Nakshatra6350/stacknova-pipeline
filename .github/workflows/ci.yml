@@ -91,7 +91,10 @@ jobs:
           while IFS= read -r mod; do
             dir=$(dirname "$mod")
             echo "::group::$dir"
-            (cd "$dir" && go vet ./... && go build ./...)
+            # tidy writes go.sum for samples that use a library (go.sum is not committed:
+            # the owner's machine has an older Go than the libraries need).
+            (cd "$dir" && go mod tidy && go vet ./... && go build ./... \
+              && test -z "$(gofmt -l .)")
             echo "::endgroup::"
             count=$((count + 1))
           done < <(find content/episodes -name go.mod)
