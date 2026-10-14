@@ -1,0 +1,728 @@
+# Episode 005 — design a rate limiter, the way a system design interview expects. Written 14
+# October 2026 for the launch on 19 October. Follows 004 (retry storms) and leads into 006
+# (design a payment system).
+id: 005-rate-limiter
+version: 1
+status: draft            # draft | ready_to_render | rendering | rendered | published
+pillar: interview-depth
+series: interview-depth
+language: en
+target_versions:
+  java: "25"
+  redis: "8"
+estimated_minutes: 10
+next:                           # shown on the outro of the long video
+  title: "Design a Payment System"
+  teaser: "The capstone: a payment system at senior level, with everything from this series in one design."
+
+keywords:
+  primary: rate limiter
+  secondary:
+    - rate limiter system design
+    - token bucket algorithm
+    - sliding window rate limiting
+    - redis rate limiter
+    - system design interview
+
+packaging:
+  titles:                       # ≤ 60 chars; top 2 go to YouTube A/B test
+    - "Design a Rate Limiter (System Design Interview)"
+    - "Rate Limiter System Design: Token Bucket vs Sliding Window"
+    - "Rate Limiter Design, Animated: Redis, Lua, 429"
+    - "Rate Limiter in Java and Redis, Line by Line"
+    - "Rate Limiter: The System Design Answer That Gets Hired"
+  thumbnail_texts:              # 2–4 words, must not repeat the title
+    - "429 TOO MANY"
+    - "TOKEN BUCKET"
+    - "ONE NOISY CLIENT"
+  description: |
+    One customer's runaway script, and everyone else's checkout times out. Here's how to design a
+    rate limiter the way an interview expects: requirements, fixed window, sliding window and
+    token bucket, one shared limit across many servers with an atomic Lua script in Redis, and a
+    clear 429 with Retry-After. Line by line in Java, with Stripe's own limiters as the story.
+
+    {chapters}
+
+    Previous: retry storms — {previous_link}
+    Next: design a payment system — {next_link}
+
+    Sources:
+    {sources}
+  tags:
+    - rate limiter
+    - rate limiter system design
+    - token bucket
+    - sliding window
+    - redis
+    - lua
+    - api gateway
+    - 429 too many requests
+    - system design interview
+    - java
+    - distributed systems
+    - backend engineering
+  pinned_comment: "Token bucket or sliding window: which would you pick for a public API, and why? 👇"
+
+segments:
+  - id: s01
+    title: One noisy client
+    narration: >-
+      One customer's script goes into a loop and sends fifty thousand requests a minute to your
+      API. Your servers keep up, for a while. Then every other customer's checkout starts timing
+      out. Nobody attacked you. One client simply took more than its share. In the next few
+      minutes, we'll design a rate limiter the way a system design interview expects: the
+      requirements, three algorithms, one limit shared across many servers, and what to send back.
+    emphasis: [more than its share, rate limiter]
+    visual:
+      layout: console
+      systems:
+        - {id: script, name: "Customer B's script", sub: "stuck in a loop", idle: "starting"}
+        - {id: api, name: "API servers", sub: "shared by everyone", idle: "ok"}
+        - {id: db, name: "Database", sub: "shared by everyone", idle: "ok"}
+      panels:
+        - {id: others, kind: list, title: "everyone else's checkouts", unit: checkouts, empty: "All fine.", lane: api}
+      steps:
+        - {at: "goes into a loop", action: send, target: "script->api", params: {label: "request", role: retry}}
+        - {at: "fifty thousand requests a minute", action: send, target: "script->api", params: {label: "50,000 / min", role: error}}
+        - {at: "fifty thousand requests a minute", action: log, target: api, params: {delay: 0.5, text: "50,000 / min from one key"}}
+        - {at: "Your servers keep up", action: send, target: "api->db", params: {label: "queries"}}
+        - {at: "every other customer's checkout", action: log, target: db, params: {text: "saturated"}}
+        - {at: "starts timing", action: item, target: others, params: {text: "customer A", value: "timed out", status: bad}}
+        - {at: "starts timing", action: item, target: others, params: {delay: 0.4, text: "customer C", value: "timed out", status: bad}}
+        - {at: "Nobody attacked you", action: note, target: wire, params: {text: "Not an attack. One client, more than its share."}}
+        - {at: "more than its share", action: stamp, target: others, params: {text: "ONE NOISY CLIENT", status: bad}}
+        - {at: "design a rate limiter", action: highlight, target: api}
+
+  - id: s02
+    title: The requirements
+    narration: >-
+      Start with the requirements, as you would in an interview. Who is limited? Each customer, by
+      API key, not each IP address. Many customers can share one office network, and one customer
+      can call from many machines. What's the limit? Say a hundred requests a minute, with short
+      bursts allowed. Where? In front of every API server, and there are many of them, so the limit
+      has to be shared. It must add almost no latency. And when the limiter itself breaks, do we
+      let requests through, or turn them away?
+    emphasis: [by API key, shared, almost no latency]
+    visual:
+      layout: cards
+      header: ["REQUIREMENTS", "BEFORE ANY ALGORITHM"]
+      cards:
+        - id: who
+          title: "who"
+          hidden: true
+          lines: [{id: v, key: "limit per", value: "?"}]
+        - id: what
+          title: "how much"
+          hidden: true
+          lines: [{id: v, key: "limit", value: "?"}]
+        - id: where
+          title: "where"
+          hidden: true
+          lines: [{id: v, key: "across", value: "?"}]
+        - id: broken
+          title: "if it breaks"
+          hidden: true
+          lines: [{id: v, key: "requests", value: "?"}]
+      steps:
+        - {at: "Who is limited", action: show, target: who}
+        - {at: "by API key", action: set, target: who.v, params: {value: "API key", status: ok}}
+        - {at: "not each IP address", action: mark, target: who, params: {status: ok}}
+        - {at: "What's the limit", action: show, target: what}
+        - {at: "a hundred requests a minute", action: set, target: what.v, params: {value: "100 / min + bursts", status: info}}
+        - {at: "Where?", action: show, target: where}
+        - {at: "has to be shared", action: set, target: where.v, params: {value: "every server", status: info}}
+        - {at: "almost no latency", action: highlight, target: where}
+        - {at: "the limiter itself breaks", action: show, target: broken}
+        - {at: "turn them away", action: set, target: broken.v, params: {value: "open or closed?", status: info}}
+
+  - id: s03
+    title: Fixed window
+    narration: >-
+      The simplest design is a fixed window. Count each client's requests per minute in Redis, and
+      reject anything past a hundred. Here it is as a script that Redis runs. Increment this
+      client's counter for this minute. On the first request, set it to expire after sixty
+      seconds. Return the count. It's cheap, and every server shares it. But look at the edges. A
+      hundred requests in the last second of one minute, and a hundred more in the first second of
+      the next, all pass. That's twice the limit, in two seconds. In an interview, name this flaw
+      before the interviewer does.
+    emphasis: [fixed window, twice the limit]
+    visual:
+      # Scene 1: the script.
+      - layout: code
+        header: ["ALGORITHM 1", "FIXED WINDOW"]
+        title: FixedWindow.java · SCRIPT
+        language: lua
+        reveal: true
+        lines:
+          - "local n = redis.call('INCR', KEYS[1])"
+          - "if n == 1 then redis.call('EXPIRE', KEYS[1], 60) end"
+          - "return n"
+        steps:
+          - {at: "Here it is as a script", action: show, target: "1"}
+          - {at: "Increment this", action: highlight, target: "1"}
+          - {at: "for this minute", action: note, target: "1", params: {text: "KEYS[1] = fw:<api key>:<minute>", status: info}}
+          - {at: "On the first request", action: show, target: "2"}
+          - {at: "On the first request", action: highlight, target: "2"}
+          - {at: "Return the count", action: show, target: "3"}
+          - {at: "Return the count", action: highlight, target: "3"}
+      # Scene 2: the edge.
+      - layout: cards
+        from: "But look at the edges"
+        header: ["THE FLAW", "THE EDGE OF THE WINDOW"]
+        cards:
+          - id: before
+            title: "0:59"
+            lines: [{id: v, key: requests, value: "0"}]
+          - id: after
+            title: "1:00"
+            lines: [{id: v, key: requests, value: "0"}]
+        steps:
+          - {at: "in the last second", action: apply, target: before, params: {line: v, value: "100", status: ok}}
+          - {at: "in the first second", action: apply, target: after, params: {line: v, value: "100", status: ok}}
+          - {at: "all pass", action: mark, target: before, params: {status: ok}}
+          - {at: "all pass", action: mark, target: after, params: {status: ok}}
+          - {at: "twice the limit", action: badge, target: after, params: {text: "200 IN 2 SECONDS", status: bad}}
+          - {at: "name this flaw", action: focus, target: all}
+
+  - id: s04
+    title: Sliding window
+    narration: >-
+      A sliding window fixes the edges. A sliding log keeps the time of every request and counts the
+      last sixty seconds exactly, but storing every timestamp costs memory for every request. The
+      sliding window counter is the usual compromise. Keep this minute's count and last minute's,
+      and weigh last minute's by how much of it still falls inside the window. Twenty seconds into
+      this minute, the last sixty seconds still cover forty seconds of last minute: two thirds of
+      its count goes into the total. Ninety requests last minute count as sixty. Add thirty from
+      this minute, and the window holds ninety, under the limit of a hundred. It's an estimate: it
+      assumes last minute's requests were spread evenly. But it's close, and it needs just two
+      counters per client.
+    emphasis: [sliding log, sliding window counter, two thirds]
+    visual:
+      layout: cards
+      header: ["ALGORITHM 2", "SLIDING WINDOW"]
+      cards:
+        - id: last
+          title: "last minute"
+          lines: [{id: v, key: count, value: "90"}]
+        - id: now
+          title: "this minute"
+          hidden: true
+          lines: [{id: v, key: count, value: "30"}]
+        - id: total
+          title: "the window"
+          hidden: true
+          lines: [{id: v, key: count, value: "?"}]
+      steps:
+        - {at: "A sliding window fixes the edges", action: highlight, target: last}
+        - {at: "costs memory", action: dim, target: last}
+        - {at: "the usual compromise", action: show, target: now}
+        - {at: "Keep this minute's count", action: focus, target: all}
+        - {at: "weigh last minute's", action: show, target: total}
+        - {at: "Twenty seconds into", action: set, target: total.v, params: {value: "90 × 2/3 + 30", status: info}}
+        - {at: "count as sixty", action: set, target: total.v, params: {value: "60 + 30", status: info}}
+        - {at: "the window holds ninety", action: set, target: total.v, params: {value: "90", status: ok}}
+        - {at: "under the limit", action: mark, target: total, params: {status: ok}}
+        - {at: "It's an estimate", action: highlight, target: total.v}
+        - {at: "two counters per client", action: focus, target: all}
+
+  - id: s05
+    title: Token bucket
+    narration: >-
+      The token bucket is the third, and it's the one Stripe uses for its API. Each client has a
+      bucket that holds up to a burst of tokens, and refills at a steady rate. A request takes one
+      token. No token, no request. Bursts up to the bucket size pass at once; beyond that, requests
+      go through at the refill rate. Here it is in Java, for one server. Refill lazily: work out how
+      many tokens the time since the last call is worth, and add them, but never past the
+      capacity. If there's less than one token, reject. Otherwise, take one. That's all the state
+      there is: two numbers per client, and no timer running in the background.
+    emphasis: [token bucket, steady rate, never past the capacity]
+    visual:
+      # Scene 1: the bucket.
+      - layout: cards
+        header: ["ALGORITHM 3", "TOKEN BUCKET"]
+        cards:
+          - id: bucket
+            title: "customer B's bucket"
+            lines:
+              - {id: tokens, key: tokens, value: "10 / 10"}
+              - {id: rate, key: refill, value: "100 / min"}
+        steps:
+          - {at: "Each client has a bucket", action: highlight, target: bucket}
+          - {at: "A request takes one", action: apply, target: bucket, params: {line: tokens, value: "9 / 10"}}
+          - {at: "No token, no request", action: apply, target: bucket, params: {line: tokens, value: "0 / 10", role: error}}
+          - {at: "No token, no request", action: badge, target: bucket, params: {text: "429", status: bad}}
+          - {at: "Bursts up to the bucket size", action: set, target: bucket.tokens, params: {value: "10 / 10", status: ok}}
+          - {at: "at the refill rate", action: highlight, target: bucket.rate}
+      # Scene 2: in Java.
+      - layout: code
+        from: "Here it is in Java"
+        header: ["IN CODE", "ONE SERVER"]
+        title: TokenBucket.java
+        language: java
+        reveal: true
+        lines:
+          - "public synchronized boolean tryAcquire() {"
+          - "  long now = System.nanoTime();"
+          - "  double refill = (now - last) * refillPerNano; // elapsed"
+          - "  tokens = Math.min(capacity, tokens + refill); // capped"
+          - "  last = now;"
+          - "  if (tokens < 1) return false; // empty: reject"
+          - "  tokens -= 1;                  // one request, one token"
+          - "  return true;"
+          - "}"
+        steps:
+          - {at: "Here it is in Java", action: show, target: "1-2"}
+          - {at: "Refill lazily", action: show, target: "3-5"}
+          - {at: "Refill lazily", action: highlight, target: "3"}
+          - {at: "never past the", action: highlight, target: "4"}
+          - {at: "less than one token", action: show, target: "6-9"}
+          - {at: "less than one token", action: highlight, target: "6"}
+          - {at: "take one", action: highlight, target: "7"}
+          - {at: "two numbers per client", action: note, target: "5", params: {text: "the state: tokens and last", status: info}}
+
+  - id: s06
+    title: One limit, many servers
+    narration: >-
+      One process is easy. Twenty API servers sharing one limit is the real question. Keep each
+      client's bucket in Redis. But if every server reads the bucket, refills it, and writes it back,
+      that's a race: two servers read the same last token, and both take it. So do it in one step,
+      a Lua script that Redis runs atomically. Here it is. It reads the time from Redis itself, so
+      twenty server clocks don't have to agree. It reads this client's bucket, and refills it for
+      the time that passed. Then it takes a token if there is one, writes the bucket back, and lets
+      it expire once it would be full again anyway, so idle clients cost no memory. In Java, each
+      check is a single call, on this client's own key. And if Redis is down, fail open: let the
+      request through, rather than take your API down with it.
+    emphasis: [a race, atomically, fail open]
+    visual:
+      # Scene 1: the race.
+      - layout: sequence
+        header: ["MANY SERVERS", "THE RACE"]
+        actors:
+          - {id: a, label: "API server A", kind: service}
+          - {id: redis, label: "Redis · rl:B", kind: store}
+          - {id: b, label: "API server B", kind: service}
+        steps:
+          - {at: "reads the bucket", action: message, target: "a->redis", params: {text: "GET tokens"}}
+          - {at: "reads the bucket", action: message, target: "b->redis", params: {text: "GET tokens", same_row: true}}
+          - {at: "two servers read the same last token", action: message, target: "redis->a", params: {text: "1 token", role: reply}}
+          - {at: "two servers read the same last token", action: message, target: "redis->b", params: {text: "1 token", role: reply, same_row: true}}
+          - {at: "both take it", action: note, target: a, params: {text: "allowed", status: bad}}
+          - {at: "both take it", action: note, target: b, params: {text: "allowed", status: bad, same_row: true}}
+          - {at: "in one step", action: divider, target: all, params: {text: "one Lua script, run atomically"}}
+          - {at: "runs atomically", action: badge, target: redis, params: {text: "ONE STEP", status: ok}}
+      # Scene 2: the script, reading and refilling.
+      - layout: code
+        from: "Here it is"
+        header: ["IN CODE", "INSIDE REDIS"]
+        title: RedisRateLimiter.java · SCRIPT
+        language: lua
+        reveal: true
+        lines:
+          - "local c, r = tonumber(ARGV[1]), tonumber(ARGV[2])"
+          - "local t = redis.call('TIME')          -- Redis's clock"
+          - "local now = t[1] * 1000 + t[2] / 1000 -- in ms"
+          - "local b = redis.call('HMGET', KEYS[1], 'tok', 'ts')"
+          - "local tok = tonumber(b[1]) or c"
+          - "local ts = tonumber(b[2]) or now"
+          - "tok = math.min(c, tok + (now - ts) * r) -- refill"
+        steps:
+          - {at: "Here it is", action: show, target: "1"}
+          - {at: "reads the time from Redis itself", action: show, target: "2-3"}
+          - {at: "reads the time from Redis itself", action: highlight, target: "2"}
+          - {at: "reads this client's bucket", action: show, target: "4-6"}
+          - {at: "reads this client's bucket", action: highlight, target: "4"}
+          - {at: "refills it for", action: show, target: "7"}
+          - {at: "refills it for", action: highlight, target: "7"}
+      # Scene 3: taking a token, writing back, expiring.
+      - layout: code
+        from: "Then it takes a token"
+        header: ["IN CODE", "TAKE, WRITE, EXPIRE"]
+        title: RedisRateLimiter.java · SCRIPT
+        language: lua
+        reveal: true
+        lines:
+          - "local ok = tok >= 1"
+          - "if ok then tok = tok - 1 end"
+          - "redis.call('HSET', KEYS[1], 'tok', tok, 'ts', now)"
+          - "redis.call('PEXPIRE', KEYS[1], math.ceil(c / r))"
+          - "return ok and 1 or 0"
+        steps:
+          - {at: "Then it takes a token", action: show, target: "1-2"}
+          - {at: "Then it takes a token", action: highlight, target: "1-2"}
+          - {at: "writes the bucket back", action: show, target: "3"}
+          - {at: "writes the bucket back", action: highlight, target: "3"}
+          - {at: "lets it expire", action: show, target: "4-5"}
+          - {at: "lets it expire", action: highlight, target: "4"}
+          - {at: "idle clients cost no memory", action: note, target: "4", params: {text: "gone once it would be full anyway", status: ok}}
+      # Scene 4: the Java side.
+      - layout: code
+        from: "In Java, each"
+        header: ["IN CODE", "ONE CALL PER REQUEST"]
+        title: RedisRateLimiter.java
+        language: java
+        reveal: true
+        lines:
+          - "public boolean allow(String apiKey) {"
+          - "  try {"
+          - "    var key = List.of(\"rl:\" + apiKey); // per API key"
+          - "    return redis.evalLong(SCRIPT, key, limits) == 1;"
+          - "  } catch (RuntimeException e) {"
+          - "    return true; // Redis is down: fail open"
+          - "  }"
+          - "}"
+        steps:
+          - {at: "In Java, each", action: show, target: "1-4"}
+          - {at: "a single call", action: highlight, target: "4"}
+          - {at: "this client's own key", action: highlight, target: "3"}
+          - {at: "if Redis is down", action: show, target: "5-8"}
+          - {at: "fail open", action: highlight, target: "6"}
+          - {at: "take your API down", action: note, target: "6", params: {text: "the limiter must not become the outage", status: info}}
+
+  - id: s07
+    title: Where it runs
+    narration: >-
+      Where does a rate limiter run? At the API gateway, or as middleware in every server, before
+      any real work is done: a rejected request should cost almost nothing. Limits can differ by
+      plan: a free key might get a hundred requests a minute, and a paid one far more. And
+      expensive work deserves a limit of its own. Stripe also caps how many requests a client can
+      have in flight at once, to keep its CPU-heavy endpoints under control. Then one client can't
+      tie up every worker on a slow endpoint.
+    emphasis: [API gateway, by plan, in flight]
+    visual:
+      layout: cards
+      header: ["WHERE IT RUNS", "AND WHAT IT LIMITS"]
+      cards:
+        - {id: gate, title: "at the gateway", text: "before any real work", hidden: true}
+        - {id: plan, title: "per plan", text: "free: 100/min · paid: more", hidden: true}
+        - {id: flight, title: "in flight", text: "concurrent requests per client", hidden: true}
+      steps:
+        - {at: "At the API gateway", action: show, target: gate}
+        - {at: "before any real work is done", action: mark, target: gate, params: {status: ok}}
+        - {at: "Limits can differ by plan", action: show, target: plan}
+        - {at: "a paid one far more", action: mark, target: plan, params: {status: ok}}
+        - {at: "a limit of its own", action: show, target: flight}
+        - {at: "how many requests a client can have in flight", action: mark, target: flight, params: {status: ok}}
+        - {at: "tie up every worker", action: focus, target: all}
+
+  - id: s08
+    title: Saying no
+    narration: >-
+      Then say no clearly. Reply with 429, Too Many Requests, and a Retry-After header that tells the
+      client when to try again. That's the header the clients from last episode wait for. Here's
+      the filter in Java. Find the authenticated client. If the limiter says no, set Retry-After,
+      send 429, and stop. Otherwise, pass the request on. An IETF draft also defines RateLimit
+      headers, which tell clients how much of their quota is left before they hit the wall.
+    emphasis: ["429", Retry-After, RateLimit headers]
+    visual:
+      # Scene 1: the exchange.
+      - layout: sequence
+        header: ["SAYING NO", "429 + RETRY-AFTER"]
+        actors:
+          - {id: client, label: "customer B", kind: client}
+          - {id: api, label: "API", kind: service}
+        steps:
+          - {at: "say no clearly", action: message, target: "client->api", params: {text: "request 101"}}
+          - {at: "Too Many Requests", action: message, target: "api->client", params: {text: "429 · Retry-After: 1", role: reply, status: bad}}
+          - {at: "when to try again", action: note, target: client, params: {text: "waits 1 s", status: info}}
+          - {at: "wait for", action: message, target: "client->api", params: {text: "request 101 (later)", role: retry}}
+          - {at: "wait for", action: message, target: "api->client", params: {text: "200 OK", role: reply, status: ok}}
+      # Scene 2: the filter.
+      - layout: code
+        from: "Here's the filter in Java"
+        header: ["IN CODE", "THE FILTER"]
+        title: RateLimitFilter.java
+        language: java
+        reveal: true
+        lines:
+          - "if (!limiter.allow(client)) {"
+          - "  ex.getResponseHeaders().set(\"Retry-After\", \"1\");"
+          - "  ex.sendResponseHeaders(429, -1); // Too Many Requests"
+          - "  ex.close();"
+          - "  return;"
+          - "}"
+          - "next.handle(ex);"
+        steps:
+          - {at: "Find the authenticated client", action: show, target: "1"}
+          - {at: "If the limiter says no", action: highlight, target: "1"}
+          - {at: "set Retry-After", action: show, target: "2-6"}
+          - {at: "set Retry-After", action: highlight, target: "2"}
+          - {at: "send 429", action: highlight, target: "3"}
+          - {at: "pass the request on", action: show, target: "7"}
+          - {at: "pass the request on", action: highlight, target: "7"}
+          - {at: "RateLimit", action: note, target: "2", params: {text: "draft: RateLimit and RateLimit-Policy headers", status: info}}
+
+  - id: s09
+    title: From production
+    narration: >-
+      Stripe wrote about its rate limiters in 2017. Its request rate limiter, a token bucket per user
+      kept in Redis, had rejected millions of requests in a month, often from test-mode scripts that
+      had got out of hand. Stripe also runs a concurrent requests limiter, and two load shedders that
+      drop lower-priority traffic when the whole fleet is under strain, test traffic first. And
+      every limiter is built to fail open: if the limiter itself breaks, requests go through. Its
+      advice to anyone starting out: build the request rate limiter first.
+    emphasis: [Stripe, test-mode scripts, fail open]
+    visual:
+      layout: cards
+      header: ["FROM PRODUCTION", "STRIPE, 2017"]
+      cards:
+        - {id: rate, title: "request rate", text: "token bucket per user", hidden: true}
+        - {id: conc, title: "concurrent requests", text: "in flight per user", hidden: true}
+        - {id: fleet, title: "fleet load shedder", text: "critical traffic first", hidden: true}
+        - {id: worker, title: "worker load shedder", text: "test traffic goes first", hidden: true}
+      steps:
+        - {at: "Its request rate limiter", action: show, target: rate}
+        - {at: "rejected millions of requests", action: badge, target: rate, params: {text: "MILLIONS REJECTED / MONTH", status: info}}
+        - {at: "concurrent requests limiter", action: show, target: conc}
+        - {at: "two load shedders", action: show, target: fleet}
+        - {at: "two load shedders", action: show, target: worker}
+        - {at: "test traffic first", action: highlight, target: worker}
+        - {at: "built to fail open", action: focus, target: all}
+        - {at: "build the request rate limiter first", action: mark, target: rate, params: {status: ok}}
+
+  - id: s10
+    title: The trade-offs
+    narration: >-
+      Every choice costs something. Redis is now in the path of every request: one more network hop,
+      and one more thing to watch. The alternative, a limit kept in each server's memory, needs no
+      hop, but each server sees only its own share of the traffic. Failing open means a Redis
+      outage switches your limits off.
+      Failing closed means it switches your API off. The sliding log is exact but costly; the
+      counter is cheap but approximate. And one very busy key lands on a single Redis shard, so
+      watch for clients that are far busier than the rest.
+    emphasis: [one more network hop, Failing open, single Redis shard]
+    visual:
+      layout: cards
+      header: ["THE TRADE-OFFS", "WHAT IT COSTS"]
+      cards:
+        - {id: hop, title: "Redis in the path", text: "one more hop, one more dependency", hidden: true}
+        - {id: open, title: "fail open", text: "outage: no limits", hidden: true}
+        - {id: closed, title: "fail closed", text: "outage: no API", hidden: true}
+        - {id: hot, title: "a hot key", text: "one shard takes it all", hidden: true}
+      steps:
+        - {at: "Redis is now in the path", action: show, target: hop}
+        - {at: "each server's memory", action: highlight, target: hop}
+        - {at: "Failing open means", action: show, target: open}
+        - {at: "Failing closed means", action: show, target: closed}
+        - {at: "switches your API off", action: mark, target: closed, params: {status: bad}}
+        - {at: "exact but costly", action: focus, target: all}
+        - {at: "one very busy key", action: show, target: hot}
+        - {at: "far busier than the rest", action: highlight, target: hot}
+
+  - id: s11
+    title: Recap and next
+    narration: >-
+      Recap. Limit per client, not per IP. Pick an algorithm: the fixed window is simple but leaks
+      at the edges, the sliding window counter smooths them, and the token bucket allows bursts and
+      a steady rate. Share it across servers with one atomic step in Redis. Answer 429, with
+      Retry-After. And decide what happens when the limiter fails. Next episode, the capstone:
+      design a whole payment system at senior level, with everything from this series in one
+      design.
+    emphasis: [per client, one atomic step, the capstone]
+    visual:
+      # Scene 1: the design on one screen.
+      - layout: cards
+        header: ["RECAP", "THE DESIGN"]
+        cards:
+          - {id: who, title: "per client", text: "API key, not IP"}
+          - {id: algo, title: "an algorithm", text: "window or bucket", hidden: true}
+          - {id: shared, title: "shared", text: "one Lua step in Redis", hidden: true}
+          - {id: reply, title: "429", text: "with Retry-After", hidden: true}
+        steps:
+          - {at: "Limit per client", action: mark, target: who, params: {status: ok}}
+          - {at: "Pick an algorithm", action: show, target: algo}
+          - {at: "Share it across servers", action: show, target: shared}
+          - {at: "Answer 429", action: show, target: reply}
+          - {at: "when the limiter fails", action: focus, target: all}
+      # Scene 2: next episode.
+      - layout: cards
+        from: "Next episode"
+        header: ["NEXT EPISODE", "006"]
+        joins: ["+", "+", "="]
+        cards:
+          - {id: idem, title: "idempotency", text: "001"}
+          - {id: outbox, title: "outbox", text: "002"}
+          - {id: limits, title: "limits", text: "004 · 005"}
+          - {id: system, title: "a payment system", text: "next episode", hidden: true}
+        steps:
+          - {at: "the capstone", action: highlight, target: idem}
+          - {at: "design a whole payment system", action: show, target: system}
+          - {at: "everything from this series", action: mark, target: system, params: {status: ok}}
+
+shorts:
+  - id: short-1
+    source: standalone
+    hook_on_screen: "Rate limit by IP? Wrong."
+    script: >-
+      Rate limiting by IP address sounds right, and it's usually wrong. Many customers sit behind
+      one office network, so one IP can be hundreds of people, and you block them all. And one
+      customer can call from a thousand machines, so their total sails past your limit. Limit by
+      who is calling instead: the API key, or the account behind it. Each customer gets their own
+      bucket, so one noisy client can only spend its own quota.
+    visual:
+      layout: cards
+      header: ["RATE LIMITS", "BY IP OR BY KEY?"]
+      cards:
+        - id: ip
+          title: "by IP address"
+          lines: [{id: v, key: verdict, value: "?"}]
+        - id: key
+          title: "by API key"
+          hidden: true
+          lines: [{id: v, key: verdict, value: "?"}]
+      steps:
+        - {at: "Rate limiting by IP address", action: highlight, target: ip}
+        - {at: "one office network", action: apply, target: ip, params: {role: retry}}
+        - {at: "you block them all", action: set, target: ip.v, params: {value: "blocks offices", status: bad}}
+        - {at: "a thousand machines", action: apply, target: ip, params: {role: error}}
+        - {at: "sails past your limit", action: mark, target: ip, params: {status: bad}}
+        - {at: "Limit by who is calling", action: show, target: key}
+        - {at: "the API key", action: set, target: key.v, params: {value: "per customer", status: ok}}
+        - {at: "its own quota", action: mark, target: key, params: {status: ok}}
+    youtube_title: "Why Rate Limiting by IP Is Usually Wrong #Shorts"
+    instagram_caption: |
+      One office = one IP = hundreds of users. One botnet = thousands of IPs. 🌐
+      Limit by API key or account instead.
+      Save this for your next system design interview.
+    pillar_hashtags: interview-depth
+  - id: short-2
+    source: segments
+    segments: [s04]
+    hook_on_screen: "The rate limiter interviewers want"
+    youtube_title: "Sliding Window Rate Limiting in 40 Seconds #Shorts"
+    instagram_caption: |
+      Fixed windows leak at the edges. 🪟
+      The sliding window counter weighs last minute by how much still overlaps.
+    pillar_hashtags: interview-depth
+  - id: short-3
+    source: segments
+    segments: [s07]
+    hook_on_screen: "Where your rate limiter belongs"
+    youtube_title: "Where Should a Rate Limiter Run? #Shorts"
+    instagram_caption: |
+      At the gateway, before any real work. Per plan. And a separate cap on in-flight requests. 🚧
+    pillar_hashtags: interview-depth
+  - id: short-4
+    source: segments
+    segments: [s10]
+    hook_on_screen: "Fail open or fail closed?"
+    youtube_title: "Rate Limiter Trade-offs: Fail Open or Closed? #Shorts"
+    instagram_caption: |
+      Redis down: no limits (fail open) or no API (fail closed)? ⚖️
+      Every rate limiter design has to answer this.
+    pillar_hashtags: interview-depth
+  - id: short-5
+    source: standalone
+    hook_on_screen: "Token bucket in 40 seconds"
+    script: >-
+      The token bucket in forty seconds. Each client gets a bucket that holds, say, ten tokens. Every
+      request takes one. The bucket refills at a steady rate, a hundred tokens a minute, but never
+      past ten. So a client can burst ten requests at once, and after that it gets one request
+      roughly every six tenths of a second. No token? The request gets a 429. Simple, cheap, and it
+      allows short bursts.
+    visual:
+      layout: cards
+      header: ["TOKEN BUCKET", "IN 40 SECONDS"]
+      cards:
+        - id: bucket
+          title: "one client's bucket"
+          lines:
+            - {id: tokens, key: tokens, value: "10 / 10"}
+            - {id: rate, key: refill, value: "100 / min"}
+      steps:
+        - {at: "holds, say, ten tokens", action: highlight, target: bucket.tokens}
+        - {at: "Every request takes one", action: apply, target: bucket, params: {line: tokens, value: "9 / 10"}}
+        - {at: "refills at a steady rate", action: highlight, target: bucket.rate}
+        - {at: "never past ten", action: set, target: bucket.tokens, params: {value: "10 / 10", status: ok}}
+        - {at: "burst ten requests", action: apply, target: bucket, params: {line: tokens, value: "0 / 10", role: retry}}
+        - {at: "six tenths of a second", action: apply, target: bucket, params: {line: tokens, value: "1 / 10"}}
+        - {at: "No token?", action: set, target: bucket.tokens, params: {value: "0 / 10", status: bad}}
+        - {at: "gets a 429", action: badge, target: bucket, params: {text: "429", status: bad}}
+        - {at: "allows short bursts", action: mark, target: bucket, params: {status: ok}}
+    youtube_title: "The Token Bucket Algorithm in 40 Seconds #Shorts"
+    instagram_caption: |
+      10 tokens, refill 100/min, one token per request. 🪣
+      Bursts allowed, steady rate enforced.
+    pillar_hashtags: interview-depth
+
+carousel:
+  slides:
+    - {headline: "Design a rate limiter", body: "The interview answer, in 5 slides"}
+    - {headline: "Limit per client", body: "By API key or account, never by IP alone"}
+    - {headline: "Pick an algorithm", body: "Fixed window · sliding window counter · token bucket"}
+    - {headline: "Share it atomically", body: "One Lua script in Redis: read, refill, take, write"}
+    - {headline: "Say no clearly", body: "429 Too Many Requests + Retry-After"}
+    - {headline: "Follow @stacknova.dev", body: "Animated deep dive on YouTube: StackNova"}
+
+code_samples:
+  - lang: java
+    path: samples/java/limits/FixedWindow.java
+    purpose: A fixed-window counter in Redis (INCR + EXPIRE), with its edge flaw
+    shown_in: [s03]
+  - lang: java
+    path: samples/java/limits/TokenBucket.java
+    purpose: A token bucket in one process, refilled lazily
+    shown_in: [s05]
+  - lang: java
+    path: samples/java/limits/RedisRateLimiter.java
+    purpose: A token bucket per API key in Redis, as one atomic Lua script, failing open
+    shown_in: [s06]
+  - lang: java
+    path: samples/java/limits/RateLimitFilter.java
+    purpose: The HTTP filter that answers 429 with Retry-After
+    shown_in: [s08]
+
+sources:
+  - title: "Stripe Engineering — Scaling your API with rate limiters (Paul Tarjan, 2017)"
+    url: https://stripe.com/blog/rate-limiters
+  - title: "RFC 6585 — Additional HTTP Status Codes (429 Too Many Requests)"
+    url: https://www.rfc-editor.org/rfc/rfc6585#section-4
+  - title: "RFC 9110 — HTTP Semantics, Retry-After"
+    url: https://www.rfc-editor.org/rfc/rfc9110#field.retry-after
+  - title: "IETF draft — RateLimit header fields for HTTP"
+    url: https://datatracker.ietf.org/doc/draft-ietf-httpapi-ratelimit-headers/
+  - title: "Redis — EVAL and Lua scripting (scripts run atomically)"
+    url: https://redis.io/docs/latest/develop/programmability/eval-intro/
+  - title: "Redis — TIME"
+    url: https://redis.io/docs/latest/commands/time/
+  - title: "Java SE 25 — com.sun.net.httpserver"
+    url: https://docs.oracle.com/en/java/javase/25/docs/api/jdk.httpserver/com/sun/net/httpserver/package-summary.html
+
+fact_check:
+  - claim: "Stripe uses a token bucket per user in Redis for its request rate limiter, which rejected millions of requests in a month, often from test-mode scripts"
+    source: https://stripe.com/blog/rate-limiters
+  - claim: "Stripe also runs a concurrent requests limiter and two load shedders (fleet usage, worker utilization), shedding test traffic first, and builds them to fail open"
+    source: https://stripe.com/blog/rate-limiters
+  - claim: "Stripe's concurrent requests limiter keeps its CPU-intensive endpoints under control, and its advice is to start with the request rate limiter"
+    source: https://stripe.com/blog/rate-limiters
+  - claim: "429 Too Many Requests means the user sent too many requests in a given time; the response may include Retry-After"
+    source: https://www.rfc-editor.org/rfc/rfc6585#section-4
+  - claim: "An IETF draft defines RateLimit and RateLimit-Policy header fields"
+    source: https://datatracker.ietf.org/doc/draft-ietf-httpapi-ratelimit-headers/
+  - claim: "Redis runs a Lua script atomically: no other command runs while it executes"
+    source: https://redis.io/docs/latest/develop/programmability/eval-intro/
+  - claim: "A fixed window lets 2x the limit through across a window boundary; the sliding window counter weighs the previous window by its overlap (2/3 at 20 s)"
+    source: "derived from code sample samples/java/limits/FixedWindow.java and arithmetic"
+
+story_ref: public-writeup-stripe-rate-limiters   # public engineering write-up (owner's choice, 14 Oct 2026)
+
+localizations:
+  hi:
+    title: "Rate Limiter डिज़ाइन करें (System Design Interview)"
+    description: "एक ग्राहक की बेकाबू स्क्रिप्ट, और बाकी सबका checkout टाइम-आउट। Rate limiter को interview की तरह डिज़ाइन करें: requirements, fixed window, sliding window और token bucket, कई सर्वरों पर एक साझा limit (Redis में atomic Lua script), और Retry-After के साथ 429 — Java कोड के साथ।"
+  es:
+    title: "Diseña un rate limiter (entrevista de diseño de sistemas)"
+    description: "El script desbocado de un cliente y el checkout de todos los demás se cae. Cómo diseñar un rate limiter como en una entrevista: requisitos, ventana fija, ventana deslizante y token bucket, un límite compartido con un script Lua atómico en Redis, y un 429 con Retry-After. En Java."
+  pt:
+    title: "Projete um rate limiter (entrevista de system design)"
+    description: "O script descontrolado de um cliente derruba o checkout de todos os outros. Como projetar um rate limiter como numa entrevista: requisitos, janela fixa, janela deslizante e token bucket, um limite compartilhado com um script Lua atômico no Redis e um 429 com Retry-After. Em Java."
+  id:
+    title: "Desain Rate Limiter (Wawancara System Design)"
+    description: "Skrip seorang pelanggan lepas kendali, dan checkout semua orang lain timeout. Cara mendesain rate limiter seperti di wawancara: kebutuhan, fixed window, sliding window dan token bucket, satu batas bersama lewat skrip Lua atomik di Redis, dan 429 dengan Retry-After. Dalam Java."
+  vi:
+    title: "Thiết kế Rate Limiter (phỏng vấn System Design)"
+    description: "Một script mất kiểm soát của một khách hàng, và checkout của mọi người khác bị timeout. Cách thiết kế rate limiter như trong phỏng vấn: yêu cầu, fixed window, sliding window và token bucket, một giới hạn chung bằng script Lua nguyên tử trong Redis, và 429 kèm Retry-After. Bằng Java."
+  ar:
+    title: "صمّم محدِّد معدل الطلبات (مقابلة تصميم الأنظمة)"
+    description: "سكربت عميل واحد خرج عن السيطرة، فتوقف الدفع لدى جميع العملاء الآخرين. كيف تصمّم محدِّد معدل كما في المقابلة: المتطلبات، والنافذة الثابتة والمنزلقة ودلو الرموز، وحد مشترك عبر سكربت Lua ذري في Redis، ورد 429 مع Retry-After. بلغة Java."
+
+next_episode: 006-payment-system
