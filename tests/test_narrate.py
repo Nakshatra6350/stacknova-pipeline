@@ -53,6 +53,16 @@ def test_a_standalone_short_uses_its_script(episode: Data) -> None:
     ]
 
 
+def test_a_long_video_says_the_welcome_line_after_the_hook(episode: Data) -> None:
+    line = "This is StackNova: backend systems, explained from the inside."
+    units = select_units(episode, "long", welcome=line)
+    assert [unit.id for unit in units] == ["s01", "welcome", "s02", "s03"]
+    assert units[1].text == line
+    # Shorts never say it, cut from segments or standalone.
+    assert [unit.id for unit in select_units(episode, "short-1", welcome=line)] == ["s02"]
+    assert [unit.id for unit in select_units(episode, "short-2", welcome=line)] == ["short-2"]
+
+
 def test_an_unknown_target_is_an_error(episode: Data) -> None:
     with pytest.raises(ValueError, match="unknown target"):
         select_units(episode, "short-9")

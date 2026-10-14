@@ -362,6 +362,40 @@ def test_a_mix_is_the_same_every_time_a_video_is_rendered() -> None:
     assert mix_styles(["slide"], 3, "any") == ["slide", "slide", "slide"]
 
 
+def test_the_welcome_line_follows_the_logo_as_a_brand_scene() -> None:
+    episode, record = long_episode(3)
+    brand = copy.deepcopy(BRAND)
+    brand["video"]["welcome"] = {"text": "This is StackNova: backend systems, explained."}
+    brand["video"]["transition"] = "slide"
+    # The voice stage said it right after the hook, 3 s long, and the rest moved along.
+    record["segments"].insert(1, {"id": "welcome", "start": 20.0, "duration": 3.0, "pauses": []})
+    for segment in record["segments"][2:]:
+        segment["start"] += 3.0
+    record["duration"] += 3.0
+    plan = plan_video(episode, "long", record, brand)
+    assert [clip.unit for clip in plan.clips] == ["s01", "intro", "welcome", "s02", "s03",
+                                                  "outro"]
+    welcome = plan.clips[2]
+    assert welcome.spec.layout == "brand" and welcome.spec.decl["scene"] == "welcome"
+    assert welcome.spec.decl["text"] == brand["video"]["welcome"]["text"]
+    assert welcome.frames == 90 and welcome.chrome == {}
+    second = plan.clips[3]
+    # It is not a part of the episode: the top bar still counts three parts.
+    assert (second.chrome["part"], second.chrome["parts"]) == (2, 3)
+    assert second.chrome["from_black"] is True
+    # The voice says it after the logo's sound, so it is inside the narration after the cut.
+    assert [(part.source, part.start) for part in plan.audio[:3]] == [
+        ("narration", 0.0), ("intro", 0.0), ("narration", 20.0)]
+
+
+def test_a_short_has_no_welcome_line() -> None:
+    brand = copy.deepcopy(BRAND)
+    brand["video"]["welcome"] = {"text": "This is StackNova."}
+    plan = plan_video(short_episode(scene([press("tapped Pay")])), "short-1",
+                      entry(("short-1", 0.0, 6.0), duration=6.0), brand)
+    assert [clip.unit for clip in plan.clips] == ["short-1"]
+
+
 S02 = ("If anything fails, the client retries. Clean. But that picture hides a question: when "
        "the client gets no response, what actually happened? There are three possibilities.")
 # Segment s02 of episode 001 as rendered on 14 October 2026: one silence after "retries." was

@@ -95,6 +95,7 @@ The planner adds these from `config/brand.yaml`; an episode never describes them
 - captions, from the narration, with the segment's `emphasis` words coloured;
 - the progress bar;
 - on a long video: the logo intro after the first segment (the hook always comes first), the
+  welcome line said right after it (`video.welcome`, the owner's choice of 14 October 2026), the
   outro, and the Instagram handle sliding in twice;
 - on a Short: like, comment, share, subscribe over the last 3 seconds;
 - the transition from one scene to the next.

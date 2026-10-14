@@ -48,6 +48,9 @@ class PronunciationError(RuntimeError):
     """The voice lost a phrase of the script in every reading it was given."""
 
 
+WELCOME = "welcome"  # the unit id of the channel's welcome line in a long video
+
+
 @dataclass(frozen=True)
 class Unit:
     """One stretch of narration that becomes one seg-<id>.wav file."""
@@ -60,12 +63,15 @@ def all_targets(episode: Mapping[str, Any]) -> list[str]:
     return ["long", *(short["id"] for short in episode["shorts"])]
 
 
-def select_units(episode: Mapping[str, Any], only: str) -> list[Unit]:
+def select_units(episode: Mapping[str, Any], only: str, welcome: str | None = None) -> list[Unit]:
     """Units for one target: 'long' is every segment; a Short is its script or its segments.
 
     A unit that is still a [STORY:...] placeholder is left out: there is nothing to say yet.
     Only a draft can hold one (the validator refuses it at ready_to_render), so this is what
     lets a draft be previewed before the owner's story is written.
+
+    `welcome` is the channel's welcome line (config/brand.yaml). A long video says it as a unit
+    of its own right after the hook, where the logo intro plays; Shorts never say it.
     """
     narrations = {segment["id"]: segment["narration"] for segment in episode["segments"]}
     if only == "long":
@@ -81,6 +87,8 @@ def select_units(episode: Mapping[str, Any], only: str) -> list[Unit]:
     units = [unit for unit in chosen if STORY_PLACEHOLDER not in unit.text]
     if not units:
         raise ValueError(f"{only}: nothing to narrate yet, it is all story placeholders")
+    if only == "long" and welcome and len(units) > 1:
+        units.insert(1, Unit(WELCOME, welcome))
     return units
 
 

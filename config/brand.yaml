@@ -51,6 +51,8 @@ video:                        # what the planner adds around an episode's scenes
   intro:                      # long videos only, played AFTER the first segment: "hook first always then intro"
     seconds: 4.3
     sound: nod-up             # the owner's pick (S1 of three, 13 Oct 2026); made by src/channel_os/brand/sound.py
+  welcome:                    # long videos only: said by the voice right after the logo intro (owner, 14 Oct 2026)
+    text: "This is StackNova: backend systems, explained from the inside."
   outro:                      # long videos only; no voice, music only
     seconds: 12
     music: lofi-nod           # the owner's pick (option 2); made by src/channel_os/brand/sound.py

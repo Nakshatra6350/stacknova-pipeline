@@ -71,13 +71,14 @@ def timing_path(root: Path) -> Path:
 def narrate_long(root: Path) -> None:
     """Record a narration of the long video in timing.json without running the voice stage."""
     timing = json.loads(timing_path(root).read_text(encoding="utf-8"))
+    # The voice stage says the welcome line (config/brand.yaml) right after the hook.
     timing["targets"]["long"] = {
         "narration": "voice/long/narration.wav",
-        "duration": 36.0,
+        "duration": 48.0,
         "segments": [
             {"id": unit, "file": f"voice/long/seg-{unit}.wav", "start": index * 12.0,
              "duration": 11.75, "pauses": []}
-            for index, unit in enumerate(["s01", "s02", "s03"])
+            for index, unit in enumerate(["s01", "welcome", "s02", "s03"])
         ],
     }
     timing_path(root).write_text(json.dumps(timing), encoding="utf-8")
@@ -114,7 +115,8 @@ def test_a_long_video_gets_its_brand_scenes_and_the_outro_music(narrated: Any) -
     recorder, composer = Recorder(), Composer()
     assert scenes(root, recorder, only="long", composer=composer) == 0
     (call,) = recorder.calls
-    assert [clip.unit for clip in call["plan"].clips] == ["s01", "intro", "s02", "s03", "outro"]
+    assert [clip.unit for clip in call["plan"].clips] == [
+        "s01", "intro", "welcome", "s02", "s03", "outro"]
     assert (call["format"], call["out"].name) == ("landscape", "long.mp4")
     # Both sounds are the ones config/brand.yaml names, the owner's picks.
     assert composer.made == ["lofi-nod", "nod-up"]
