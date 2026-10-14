@@ -107,8 +107,9 @@ body[data-format=landscape] .seq{--k:1.2}
 .dots i:first-child{background:var(--err)}
 .dots i:nth-child(2){background:var(--b)}
 .lines{flex:1;padding:calc(12px*var(--k)) 0;background:var(--code)}
+/* No ligatures: "!=" and ":=" are drawn as typed, not joined into one sign. */
 .ln{position:relative;display:flex;align-items:baseline;gap:calc(18px*var(--k));padding:calc(5px*var(--k)) calc(40px*var(--k)) calc(5px*var(--k)) 0;
-  font:400 28px/1.35 "JetBrains Mono",monospace;color:#d7e0e6;border-left:4px solid transparent}
+  font:400 28px/1.35 "JetBrains Mono",monospace;font-variant-ligatures:none;color:#d7e0e6;border-left:4px solid transparent}
 .ln.on{background:color-mix(in srgb,var(--hue) var(--glow,14%),transparent);border-left-color:var(--hue)}
 .ln .no{flex:none;width:calc(46px*var(--k));text-align:right;color:var(--dim);font-size:.8em}
 .ln code{font:inherit;white-space:pre}

@@ -61,16 +61,22 @@ func (s *Server) CreatePayment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2. Do the work. Pass a key downstream so the gateway is idempotent too.
+	// 2. Do the work. Pass a key downstream so the gateway is idempotent too (segment s08).
 	status, resp, err := s.Gateway.Charge(ctx, "pay-"+key, body)
 	if err != nil {
-		// Outcome unknown: keep the row 'in_progress'; a reconciliation job asks the
-		// gateway (with the same key) what happened. Never release the key and re-charge.
-		http.Error(w, "payment outcome pending, retry later", http.StatusServiceUnavailable)
+		// Outcome unknown: the row stays in_progress, and a
+		// job asks the gateway, with the same key, what happened.
+		http.Error(w, "try later", http.StatusServiceUnavailable)
 		return
 	}
+	// Charged: save the answer next to the key, then reply.
+	s.complete(ctx, w, key, status, resp)
+}
 
-	// 3. Save the response next to the key, then answer.
+// complete stores the gateway's answer next to the key, so every later retry gets it back,
+// and then sends it to the client. Never release the key and charge again.
+func (s *Server) complete(ctx context.Context, w http.ResponseWriter, key string, status int,
+	resp []byte) {
 	if _, err := s.DB.ExecContext(ctx,
 		`UPDATE idempotency_keys
 		    SET status = 'completed', response_code = $2, response_body = $3
@@ -79,9 +85,10 @@ func (s *Server) CreatePayment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(status)
-	_, _ = w.Write(resp)
+	w.Write(resp)
 }
 
+// replay answers a request whose key is already taken (segment s07).
 func (s *Server) replay(ctx context.Context, w http.ResponseWriter, key string, fingerprint []byte) {
 	var (
 		storedHash []byte
@@ -93,17 +100,22 @@ func (s *Server) replay(ctx context.Context, w http.ResponseWriter, key string, 
 		`SELECT request_hash, status, response_code, response_body
 		   FROM idempotency_keys WHERE key = $1`, key).
 		Scan(&storedHash, &state, &code, &body)
-	switch {
-	case errors.Is(err, sql.ErrNoRows):
+	if errors.Is(err, sql.ErrNoRows) {
 		http.Error(w, "key expired, retry", http.StatusConflict)
-	case err != nil:
+		return
+	}
+	if err != nil {
 		http.Error(w, "storage error", http.StatusServiceUnavailable)
+		return
+	}
+	// read for this key: storedHash, state, code, body
+	switch {
 	case !bytes.Equal(storedHash, fingerprint):
-		http.Error(w, "Idempotency-Key reused with a different request", http.StatusUnprocessableEntity)
+		http.Error(w, "key reuse", http.StatusUnprocessableEntity)
 	case state == "in_progress":
-		http.Error(w, "request with this key is still in progress", http.StatusConflict)
+		http.Error(w, "still running", http.StatusConflict)
 	default:
 		w.WriteHeader(int(code.Int64))
-		_, _ = w.Write(body)
+		w.Write(body)
 	}
 }

@@ -27,6 +27,17 @@ check each one before setting `status: ready_to_render`; `reach/lint.py` enforce
 6. **Recap + next**: one summary diagram; name the next episode.
 Target 1,100–2,200 words (≈ 8–15 min at 145 wpm). Depth over length: never pad.
 
+**Code in every long video** (the owner's rule, 14 October 2026: "right now everything is
+theoretical, add code snippets also and explain them"). Shorts need none.
+- 3–4 code walkthroughs, 30–60 seconds each, in the naive model, the real mechanism and the
+  trade-offs. A walkthrough explains the listing line by line as each line lights up: what the
+  line does, and why it is there or what goes wrong without it.
+- One language per episode, the one that fits the topic best, rotating across Go, Java and
+  Node.js (Go for episode 001). When another of them behaves differently, say so in one line.
+- Every listing is an excerpt of a sample under `samples/<lang>/` that compiles in CI, listed in
+  `code_samples` with the segments it is `shown_in`. Use the current version's idioms.
+- Put walkthroughs in segments no Short is cut from, so the Shorts stay free of code.
+
 ## 5. Voice and style
 - Second person, plain English, short sentences. One idea per sentence.
 - Define every term the first time (5–10 words), then use it consistently.

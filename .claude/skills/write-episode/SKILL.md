@@ -43,9 +43,15 @@ revisions, the reject reason from `state/queue.json` or the owner's message.
 9. Packaging: 5 titles ≤ 60 chars (keyword in first 40), 3 thumbnail texts that don't repeat the
    title, description template, 10–15 tags, pinned comment question.
 10. Localizations for every language in `config/reach.yaml`, keeping `keep_in_english` terms.
-11. Code samples: write fresh code under `samples/<lang>/` and make it compile/run. A `code`
-    visual shows its own short listing (at most 10 lines of 60 characters, written for the
-    screen); keep it true to the sample.
+11. Code samples and walkthroughs. Every long video has 3–4 code walkthroughs
+    (`docs/CONTENT_RULES.md` §4): one language per episode, rotating Go / Java / Node.js. Write
+    fresh code under `samples/<lang>/` and make it compile (`go vet` and `go build` for Go).
+    Each walkthrough is a `code` scene after the diagram it explains (`from:` its first phrase),
+    in a segment no Short is cut from. The listing is an excerpt of the sample (at most 10
+    lines of 60 characters, written for the screen). The narration takes the viewer through it
+    line by line, and the steps follow: `show` the lines as they are reached, `highlight` the
+    line being explained, `note` what it does or what breaks without it. List each sample in
+    `code_samples` with `shown_in`.
 12. Fact-check pass as a sceptical senior engineer: every claim in `fact_check` has a URL or
     "derived from code sample". Delete unsourced claims.
 13. Validate: `uv run python -m channel_os.validate content/episodes/<id>/episode.yaml`

@@ -294,7 +294,9 @@ strings, numbers and comments are coloured for `language: sql | go | java | js |
 
 Episode 001 uses every stage. `short-1` is two `console` scenes over a 33-second script, cut at
 "The fix". Segment `s06` is a `sequence` (the race), a `code` scene (the constraint) and a
-second `sequence` (the race again, now with one winner). `s04`, `s07`, `s10` and `short-5` are
+second `sequence` (the race again, now with one winner). `s04`, `s05`, `s07` and `s08` each end
+with a Go walkthrough: a `code` scene taken line by line, the way every long video explains its
+code (`docs/CONTENT_RULES.md` §4). `s04`, `s07`, `s10` and `short-5` are
 `cards`, `s03` is a `fanin`, and `s01`, `s02`, `s05` and `s08` are `console` scenes. Read them
 in `content/episodes/001-idempotency/episode.yaml`.
 

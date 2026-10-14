@@ -277,3 +277,11 @@ def test_a_listing_is_shown_lit_and_explained_line_by_line(brand: Data, theme: A
     assert view["noted"]["lines"][1]["pinned"] and view["noted"]["noted"] > 0.9
     assert [line["opacity"] for line in view["all"]["lines"]] == [1, 1, 1, 1]
     assert not any(line["on"] for line in view["all"]["lines"])
+
+
+def test_code_is_drawn_as_it_is_typed(brand: Data, theme: Any) -> None:
+    # The code face joins "!=" into "≠" and ":=" into one sign; a viewer learning the code
+    # must see the characters they would type, so ligatures are off in listings.
+    script = """getComputedStyle(document.querySelector('.ln code')).fontVariantLigatures"""
+    view = seen(brand, theme, CODE, {"two": 1.8}, script)
+    assert view["two"] == "none"

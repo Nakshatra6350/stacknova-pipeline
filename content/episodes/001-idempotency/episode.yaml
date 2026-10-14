@@ -1,7 +1,7 @@
 # Episode 001 — written by Claude (night-agent format). Status stays 'draft' until the
 # owner's production story replaces the [STORY] placeholder in segment s09.
 id: 001-idempotency
-version: 1
+version: 2
 status: draft            # draft | ready_to_render | rendering | rendered | published
 pillar: money-systems
 series: how-it-breaks
@@ -9,7 +9,7 @@ language: en
 target_versions:
   go: "1.26"
   postgresql: "18"
-estimated_minutes: 9
+estimated_minutes: 10
 next:                           # shown on the outro of the long video
   title: "The Outbox Pattern"
   teaser: "You charged the card. Now update your database and publish an event, and those two cannot share a transaction."
@@ -328,7 +328,11 @@ segments:
       times and you end in the same state. "Add a hundred dollars to this account" is not; do it
       twice and you've added two hundred. HTTP already defines GET, PUT and DELETE as idempotent.
       POST is not. And "create a payment" is almost always a POST, so we have to make it idempotent
-      ourselves.
+      ourselves. Here's the handler most of us write first, in Go. It reads the body. Then it asks
+      the gateway to charge the card. If that fails, it tells the client to try again; that's the
+      message you saw at the start. If it works, it writes the gateway's answer back. Now look for
+      the line that asks whether this payment was already made. There isn't one. Every request that
+      reaches this handler charges the card, so two requests mean two charges.
     emphasis: [idempotency, twice, once, POST]
     visual:
       - layout: cards
@@ -371,6 +375,38 @@ segments:
           - {at: "POST is not", action: mark, target: post, params: {status: bad}}
           - {at: "create a payment", action: badge, target: post, params: {text: "create a payment", status: bad}}
           - {at: "make it idempotent ourselves", action: highlight, target: post}
+      # Scene 3: the handler in code, line by line, and the check it does not have.
+      - layout: code
+        from: "Here's the handler most of us write first"
+        header: ["IN CODE", "THE NAIVE HANDLER"]
+        title: naive.go
+        language: go
+        reveal: true
+        lines:
+          - "func (s *NaiveServer) Pay(w http.ResponseWriter,"
+          - "  r *http.Request) {"
+          - "  body, _ := io.ReadAll(r.Body)"
+          - "  resp, err := s.Gateway.Charge(r.Context(), body)"
+          - "  if err != nil {"
+          - '    http.Error(w, "try again", http.StatusBadGateway)'
+          - "    return"
+          - "  }"
+          - "  w.Write(resp)"
+          - "}"
+        steps:
+          - {at: "Here's the handler most of us write first", action: show, target: "1-2"}
+          - {at: "It reads the body", action: show, target: "3"}
+          - {at: "It reads the body", action: highlight, target: "3"}
+          - {at: "asks the gateway to charge", action: show, target: "4"}
+          - {at: "asks the gateway to charge", action: highlight, target: "4"}
+          - {at: "If that fails", action: show, target: "5-8"}
+          - {at: "If that fails", action: highlight, target: "5-8"}
+          - {at: "the message you saw", action: note, target: "6", params: {text: "the error your phone showed", status: info}}
+          - {at: "If it works", action: show, target: "9-10"}
+          - {at: "If it works", action: highlight, target: "9"}
+          - {at: "Now look for the line", action: focus, target: all}
+          - {at: "There isn't one", action: highlight, target: "4"}
+          - {at: "There isn't one", action: note, target: "4", params: {text: "charges on every request, even a retry", status: bad}}
 
   - id: s05
     title: The idempotency key
@@ -381,86 +417,128 @@ segments:
       gets a new key. On the server, before doing any work, we look the key up. Never seen it?
       Record it, do the work, and save the response next to the key. Seen it, and the work is
       finished? Don't charge again; return the saved response. To the client, the retry looks
-      exactly like a successful first attempt. The duplicate became harmless.
+      exactly like a successful first attempt. The duplicate became harmless. Here's the client
+      side, in Go. The key is made once, before the loop. Go's standard library has no UUID type;
+      the Text function in crypto/rand gives a random string that does the same job. Inside the
+      loop, the request is built again for every attempt, because a body that was sent once has
+      been read. Every attempt sets the same key in the same header. If an answer comes back, any
+      answer, the loop ends. Only silence, an error with no response, earns another try: wait one
+      second, then two, and send the same key again. Move the first line into the loop, and every
+      retry becomes a brand new payment.
     emphasis: [Idempotency-Key, same key, saved response]
     visual:
-      layout: console
-      phone:
-        title: Checkout
-        total: "$100.00"
-        method: "Visa •••• 4242"
-        items: [["Headphones", "$89.00"], ["Shipping", "$11.00"]]
-      systems:
-        - {id: api, name: "API server", sub: "POST /v1/payments", idle: "listening on :8080"}
-        - {id: store, name: "Key store", sub: "PostgreSQL · idempotency_keys", idle: "waiting"}
-        - {id: gateway, name: "Payment gateway", sub: "moves the money"}
-      panels:
-        - {id: keys, kind: table, title: idempotency_keys, columns: [key, status, response], unique: key, lane: store}
-        - {id: charges, kind: list, title: "gateway · charges", unit: charged, empty: "No money has moved.", lane: gateway}
-      steps:
-        - {at: "generates a unique ID", action: screen, target: phone, params: {chip: {label: Idempotency-Key, value: 7f3c-91ab-4e02}}}
-        - {at: "generates a unique ID", action: note, target: wire, params: {text: "Before the first attempt, the client makes one random ID for this payment."}}
-        - {at: "sends it in a header", action: tap, target: phone}
-        - at: "sends it in a header"
-          action: send
-          target: "phone->api"
-          params:
-            delay: 0.1
-            label: "POST /payments · key 7f3c"
-            wire:
-              title: "Create payment"
-              method: POST
-              path: /v1/payments
-              headers: {Content-Type: application/json, Idempotency-Key: 7f3c-91ab-4e02}
-              body: {amount: 100, currency: USD, source: card_visa_4242}
-        - {at: "sends it in a header", action: log, target: api, params: {delay: 0.6, text: "POST /payments key=7f3c"}}
-        - {at: "Every retry", action: highlight, target: phone}
-        - {at: "Every retry", action: note, target: wire, params: {text: "The same payment always sends the same key. A new payment gets a new one."}}
-        - {at: "we look the key up", action: send, target: "api->store", params: {label: "SELECT 7f3c"}}
-        - {at: "we look the key up", action: highlight, target: keys}
-        - {at: "Never seen it", action: log, target: store, params: {text: "SELECT 7f3c → 0 rows"}}
-        - {at: "Record it", action: send, target: "api->store", params: {label: "INSERT 7f3c"}}
-        - {at: "Record it", action: row, target: keys, params: {delay: 0.45, key: "7f3c-91ab…", cells: [in_progress, "—"], status: info}}
-        - {at: "Record it", action: log, target: store, params: {delay: 0.45, text: "INSERT 7f3c → 1 row"}}
-        - {at: "do the work", action: send, target: "api->gateway", params: {label: "charge $100"}}
-        - {at: "do the work", action: item, target: charges, params: {delay: 0.6, text: "#1 pay_A19", value: "$100.00"}}
-        - {at: "do the work", action: log, target: gateway, params: {delay: 0.6, text: "charge #1 $100 ok"}}
-        - {at: "save the response", action: row, target: keys, params: {key: "7f3c-91ab…", cells: [completed, "201 pay_A19"], status: ok}}
-        - {at: "save the response", action: log, target: store, params: {text: "UPDATE 7f3c → completed"}}
-        - at: "save the response"
-          action: send
-          target: "gateway->phone"
-          params: {delay: 0.4, label: "201 Created", role: reply, lost: 0.8, response: {status: "201 Created", body: {id: pay_A19, status: succeeded}}}
-        - {at: "save the response", action: screen, target: phone, params: {delay: 1.5, state: error, text: "We could not confirm your payment. Try again.", attempt: "no reply"}}
-        - {at: "Seen it", action: tap, target: phone}
-        - at: "Seen it"
-          action: send
-          target: "phone->api"
-          params:
-            delay: 0.1
-            label: "RETRY · key 7f3c"
-            role: retry
-            wire:
-              title: "Create payment"
-              tag: "RETRY · SAME KEY"
-              method: POST
-              path: /v1/payments
-              headers: {Content-Type: application/json, Idempotency-Key: 7f3c-91ab-4e02}
-              body: {amount: 100, currency: USD, source: card_visa_4242}
-        - {at: "Seen it", action: send, target: "api->store", params: {delay: 0.7, label: "SELECT 7f3c"}}
-        - {at: "the work is finished", action: log, target: store, params: {text: "SELECT 7f3c → completed"}}
-        - {at: "the work is finished", action: highlight, target: keys}
-        - {at: "Don't charge again", action: log, target: api, params: {text: "key exists → skip charge"}}
-        - {at: "Don't charge again", action: note, target: wire, params: {text: "No second charge: the key is already there, with its answer.", status: ok}}
-        - {at: "return the saved response", action: send, target: "store->api", params: {label: "saved 201", role: reply}}
-        - at: "return the saved response"
-          action: send
-          target: "api->phone"
-          params: {delay: 0.5, label: "201 · replayed", role: reply, response: {status: "201 Created · replayed", body: {id: pay_A19, status: succeeded}}}
-        - {at: "return the saved response", action: screen, target: phone, params: {delay: 1.05, state: success, text: "$100.00 · receipt #A19", attempt: "paid"}}
-        - {at: "successful first attempt", action: highlight, target: phone}
-        - {at: "became harmless", action: stamp, target: charges, params: {text: "CHARGED ONCE", status: ok}}
-        - {at: "became harmless", action: highlight, target: charges}
+      - layout: console
+        phone:
+          title: Checkout
+          total: "$100.00"
+          method: "Visa •••• 4242"
+          items: [["Headphones", "$89.00"], ["Shipping", "$11.00"]]
+        systems:
+          - {id: api, name: "API server", sub: "POST /v1/payments", idle: "listening on :8080"}
+          - {id: store, name: "Key store", sub: "PostgreSQL · idempotency_keys", idle: "waiting"}
+          - {id: gateway, name: "Payment gateway", sub: "moves the money"}
+        panels:
+          - {id: keys, kind: table, title: idempotency_keys, columns: [key, status, response], unique: key, lane: store}
+          - {id: charges, kind: list, title: "gateway · charges", unit: charged, empty: "No money has moved.", lane: gateway}
+        steps:
+          - {at: "generates a unique ID", action: screen, target: phone, params: {chip: {label: Idempotency-Key, value: 7f3c-91ab-4e02}}}
+          - {at: "generates a unique ID", action: note, target: wire, params: {text: "Before the first attempt, the client makes one random ID for this payment."}}
+          - {at: "sends it in a header", action: tap, target: phone}
+          - at: "sends it in a header"
+            action: send
+            target: "phone->api"
+            params:
+              delay: 0.1
+              label: "POST /payments · key 7f3c"
+              wire:
+                title: "Create payment"
+                method: POST
+                path: /v1/payments
+                headers: {Content-Type: application/json, Idempotency-Key: 7f3c-91ab-4e02}
+                body: {amount: 100, currency: USD, source: card_visa_4242}
+          - {at: "sends it in a header", action: log, target: api, params: {delay: 0.6, text: "POST /payments key=7f3c"}}
+          - {at: "Every retry", action: highlight, target: phone}
+          - {at: "Every retry", action: note, target: wire, params: {text: "The same payment always sends the same key. A new payment gets a new one."}}
+          - {at: "we look the key up", action: send, target: "api->store", params: {label: "SELECT 7f3c"}}
+          - {at: "we look the key up", action: highlight, target: keys}
+          - {at: "Never seen it", action: log, target: store, params: {text: "SELECT 7f3c → 0 rows"}}
+          - {at: "Record it", action: send, target: "api->store", params: {label: "INSERT 7f3c"}}
+          - {at: "Record it", action: row, target: keys, params: {delay: 0.45, key: "7f3c-91ab…", cells: [in_progress, "—"], status: info}}
+          - {at: "Record it", action: log, target: store, params: {delay: 0.45, text: "INSERT 7f3c → 1 row"}}
+          - {at: "do the work", action: send, target: "api->gateway", params: {label: "charge $100"}}
+          - {at: "do the work", action: item, target: charges, params: {delay: 0.6, text: "#1 pay_A19", value: "$100.00"}}
+          - {at: "do the work", action: log, target: gateway, params: {delay: 0.6, text: "charge #1 $100 ok"}}
+          - {at: "save the response", action: row, target: keys, params: {key: "7f3c-91ab…", cells: [completed, "201 pay_A19"], status: ok}}
+          - {at: "save the response", action: log, target: store, params: {text: "UPDATE 7f3c → completed"}}
+          - at: "save the response"
+            action: send
+            target: "gateway->phone"
+            params: {delay: 0.4, label: "201 Created", role: reply, lost: 0.8, response: {status: "201 Created", body: {id: pay_A19, status: succeeded}}}
+          - {at: "save the response", action: screen, target: phone, params: {delay: 1.5, state: error, text: "We could not confirm your payment. Try again.", attempt: "no reply"}}
+          - {at: "Seen it", action: tap, target: phone}
+          - at: "Seen it"
+            action: send
+            target: "phone->api"
+            params:
+              delay: 0.1
+              label: "RETRY · key 7f3c"
+              role: retry
+              wire:
+                title: "Create payment"
+                tag: "RETRY · SAME KEY"
+                method: POST
+                path: /v1/payments
+                headers: {Content-Type: application/json, Idempotency-Key: 7f3c-91ab-4e02}
+                body: {amount: 100, currency: USD, source: card_visa_4242}
+          - {at: "Seen it", action: send, target: "api->store", params: {delay: 0.7, label: "SELECT 7f3c"}}
+          - {at: "the work is finished", action: log, target: store, params: {text: "SELECT 7f3c → completed"}}
+          - {at: "the work is finished", action: highlight, target: keys}
+          - {at: "Don't charge again", action: log, target: api, params: {text: "key exists → skip charge"}}
+          - {at: "Don't charge again", action: note, target: wire, params: {text: "No second charge: the key is already there, with its answer.", status: ok}}
+          - {at: "return the saved response", action: send, target: "store->api", params: {label: "saved 201", role: reply}}
+          - at: "return the saved response"
+            action: send
+            target: "api->phone"
+            params: {delay: 0.5, label: "201 · replayed", role: reply, response: {status: "201 Created · replayed", body: {id: pay_A19, status: succeeded}}}
+          - {at: "return the saved response", action: screen, target: phone, params: {delay: 1.05, state: success, text: "$100.00 · receipt #A19", attempt: "paid"}}
+          - {at: "successful first attempt", action: highlight, target: phone}
+          - {at: "became harmless", action: stamp, target: charges, params: {text: "CHARGED ONCE", status: ok}}
+          - {at: "became harmless", action: highlight, target: charges}
+      # Scene 2: the client in code. One key before the loop, the same key on every attempt.
+      - layout: code
+        from: "Here's the client"
+        header: ["IN CODE", "ONE KEY, EVERY RETRY"]
+        title: client.go
+        language: go
+        reveal: true
+        lines:
+          - "key := rand.Text() // once, before the first try"
+          - "for attempt := 0; ; attempt++ {"
+          - '  req, _ := http.NewRequest("POST", url, bytes.NewReader(b))'
+          - '  req.Header.Set("Idempotency-Key", key)'
+          - "  resp, err := c.Do(req)"
+          - "  if err == nil || attempt == 2 {"
+          - "    return resp, err // an answer, or out of tries"
+          - "  }"
+          - "  time.Sleep(time.Second << attempt) // 1 s, then 2 s"
+          - "}"
+        steps:
+          - {at: "Here's the client", action: show, target: "1"}
+          - {at: "made once, before the loop", action: highlight, target: "1"}
+          - {at: "no UUID type", action: note, target: "1", params: {text: "crypto/rand.Text: 128 random bits, 26 characters", status: info}}
+          - {at: "Inside the", action: show, target: "2-3"}
+          - {at: "built again for every attempt", action: highlight, target: "3"}
+          - {at: "has been read", action: note, target: "3", params: {text: "a sent body is used up: build it again", status: info}}
+          - {at: "sets the same key", action: show, target: "4"}
+          - {at: "sets the same key", action: highlight, target: "4"}
+          - {at: "If an answer comes back", action: show, target: "5-8"}
+          - {at: "If an answer comes back", action: highlight, target: "5-7"}
+          - {at: "Only silence", action: note, target: "6", params: {text: "err: no answer came back at all", status: info}}
+          - {at: "wait one", action: show, target: "9-10"}
+          - {at: "wait one", action: highlight, target: "9"}
+          - {at: "send the same key again", action: highlight, target: "4"}
+          - {at: "Move the first line", action: highlight, target: "1"}
+          - {at: "brand new payment", action: note, target: "1", params: {text: "inside the loop: a new key, a new charge", status: bad}}
 
   - id: s06
     title: The race most tutorials miss
@@ -543,40 +621,76 @@ segments:
       tell the client the five-hundred payment succeeded when it never happened. So store a
       fingerprint of the request, a hash of its body, next to the key. On a repeat, compare
       fingerprints. Same fingerprint: replay. Different fingerprint: reject it with a clear error,
-      so the bug shows up loudly instead of silently.
+      so the bug shows up loudly instead of silently. Here's the replay in Go. When the insert
+      finds the key already taken, the handler reads that row: the stored fingerprint, the status,
+      and the saved response. Then three cases. The fingerprints differ: the same key came with a
+      different request, so answer 422 and stop. The first request is still running: answer 409,
+      and the client tries later with the same key. Otherwise the work is done: write back the
+      saved status and body, exactly what the first attempt got.
     emphasis: [fingerprint, reject]
     visual:
-      layout: cards
-      header: ["SAME KEY", "DIFFERENT REQUEST"]
-      title: "one key, two different payments"
-      cards:
-        - id: first
-          title: "request A"
-          lines:
-            - {id: key, key: key, value: "7f3c"}
-            - {id: amount, key: amount, value: "$100"}
-            - {id: hash, key: fingerprint, value: "-"}
-        - id: second
-          title: "request B"
-          hidden: true
-          lines:
-            - {id: key, key: key, value: "7f3c"}
-            - {id: amount, key: amount, value: "$500"}
-            - {id: hash, key: fingerprint, value: "-"}
-      steps:
-        - {at: "reuses a key", action: show, target: second}
-        - {at: "Same key", action: highlight, target: first.key}
-        - {at: "Same key", action: highlight, target: second.key}
-        - {at: "five hundred dollars", action: set, target: second.amount, params: {value: "$500", status: bad}}
-        - {at: "blindly replay", action: badge, target: second, params: {text: "replayed as paid?", status: bad}}
-        - {at: "store a fingerprint", action: set, target: first.hash, params: {value: "9a1f", status: info}}
-        - {at: "a hash of its body", action: set, target: second.hash, params: {value: "c04e", status: info}}
-        - {at: "compare fingerprints", action: highlight, target: first.hash}
-        - {at: "compare fingerprints", action: highlight, target: second.hash}
-        - {at: "Same fingerprint", action: mark, target: first, params: {status: ok}}
-        - {at: "Same fingerprint", action: badge, target: first, params: {text: REPLAY, status: ok}}
-        - {at: "Different fingerprint", action: mark, target: second, params: {status: bad}}
-        - {at: "reject it", action: badge, target: second, params: {text: "422 KEY REUSED", status: bad}}
+      - layout: cards
+        header: ["SAME KEY", "DIFFERENT REQUEST"]
+        title: "one key, two different payments"
+        cards:
+          - id: first
+            title: "request A"
+            lines:
+              - {id: key, key: key, value: "7f3c"}
+              - {id: amount, key: amount, value: "$100"}
+              - {id: hash, key: fingerprint, value: "-"}
+          - id: second
+            title: "request B"
+            hidden: true
+            lines:
+              - {id: key, key: key, value: "7f3c"}
+              - {id: amount, key: amount, value: "$500"}
+              - {id: hash, key: fingerprint, value: "-"}
+        steps:
+          - {at: "reuses a key", action: show, target: second}
+          - {at: "Same key", action: highlight, target: first.key}
+          - {at: "Same key", action: highlight, target: second.key}
+          - {at: "five hundred dollars", action: set, target: second.amount, params: {value: "$500", status: bad}}
+          - {at: "blindly replay", action: badge, target: second, params: {text: "replayed as paid?", status: bad}}
+          - {at: "store a fingerprint", action: set, target: first.hash, params: {value: "9a1f", status: info}}
+          - {at: "a hash of its body", action: set, target: second.hash, params: {value: "c04e", status: info}}
+          - {at: "compare fingerprints", action: highlight, target: first.hash}
+          - {at: "compare fingerprints", action: highlight, target: second.hash}
+          - {at: "Same fingerprint", action: mark, target: first, params: {status: ok}}
+          - {at: "Same fingerprint", action: badge, target: first, params: {text: REPLAY, status: ok}}
+          - {at: "Different fingerprint", action: mark, target: second, params: {status: bad}}
+          - {at: "reject it", action: badge, target: second, params: {text: "422 KEY REUSED", status: bad}}
+      # Scene 2: the replay in code. Three cases, in the order the handler checks them.
+      - layout: code
+        from: "Here's the replay"
+        header: ["IN CODE", "THE REPLAY"]
+        title: idempotency.go
+        language: go
+        reveal: true
+        lines:
+          - "// read for this key: storedHash, state, code, body"
+          - "switch {"
+          - "case !bytes.Equal(storedHash, fingerprint):"
+          - '  http.Error(w, "key reuse", http.StatusUnprocessableEntity)'
+          - 'case state == "in_progress":'
+          - '  http.Error(w, "still running", http.StatusConflict)'
+          - "default:"
+          - "  w.WriteHeader(int(code.Int64))"
+          - "  w.Write(body)"
+          - "}"
+        steps:
+          - {at: "Here's the replay", action: show, target: "1"}
+          - {at: "the handler reads that row", action: highlight, target: "1"}
+          - {at: "Then three cases", action: show, target: "2"}
+          - {at: "The fingerprints differ", action: show, target: "3-4"}
+          - {at: "The fingerprints differ", action: highlight, target: "3-4"}
+          - {at: "answer 422", action: note, target: "4", params: {text: "422: this key belongs to another request", status: bad}}
+          - {at: "still running", action: show, target: "5-6"}
+          - {at: "still running", action: highlight, target: "5-6"}
+          - {at: "answer 409", action: note, target: "6", params: {text: "409: try later, with the same key", status: info}}
+          - {at: "Otherwise the work is done", action: show, target: "7-10"}
+          - {at: "Otherwise the work is done", action: highlight, target: "7-9"}
+          - {at: "exactly what the first attempt got", action: note, target: "8", params: {text: "the first answer, sent again", status: ok}}
 
   - id: s08
     title: The chain downstream
@@ -588,95 +702,128 @@ segments:
       operation becomes a retry of theirs, never a new charge. And if the gateway call fails with an
       unknown outcome, don't release the key and try again with a new one. Keep it, and ask the
       gateway what happened. Idempotency isn't a feature of one service. It's a chain, and it only
-      holds if every link holds.
+      holds if every link holds. Here's that link in our Go handler. The key we send the gateway
+      is our own key with a prefix, so every retry of this payment sends the gateway the same key.
+      If the call fails, we don't know whether the card was charged. So the row stays in progress,
+      a background job asks the gateway, with that same key, what happened, and the client is told
+      to try later. Only when the gateway answers do we save its answer next to our key.
     emphasis: [downstream, chain, every link]
     visual:
-      layout: console
-      phone:
-        title: Checkout
-        total: "$100.00"
-        method: "Visa •••• 4242"
-        items: [["Headphones", "$89.00"], ["Shipping", "$11.00"]]
-      systems:
-        - {id: api, name: "Your server", sub: "POST /v1/payments", idle: "listening on :8080"}
-        - {id: gateway, name: "Payment gateway", sub: "POST /v1/charges", idle: "waiting"}
-        - {id: bank, name: "Card network", sub: "moves the money"}
-      panels:
-        - {id: chain, kind: list, title: "the chain · which key each hop carries", unit: links, empty: "No request yet.", lane: api}
-        - {id: charges, kind: list, title: "card network · debits", unit: debited, empty: "No money has moved.", lane: bank}
-      steps:
-        - {at: "Now zoom out", action: screen, target: phone, params: {chip: {label: Idempotency-Key, value: 7f3c-91ab-4e02}}}
-        - {at: "Now zoom out", action: tap, target: phone, params: {delay: 0.15}}
-        - at: "Now zoom out"
-          action: send
-          target: "phone->api"
-          params:
-            delay: 0.25
-            label: "POST /payments · key 7f3c"
-            wire:
-              title: "Create payment"
-              method: POST
-              path: /v1/payments
-              headers: {Content-Type: application/json, Idempotency-Key: 7f3c-91ab-4e02}
-              body: {amount: 100, currency: USD, source: card_visa_4242}
-        - {at: "Now zoom out", action: item, target: chain, params: {delay: 0.8, text: "client → your server", value: "key 7f3c", status: info}}
-        - at: "calls a payment gateway"
-          action: send
-          target: "api->gateway"
-          params:
-            label: "charge $100 · no key"
-            wire:
-              title: "Charge the card"
-              tag: "NO KEY"
-              bad: true
-              method: POST
-              path: /v1/charges
-              headers: {Content-Type: application/json, Idempotency-Key: null}
-              body: {amount: 100, currency: USD, payment: pay_A19}
-        - {at: "calls a payment gateway", action: item, target: chain, params: {delay: 0.5, text: "your server → gateway", value: "no key", status: bad}}
-        - {at: "calls a payment gateway", action: send, target: "gateway->bank", params: {delay: 0.6, label: "debit $100"}}
-        - {at: "calls a payment gateway", action: item, target: charges, params: {delay: 1.1, text: "#1 debit", value: "$100.00"}}
-        - {at: "calls a payment gateway", action: log, target: bank, params: {delay: 1.1, text: "debit #1 $100 ok"}}
-        - at: "that call times out"
-          action: send
-          target: "gateway->api"
-          params: {label: "200 OK", role: reply, lost: 0.5, response: {status: "200 OK", body: {charge: ch_19, status: succeeded}}}
-        - {at: "that call times out", action: log, target: api, params: {delay: 0.7, text: "gateway call timed out"}}
-        - {at: "you are now the client", action: highlight, target: api}
-        - {at: "you are now the client", action: note, target: wire, params: {text: "Your server is the client now. Same silence, same three stories.", status: bad}}
-        - {at: "pass an idempotency key downstream", action: item, target: chain, params: {text: "your server → gateway", value: "key pay-7f3c", status: info}}
-        - {at: "pass an idempotency key downstream", action: highlight, target: chain}
-        - {at: "Derive it from your own key", action: log, target: api, params: {text: "pay-7f3c = derived from 7f3c"}}
-        - at: "a retry of your operation"
-          action: send
-          target: "api->gateway"
-          params:
-            label: "RETRY · key pay-7f3c"
-            role: retry
-            wire:
-              title: "Charge the card"
-              tag: "RETRY · SAME KEY"
-              method: POST
-              path: /v1/charges
-              headers: {Content-Type: application/json, Idempotency-Key: pay-7f3c}
-              body: {amount: 100, currency: USD, payment: pay_A19}
-        - {at: "never a new charge", action: log, target: gateway, params: {text: "key pay-7f3c seen → no new debit"}}
-        - at: "never a new charge"
-          action: send
-          target: "gateway->api"
-          params: {delay: 0.3, label: "200 · replayed", role: reply, response: {status: "200 OK · replayed", body: {charge: ch_19, status: succeeded}}}
-        - {at: "never a new charge", action: stamp, target: charges, params: {delay: 0.5, text: "DEBITED ONCE", status: ok}}
-        - {at: "unknown outcome", action: log, target: api, params: {text: "outcome unknown"}}
-        - {at: "unknown outcome", action: note, target: wire, params: {text: "Outcome unknown? Keep the key. A new key would be a new charge.", status: bad}}
-        - {at: "don't release the key", action: highlight, target: chain}
-        - {at: "ask the gateway what happened", action: send, target: "api->gateway", params: {label: "GET charge · key pay-7f3c"}}
-        - {at: "Idempotency isn't", action: send, target: "gateway->api", params: {label: "200 · succeeded", role: reply}}
-        - {at: "Idempotency isn't", action: log, target: api, params: {delay: 0.5, text: "confirmed: charged once"}}
-        - {at: "It's a chain", action: highlight, target: phone}
-        - {at: "It's a chain", action: highlight, target: api, params: {delay: 0.15}}
-        - {at: "every link holds", action: highlight, target: gateway}
-        - {at: "every link holds", action: highlight, target: bank, params: {delay: 0.15}}
-        - {at: "every link holds", action: highlight, target: charges, params: {delay: 0.3}}
+      - layout: console
+        phone:
+          title: Checkout
+          total: "$100.00"
+          method: "Visa •••• 4242"
+          items: [["Headphones", "$89.00"], ["Shipping", "$11.00"]]
+        systems:
+          - {id: api, name: "Your server", sub: "POST /v1/payments", idle: "listening on :8080"}
+          - {id: gateway, name: "Payment gateway", sub: "POST /v1/charges", idle: "waiting"}
+          - {id: bank, name: "Card network", sub: "moves the money"}
+        panels:
+          - {id: chain, kind: list, title: "the chain · which key each hop carries", unit: links, empty: "No request yet.", lane: api}
+          - {id: charges, kind: list, title: "card network · debits", unit: debited, empty: "No money has moved.", lane: bank}
+        steps:
+          - {at: "Now zoom out", action: screen, target: phone, params: {chip: {label: Idempotency-Key, value: 7f3c-91ab-4e02}}}
+          - {at: "Now zoom out", action: tap, target: phone, params: {delay: 0.15}}
+          - at: "Now zoom out"
+            action: send
+            target: "phone->api"
+            params:
+              delay: 0.25
+              label: "POST /payments · key 7f3c"
+              wire:
+                title: "Create payment"
+                method: POST
+                path: /v1/payments
+                headers: {Content-Type: application/json, Idempotency-Key: 7f3c-91ab-4e02}
+                body: {amount: 100, currency: USD, source: card_visa_4242}
+          - {at: "Now zoom out", action: item, target: chain, params: {delay: 0.8, text: "client → your server", value: "key 7f3c", status: info}}
+          - at: "calls a payment gateway"
+            action: send
+            target: "api->gateway"
+            params:
+              label: "charge $100 · no key"
+              wire:
+                title: "Charge the card"
+                tag: "NO KEY"
+                bad: true
+                method: POST
+                path: /v1/charges
+                headers: {Content-Type: application/json, Idempotency-Key: null}
+                body: {amount: 100, currency: USD, payment: pay_A19}
+          - {at: "calls a payment gateway", action: item, target: chain, params: {delay: 0.5, text: "your server → gateway", value: "no key", status: bad}}
+          - {at: "calls a payment gateway", action: send, target: "gateway->bank", params: {delay: 0.6, label: "debit $100"}}
+          - {at: "calls a payment gateway", action: item, target: charges, params: {delay: 1.1, text: "#1 debit", value: "$100.00"}}
+          - {at: "calls a payment gateway", action: log, target: bank, params: {delay: 1.1, text: "debit #1 $100 ok"}}
+          - at: "that call times out"
+            action: send
+            target: "gateway->api"
+            params: {label: "200 OK", role: reply, lost: 0.5, response: {status: "200 OK", body: {charge: ch_19, status: succeeded}}}
+          - {at: "that call times out", action: log, target: api, params: {delay: 0.7, text: "gateway call timed out"}}
+          - {at: "you are now the client", action: highlight, target: api}
+          - {at: "you are now the client", action: note, target: wire, params: {text: "Your server is the client now. Same silence, same three stories.", status: bad}}
+          - {at: "pass an idempotency key downstream", action: item, target: chain, params: {text: "your server → gateway", value: "key pay-7f3c", status: info}}
+          - {at: "pass an idempotency key downstream", action: highlight, target: chain}
+          - {at: "Derive it from your own key", action: log, target: api, params: {text: "pay-7f3c = derived from 7f3c"}}
+          - at: "a retry of your operation"
+            action: send
+            target: "api->gateway"
+            params:
+              label: "RETRY · key pay-7f3c"
+              role: retry
+              wire:
+                title: "Charge the card"
+                tag: "RETRY · SAME KEY"
+                method: POST
+                path: /v1/charges
+                headers: {Content-Type: application/json, Idempotency-Key: pay-7f3c}
+                body: {amount: 100, currency: USD, payment: pay_A19}
+          - {at: "never a new charge", action: log, target: gateway, params: {text: "key pay-7f3c seen → no new debit"}}
+          - at: "never a new charge"
+            action: send
+            target: "gateway->api"
+            params: {delay: 0.3, label: "200 · replayed", role: reply, response: {status: "200 OK · replayed", body: {charge: ch_19, status: succeeded}}}
+          - {at: "never a new charge", action: stamp, target: charges, params: {delay: 0.5, text: "DEBITED ONCE", status: ok}}
+          - {at: "unknown outcome", action: log, target: api, params: {text: "outcome unknown"}}
+          - {at: "unknown outcome", action: note, target: wire, params: {text: "Outcome unknown? Keep the key. A new key would be a new charge.", status: bad}}
+          - {at: "don't release the key", action: highlight, target: chain}
+          - {at: "ask the gateway what happened", action: send, target: "api->gateway", params: {label: "GET charge · key pay-7f3c"}}
+          - {at: "Idempotency isn't", action: send, target: "gateway->api", params: {label: "200 · succeeded", role: reply}}
+          - {at: "Idempotency isn't", action: log, target: api, params: {delay: 0.5, text: "confirmed: charged once"}}
+          - {at: "It's a chain", action: highlight, target: phone}
+          - {at: "It's a chain", action: highlight, target: api, params: {delay: 0.15}}
+          - {at: "every link holds", action: highlight, target: gateway}
+          - {at: "every link holds", action: highlight, target: bank, params: {delay: 0.15}}
+          - {at: "every link holds", action: highlight, target: charges, params: {delay: 0.3}}
+      # Scene 2: the downstream call in code, and what to do when its outcome is unknown.
+      - layout: code
+        from: "Here's that link"
+        header: ["IN CODE", "THE NEXT LINK"]
+        title: idempotency.go
+        language: go
+        reveal: true
+        lines:
+          - 'status, resp, err := s.Gateway.Charge(ctx, "pay-"+key, body)'
+          - "if err != nil {"
+          - "  // Outcome unknown: the row stays in_progress, and a"
+          - "  // job asks the gateway, with the same key, what happened."
+          - '  http.Error(w, "try later", http.StatusServiceUnavailable)'
+          - "  return"
+          - "}"
+          - "// Charged: save the answer next to the key, then reply."
+          - "s.complete(ctx, w, key, status, resp)"
+        steps:
+          - {at: "Here's that link", action: show, target: "1"}
+          - {at: "our own key with a prefix", action: highlight, target: "1"}
+          - {at: "our own key with a prefix", action: note, target: "1", params: {text: "pay-7f3c: the same on every retry", status: info}}
+          - {at: "If the call fails", action: show, target: "2-7"}
+          - {at: "If the call fails", action: highlight, target: "2"}
+          - {at: "the row stays in progress", action: highlight, target: "3-4"}
+          - {at: "told to try later", action: highlight, target: "5"}
+          - {at: "told to try later", action: note, target: "5", params: {text: "503: the client keeps its key", status: info}}
+          - {at: "Only when the gateway answers", action: show, target: "8-9"}
+          - {at: "Only when the gateway answers", action: highlight, target: "8-9"}
+          - {at: "next to our key", action: note, target: "9", params: {text: "from now on, retries get this answer", status: ok}}
 
   - id: s09
     title: From production
@@ -1134,9 +1281,17 @@ carousel:
 
 code_samples:
   - lang: go
+    path: samples/go/naive.go
+    purpose: The create-payment handler most of us write first, which charges on every request
+    shown_in: [s04]
+  - lang: go
+    path: samples/go/client.go
+    purpose: Client retry loop that makes one idempotency key and sends it on every attempt
+    shown_in: [s05]
+  - lang: go
     path: samples/go/idempotency.go
     purpose: Idempotent create-payment handler with claim/replay and downstream key
-    shown_in: [s06]
+    shown_in: [s06, s07, s08]
 
 sources:
   - title: "RFC 9110 — HTTP Semantics, §9.2.2 Idempotent Methods"
@@ -1145,6 +1300,10 @@ sources:
     url: https://docs.stripe.com/api/idempotent_requests
   - title: "IETF draft — The Idempotency-Key HTTP Header Field"
     url: https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/
+  - title: "Go standard library — crypto/rand.Text (added in Go 1.24)"
+    url: https://pkg.go.dev/crypto/rand#Text
+  - title: "Go standard library — net/http Client.Do"
+    url: https://pkg.go.dev/net/http#Client.Do
 
 fact_check:
   - claim: "GET, PUT and DELETE are defined as idempotent; POST is not"
@@ -1155,6 +1314,14 @@ fact_check:
     source: https://docs.stripe.com/api/idempotent_requests
   - claim: "A unique constraint makes the second concurrent insert fail"
     source: "derived from code sample samples/go/idempotency.go (ON CONFLICT DO NOTHING → 0 rows)"
+  - claim: "Go's standard library has no UUID type; crypto/rand.Text returns a random string with at least 128 bits of randomness"
+    source: https://pkg.go.dev/crypto/rand#Text
+  - claim: "Client.Do returns an error only when no usable answer came back; a non-2xx status is not an error"
+    source: https://pkg.go.dev/net/http#Client.Do
+  - claim: "A request body that was sent has been read (the Transport closes it), so each attempt builds its request again"
+    source: https://pkg.go.dev/net/http#Client.Do
+  - claim: "The naive handler charges on every request; the replay answers 422, 409 or the saved response"
+    source: "derived from code samples samples/go/naive.go and samples/go/idempotency.go"
 
 story_ref: duplicate-callback          # needs content/stories/duplicate-callback.md (private repo)
 
