@@ -225,14 +225,10 @@ class Ears:
         return text if heard is None else heard
 
 
-WRONG, RIGHT = "Here is the retry that matters.", "It works."
-
-
-def test_only_the_sentence_said_wrong_is_read_again(
+def test_a_chunk_said_wrong_is_read_again(
     tmp_path: Path, settings: VoiceSettings, fake_synthesizer: Any
 ) -> None:
-    # The owner heard "retry" said as "re-tree". The chunk is read once as a whole; then each
-    # sentence on its own, and only the one with the word in it a second time.
+    # The owner heard "retry" said as "re-tree". Another reading of the same words fixes it.
     ears = Ears(lambda text, take: text.replace("retry", "re tree") if take == 0 else None)
     synthesizer = fake_synthesizer()
     said: list[str] = []
@@ -242,71 +238,94 @@ def test_only_the_sentence_said_wrong_is_read_again(
     first, second = entry["segments"]
     assert (first["retakes"], first["unsure"]) == (1, [])
     assert (second["retakes"], second["unsure"]) == (0, [])
-    assert synthesizer.calls == [UNITS[0].text, WRONG, WRONG, RIGHT, UNITS[1].text]
-    assert synthesizer.takes == [0, 0, 1, 0, 0]
-    # One line per chunk, and what was done about a miss: this is the log of a render.
+    assert synthesizer.calls == [UNITS[0].text, UNITS[0].text, UNITS[1].text]
+    assert synthesizer.takes == [0, 1, 0]
+    # One line per reading: this is the whole log of a render.
     assert said == [
         "s01 chunk 1/1: meant [retry] heard [re tree]",
-        "s01 chunk 1/1: read again sentence by sentence, said as written now",
+        "s01 chunk 1/1: reading 2: said as written",
         "s02 chunk 1/1: said as written",
     ]
-
-
-ONE = Unit("s01", "Here is the retry that matters and works.")
 
 
 def test_the_best_reading_is_kept_when_none_is_clean(
     tmp_path: Path, settings: VoiceSettings, fake_synthesizer: Any
 ) -> None:
+    text = UNITS[0].text
     heard = {
-        0: ONE.text.replace("matters", "mutters").replace("works", "walks"),
-        1: ONE.text.replace("retry", "re tree").replace("works", "walks"),
-        2: ONE.text.replace("matters", "mutters"),
-        3: ONE.text.replace("matters", "mutters").replace("works", "walks"),
+        0: text.replace("matters", "mutters").replace("works", "walks"),
+        1: text.replace("retry", "re tree").replace("works", "walks"),
+        2: text.replace("matters", "mutters"),
+        3: text.replace("matters", "mutters").replace("works", "walks"),
     }
     synthesizer = fake_synthesizer()
-    entry = narrate([ONE], "long", synthesizer, settings, tmp_path / "out", tmp_path / "c",
-                    listener=Ears(lambda text, take: heard[take]))
+    said: list[str] = []
+    entry = narrate(UNITS[:1], "long", synthesizer, settings, tmp_path / "out", tmp_path / "c",
+                    listener=Ears(lambda text, take: heard[take]), report=said.append)
     # Every reading was tried; the third missed least, so it is the one used, and what it
     # still misses is written down for whoever reviews the video.
     assert synthesizer.takes == list(range(MAX_TAKES))
     segment = entry["segments"][0]
     assert segment["retakes"] == 1
     assert segment["unsure"] == [{"meant": "matters", "heard": "mutters"}]
+    assert said[-1] == "s01 chunk 1/1: reading 3 is kept"
 
 
 def test_reading_again_stops_when_it_changes_nothing(
     tmp_path: Path, settings: VoiceSettings, fake_synthesizer: Any
 ) -> None:
     # The same miss twice running is the model's habit or the recogniser's, not chance, so
-    # two more readings would only cost time. The first reading stays: it flows best.
+    # two more readings would only cost time.
     ears = Ears(lambda text, take: text.replace("retry", "re tree"))
     synthesizer = fake_synthesizer()
     said: list[str] = []
     entry = narrate(UNITS[:1], "long", synthesizer, settings, tmp_path / "out", tmp_path / "c",
                     listener=ears, report=said.append)
-    assert synthesizer.calls == [UNITS[0].text, WRONG, WRONG, RIGHT]
-    assert synthesizer.takes == [0, 0, 1, 0]
+    assert synthesizer.takes == [0, 1]
     segment = entry["segments"][0]
-    assert (segment["retakes"], len(segment["pauses"])) == (0, 0)
+    assert segment["retakes"] == 0
     assert segment["unsure"] == [{"meant": "retry", "heard": "re tree"}]
-    assert said[-1] == "s01 chunk 1/1: reading again did not help, the first reading is kept"
+    assert said == [
+        "s01 chunk 1/1: meant [retry] heard [re tree]",
+        "s01 chunk 1/1: reading 2: meant [retry] heard [re tree]",
+        "s01 chunk 1/1: reading 1 is kept",
+    ]
 
 
-def test_a_sentence_that_is_worse_alone_leaves_the_whole_reading(
+SPELLED = Lexicon({"retry": ("re try", "ree try", "re-try")})
+
+
+def test_a_reading_done_again_takes_the_next_spelling_of_a_word(
     tmp_path: Path, settings: VoiceSettings, fake_synthesizer: Any
 ) -> None:
-    def mishear(text: str, take: int) -> str | None:
-        return "" if text == WRONG else text.replace("retry", "re tree")
-
+    # Another seed rarely cures a word the model reads wrong from its spelling; another
+    # spelling does. Here the voice says "re tree" for "re try" and the word for "ree try".
+    text = UNITS[0].text
+    ears = Ears(lambda spoken, take: text.replace("retry", "re tree") if "re try" in spoken
+                else text)
     synthesizer = fake_synthesizer()
     entry = narrate(UNITS[:1], "long", synthesizer, settings, tmp_path / "out", tmp_path / "c",
-                    listener=Ears(mishear))
-    # The sentence got every reading it is allowed, lost its words in each, and is not used.
-    assert synthesizer.calls == [UNITS[0].text, *[WRONG] * MAX_TAKES]
-    segment = entry["segments"][0]
-    assert (segment["retakes"], len(segment["pauses"])) == (0, 0)
-    assert segment["unsure"] == [{"meant": "retry", "heard": "re tree"}]
+                    lexicon=SPELLED, listener=ears)
+    assert synthesizer.calls == ["Here is the re try that matters. It works.",
+                                 "Here is the ree try that matters. It works."]
+    assert synthesizer.takes == [0, 1]
+    assert (entry["segments"][0]["retakes"], entry["segments"][0]["unsure"]) == (1, [])
+
+
+def test_every_spelling_gets_its_turn_before_reading_stops(
+    tmp_path: Path, settings: VoiceSettings, fake_synthesizer: Any
+) -> None:
+    # The first two spellings are heard wrong in the same way, which would end the readings
+    # if a third spelling were not still untried.
+    text = UNITS[0].text
+    ears = Ears(lambda spoken, take: text if "re-try" in spoken
+                else text.replace("retry", "re tree"))
+    synthesizer = fake_synthesizer()
+    entry = narrate(UNITS[:1], "long", synthesizer, settings, tmp_path / "out", tmp_path / "c",
+                    lexicon=SPELLED, listener=ears)
+    assert synthesizer.takes == [0, 1, 2]
+    assert synthesizer.calls[2] == "Here is the re-try that matters. It works."
+    assert (entry["segments"][0]["retakes"], entry["segments"][0]["unsure"]) == (1, [])
 
 
 SKIPPED = "We're back to two charges, just faster."
@@ -317,18 +336,26 @@ def test_a_skipped_sentence_is_spoken_again_on_its_own(
     tmp_path: Path, settings: VoiceSettings, fake_synthesizer: Any
 ) -> None:
     # Seen in episode 001: the voice stalled and left a sentence of segment s06 unsaid.
-    # Given the whole chunk it skips the sentence; given one sentence it speaks.
+    # Given the whole chunk it skips the sentence in every reading; given one sentence it speaks.
     ears = Ears(lambda text, take: text.replace(f"{SKIPPED} ", "") if "Both charge" in text
                 and SKIPPED in text else None)
     synthesizer = fake_synthesizer()
+    said: list[str] = []
     entry = narrate([RACE], "long", synthesizer, settings, tmp_path / "out", tmp_path / "c",
-                    listener=ears)
+                    listener=ears, report=said.append)
+    # Two readings of the chunk lose the same sentence, so a third is not tried.
     assert synthesizer.calls == [
-        RACE.text, "Both charge.", SKIPPED, "The fix is to let the database decide."]
-    assert synthesizer.takes == [0, 0, 0, 0]
+        RACE.text, RACE.text, "Both charge.", SKIPPED, "The fix is to let the database decide."]
+    assert synthesizer.takes == [0, 1, 0, 0, 0]
     assert (entry["segments"][0]["retakes"], entry["segments"][0]["unsure"]) == (1, [])
     # The three sentences are joined with the pause that separates chunks.
     assert len(entry["segments"][0]["pauses"]) == 2
+    assert said[3:] == [
+        "s06 chunk 1/1: a phrase is lost in every reading, so each sentence is read alone",
+        "s06 chunk 1/1 sentence 1/3: said as written",
+        "s06 chunk 1/1 sentence 2/3: said as written",
+        "s06 chunk 1/1 sentence 3/3: said as written",
+    ]
 
 
 def test_a_sentence_the_voice_cannot_say_stops_the_render(
@@ -340,8 +367,19 @@ def test_a_sentence_the_voice_cannot_say_stops_the_render(
                        match=r"s06: the voice did not say this in 4 reading\(s\)"):
         narrate([RACE], "long", synthesizer, settings, tmp_path / "out", tmp_path / "c",
                 listener=ears)
-    # A lost sentence gets every reading it is allowed before the render gives up on it.
-    assert synthesizer.calls == [RACE.text, "Both charge.", *[SKIPPED] * MAX_TAKES]
+    # A lost sentence gets every reading it is allowed before the render gives up on it,
+    # and nothing after it is spoken.
+    assert synthesizer.calls == [RACE.text, RACE.text, "Both charge.", *[SKIPPED] * MAX_TAKES]
+
+
+def test_a_chunk_of_one_sentence_gets_every_reading_before_the_render_stops(
+    tmp_path: Path, settings: VoiceSettings, fake_synthesizer: Any
+) -> None:
+    synthesizer = fake_synthesizer()
+    with pytest.raises(PronunciationError, match=r"s06: the voice did not say this in 4"):
+        narrate([Unit("s06", SKIPPED)], "long", synthesizer, settings, tmp_path / "out",
+                tmp_path / "c", listener=Ears(lambda text, take: ""))
+    assert synthesizer.takes == list(range(MAX_TAKES))
 
 
 def test_what_was_heard_is_remembered_with_the_chunk(

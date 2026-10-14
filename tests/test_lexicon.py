@@ -35,11 +35,32 @@ def test_respelling_twice_changes_nothing_more() -> None:
     assert LEXICON.respell(once) == once
 
 
+SPELLED = Lexicon({"retry": ("re try", "ree try"), "PUT": "put"})
+
+
+def test_a_word_with_several_spellings_takes_them_in_turn() -> None:
+    # A reading that is done again writes the word another way; a word with one spelling
+    # keeps it.
+    text = "Retry the PUT, then retry."
+    assert SPELLED.respell(text) == "Re try the put, then re try."
+    assert SPELLED.respell(text, 1) == "Ree try the put, then ree try."
+    assert SPELLED.respell(text, 2) == "Re try the put, then re try."
+
+
+def test_how_many_ways_a_text_can_be_written() -> None:
+    assert SPELLED.spellings("So you retry.") == 2
+    assert SPELLED.spellings("A PUT is idempotent.") == 1
+    assert SPELLED.spellings("Nothing to respell here.") == 1
+
+
 def test_the_words_the_owner_heard_wrong_are_in_the_config(repo_root: Path) -> None:
     # 13 October 2026: "retries pronounced as retrees and put as patt".
     lexicon = load_lexicon(repo_root / "config" / "pronunciation.yaml")
-    said = lexicon.respell("Retries happen. GET, PUT, DELETE, POST. Every retry is safe.")
-    assert said == "Re-tries happen. get, put, delete, post. Every re-try is safe."
+    text = "Retries happen. GET, PUT, DELETE, POST. Every retry is safe."
+    assert lexicon.respell(text) == "Re tries happen. get, put, delete, post. Every re try is safe."
+    # Each spelling is another try at the word, so none repeats and none is the written form.
+    ways = [lexicon.respell("a retry", turn) for turn in range(lexicon.spellings("a retry"))]
+    assert len(ways) == len(set(ways)) >= 2 and "a retry" not in ways
     assert "idempotency" in lexicon.terms
 
 
@@ -48,8 +69,9 @@ def test_a_missing_file_is_an_empty_lexicon(tmp_path: Path) -> None:
     assert lexicon.respell("a retry") == "a retry" and lexicon.terms == ()
 
 
-def test_a_broken_entry_is_refused(tmp_path: Path) -> None:
+@pytest.mark.parametrize("entry", ["3", "[]", "[re try, 3]", "['']"])
+def test_a_broken_entry_is_refused(tmp_path: Path, entry: str) -> None:
     path = tmp_path / "pronunciation.yaml"
-    path.write_text("say:\n  retry: 3\n", encoding="utf-8")
+    path.write_text(f"say:\n  retry: {entry}\n", encoding="utf-8")
     with pytest.raises(ValueError, match=r"pronunciation\.yaml: `say` maps a written word"):
         load_lexicon(path)

@@ -27,7 +27,7 @@ TRUE_PEAK_LIMIT_DB = -1.0
 # pause cap in polish should have cut it; if it is still here, the render must not go on.
 MAX_SILENCE_SECONDS = 3.0
 # The voice model sometimes says a word wrong or skips a sentence, so each chunk is listened
-# to, and a sentence with a miss in it is read again, up to this many readings in all.
+# to and read again, up to this many readings in all, until nothing is missed.
 MAX_TAKES = 4
 Report = Callable[[str], None]  # told what the listening check found and did, line by line
 # A reading that misses this many words running, or this share of all its words, lost a phrase.
@@ -100,24 +100,41 @@ def _gross(text: str, misses: Sequence[Miss]) -> bool:
     return dropped or weight(misses) >= max(GROSS_RUN, GROSS_SHARE * content)
 
 
+def _said(misses: Sequence[Miss]) -> str:
+    return "; ".join(map(str, misses))
+
+
+def _at(report: Report, where: str) -> Report:
+    """`report`, with every line saying which stretch of narration it is about."""
+
+    def tell(line: str) -> None:
+        report(f"{where}: {line}")
+
+    return tell
+
+
 def _readings(
     text: str, synthesizer: Synthesizer, lexicon: Lexicon, listener: Listener | None,
-    cache_dir: Path, limit: int,
-) -> tuple[Path, list[Miss], int]:
+    cache_dir: Path, tell: Report, last_resort: bool,
+) -> tuple[Path, int, list[Miss], int]:
     """Speak `text`, listen to it, and read it again while that can still help.
 
-    Returns the best reading's file, what it still misses, and how many readings were tried.
-    It stops at a clean reading, and also when a reading misses exactly what the one before
-    missed: then the miss does not depend on the seed (the model always says it so, or the
-    recogniser always hears it so) and more readings would only cost time. A reading that
-    lost a phrase is never a reason to stop early, because that stops the render. Without a
+    Returns the best reading's file, which reading it was (0 is the first), what it still
+    misses, and how many readings were tried. Each further reading has another seed and, for
+    a word the lexicon spells in several ways, the next spelling. Reading stops when nothing
+    is missed, after MAX_TAKES, and when a reading misses exactly what the one before missed
+    and every spelling has had its turn: then the miss is not chance (the model always says
+    it so, or the recogniser always hears it so) and more readings would only cost time.
+    With `last_resort` (nothing smaller can be tried in its place) a reading that lost a
+    phrase is never a reason to stop early, because the render stops on it. Without a
     listener there is one reading and nothing is checked.
     """
-    spoken = lexicon.respell(text)
-    best: tuple[int, Path, list[Miss]] | None = None
+    spellings = lexicon.spellings(text)
+    best: tuple[int, int, Path, list[Miss]] | None = None
     previous: list[Miss] | None = None
     tried = 0
-    for take in range(limit if listener is not None else 1):
+    for take in range(MAX_TAKES if listener is not None else 1):
+        spoken = lexicon.respell(text, take)
         cached = cache_dir / f"{cache_key(synthesizer.identity, spoken, take)}.wav"
         if not cached.exists():
             partial = cached.with_suffix(".part")
@@ -125,19 +142,24 @@ def _readings(
             partial.replace(cached)
         tried += 1
         if listener is None:
-            return cached, [], tried
+            tell("spoken")
+            return cached, 0, [], tried
         misses = missed(text, _heard(cached, listener), lexicon.terms)
+        tell(("" if take == 0 else f"reading {take + 1}: ")
+             + (_said(misses) if misses else "said as written"))
         if best is None or weight(misses) < best[0]:
-            best = (weight(misses), cached, misses)
-        if not misses or (misses == previous and not _gross(text, misses)):
+            best = (weight(misses), take, cached, misses)
+        if not misses:
+            break
+        settled = misses == previous and take + 1 >= spellings
+        if settled and not (last_resort and _gross(text, misses)):
             break
         previous = misses
     assert best is not None
-    return best[1], best[2], tried
-
-
-def _said(misses: Sequence[Miss]) -> str:
-    return "; ".join(map(str, misses))
+    _, take, wav, misses = best
+    if misses and tried > 1:
+        tell(f"reading {take + 1} is kept")
+    return wav, take, misses, tried
 
 
 def _raw_unit(
@@ -147,51 +169,45 @@ def _raw_unit(
     """Synthesise a unit chunk by chunk, reusing cached chunks, and join them.
 
     Also returns how many chunks were read again and what is still missed. A chunk is read
-    once as a whole, which keeps the voice's own flow from sentence to sentence. If words are
-    missed, each of its sentences is read on its own, and again while that helps: only the
-    sentence that was wrong gets more readings, and a sentence the model skipped inside a long
-    chunk is said when it is given alone. The sentences replace the whole reading when they
-    miss less. A chunk that loses a phrase both ways stops the render.
+    as a whole, and again as a whole while words are missed: the voice keeps its own flow from
+    sentence to sentence, and one model call costs much the same whether it says one sentence
+    or four. Only a chunk that loses a phrase in every reading is spoken sentence by sentence,
+    which is how the model says a sentence it skips inside a long chunk. A sentence that still
+    loses a phrase stops the render.
     """
     files: list[Path] = []
     retakes = 0
     unsure: list[Miss] = []
+
+    def lost(text: str, misses: Sequence[Miss], tried: int) -> PronunciationError:
+        return PronunciationError(
+            f"{unit.id}: the voice did not say this in {tried} reading(s): "
+            f"{text!r} ({_said(misses)})"
+        )
+
     chunks = chunk_text(unit.text, settings.max_chunk_chars)
     for number, chunk in enumerate(chunks, start=1):
         where = f"{unit.id} chunk {number}/{len(chunks)}"
-        whole, misses, _ = _readings(chunk, synthesizer, lexicon, listener, cache_dir, 1)
-        if not misses:
-            report(f"{where}: {'said as written' if listener is not None else 'spoken'}")
-            files.append(whole)
-            continue
-        report(f"{where}: {_said(misses)}")
-        lost = _gross(chunk, misses)
-        pieces: list[Path] = []
-        left: list[Miss] = []
-        for sentence in sentences(chunk):
-            wav, still, tried = _readings(sentence, synthesizer, lexicon, listener, cache_dir,
-                                          MAX_TAKES)
-            if _gross(sentence, still):
-                if lost:
-                    raise PronunciationError(
-                        f"{unit.id}: the voice did not say this in {tried} reading(s): "
-                        f"{sentence!r} ({_said(still)})"
-                    )
-                pieces.clear()  # said alone it is worse, so the whole reading stands
-                break
-            pieces.append(wav)
-            left.extend(still)
-        if pieces and (lost or weight(left) < weight(misses)):
-            files.extend(pieces)
-            unsure.extend(left)
-            retakes += 1
-            report(f"{where}: read again sentence by sentence, "
-                   + (f"still {_said(left)}" if left else "said as written now"))
-        else:
-            # The first reading flows better, and reading again did not say more of it right.
-            files.append(whole)
+        parts = sentences(chunk)
+        wav, take, misses, tried = _readings(chunk, synthesizer, lexicon, listener, cache_dir,
+                                             _at(report, where), last_resort=len(parts) == 1)
+        if not _gross(chunk, misses):
+            files.append(wav)
             unsure.extend(misses)
-            report(f"{where}: reading again did not help, the first reading is kept")
+            retakes += take > 0
+            continue
+        if len(parts) == 1:
+            raise lost(chunk, misses, tried)
+        report(f"{where}: a phrase is lost in every reading, so each sentence is read alone")
+        for index, part in enumerate(parts, start=1):
+            wav, take, misses, tried = _readings(
+                part, synthesizer, lexicon, listener, cache_dir,
+                _at(report, f"{where} sentence {index}/{len(parts)}"), last_resort=True)
+            if _gross(part, misses):
+                raise lost(part, misses, tried)
+            files.append(wav)
+            unsure.extend(misses)
+        retakes += 1
     raw = work / f"raw-{unit.id}.wav"
     concat(files, raw, settings.sentence_gap_ms)
     return raw, retakes, unsure

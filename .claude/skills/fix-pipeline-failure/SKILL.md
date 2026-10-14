@@ -11,11 +11,12 @@ description: Diagnose and fix a failed GitHub Actions run of the channel pipelin
    - **Platform policy/limit** (quota, rate limit, private-until-audit) → follow `docs/ARCHITECTURE.md`; usually wait or mark `published_manual_pending`.
    - **Content/data** (schema, missing story, caption alignment) → fix the episode via `write-episode`, re-validate.
    - **The voice said it wrong** ("the voice did not say this in 4 reading(s)", or the owner hears
-     a word wrong) → the voice stage listens to every chunk and reads again the sentences it
-     misses (`voice/listen.py`); the log has one line per chunk and the render summary lists
-     what it could not confirm. For a word the
-     model reads wrong every time, add a spelling it reads right to `config/pronunciation.yaml`
-     (`say`); for jargon the recogniser cannot spell, add it to `terms`. If one sentence keeps
+     a word wrong) → the voice stage listens to every chunk and reads again what it misses
+     (`voice/listen.py`); the log has one line per reading and the render summary lists what
+     it could not confirm. For a word the model reads wrong, give it spellings to try in
+     `config/pronunciation.yaml` (`say`, a list, best first: each further reading takes the
+     next one, and the log shows which reading was heard right); for jargon the recogniser
+     cannot spell, add it to `terms`. If one sentence keeps
      failing, reword it in the episode. Never raise the limits to let a narration with a hole
      in it through.
    - **Code bug** → reproduce locally with `DRY_RUN=true`, write a failing test first, fix, run `uv run pytest && uv run ruff check && uv run mypy src`.

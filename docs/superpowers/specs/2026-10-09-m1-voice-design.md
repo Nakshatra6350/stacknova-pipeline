@@ -111,38 +111,53 @@ recognition run over that narration found more than the two words: "retry" is sa
 as out of scope below, came into scope, together with a check that does the listening.
 
 - **Lexicon** (`config/pronunciation.yaml`, `voice/lexicon.py`). `say` maps a written word to a
-  spelling the model reads correctly (`retry: re-try`, `PUT: put`). It is applied to each chunk
-  after chunking, so chunk boundaries do not move, and only to the text sent to the model:
-  scripts, captions and the timing of visuals keep the written form. A lowercase key matches
-  any casing; a key with a capital matches only as written.
+  spelling the model reads correctly (`PUT: put`), or to a list of spellings, the best first
+  (`retry: [re try, ree try, re-try]`). It is applied to each chunk after chunking, so chunk
+  boundaries do not move, and only to the text sent to the model: scripts, captions and the
+  timing of visuals keep the written form. A lowercase key matches any casing; a key with a
+  capital matches only as written. A hyphen was not enough for "retry": written "re-try" it
+  was still heard wrong in 7 of the 19 chunks that hold the word, so the spellings that make
+  "try" a word of its own come first.
 - **Listening** (`voice/listen.py`). Every synthesised chunk is transcribed with faster-whisper
   (`small.en`, the recogniser M3 uses for alignment) and lined up with the chunk's script.
   `missed` tells a real miss from what only the recogniser changed: numbers as digits,
   contractions, words joined or split, endings, homophones, and the jargon in `terms`, which
   only has to sound close ("idempotency" is written down as "item potency"). The recogniser
   gets no hints: given the jargon as hot words it wrote those words into silences.
-- **Reading again** (`voice/narrate.py`). A chunk is read once as a whole. If words are missed,
-  each of its sentences is read on its own, and a sentence that still has a miss is read again
-  with seed+1, seed+2 and seed+3; the reading with the least missed is kept. So only the
-  sentence that was wrong costs more readings, and a sentence the model skipped inside a long
-  chunk is said when it is given alone. Reading stops early when two readings running miss
-  exactly the same thing: that is the model's habit or the recogniser's, not chance. The
-  sentences replace the whole reading when they miss less; otherwise the whole reading stays,
-  because it flows better. A chunk that loses a phrase both ways (four words running, or a
-  fifth of its words) raises `PronunciationError` and the render stops: a narration with a hole
-  in it is not shipped. The first version read the whole chunk up to four times; on episode 001
-  that multiplied a render that already takes over an hour on a CPU runner.
+- **Reading again** (`voice/narrate.py`). A chunk with misses is read again as a whole, up to
+  four readings in all, each with another seed (seed+1, seed+2, seed+3) and, for a word with
+  several spellings in the lexicon, the next spelling. The reading with the least missed is
+  kept. Reading stops early when two readings running miss exactly the same thing and every
+  spelling has had its turn: that is the model's habit or the recogniser's, not chance. A
+  chunk that loses a phrase in every reading (four words running, or a fifth of its words) is
+  spoken sentence by sentence, which is how the model says a sentence it skips inside a long
+  chunk. A sentence that still loses a phrase raises `PronunciationError` and the render
+  stops: a narration with a hole in it is not shipped.
+- **Why whole chunks, measured on episode 001 (13 October 2026).** Reading only the sentences
+  of a chunk with a miss looked cheaper and was tried. It was not: 15 such chunks took 85
+  minutes, 5.7 minutes each, against 1.2 minutes for one reading of a whole chunk (53 readings
+  in 64 minutes the run before), so four whole readings cost less than one pass of sentences. A model call has a cost that does
+  not shrink with the text, and a short sentence given alone is where the model rambles or
+  garbles ("Recap" came out as something else). It was also worse: 8 places not confirmed
+  against 5. Sentences are therefore the last resort, for a lost phrase only.
 - **The log.** The voice model draws a progress bar for every chunk ("Sampling", counting to
-  1000, its upper limit; a chunk ends near 300 to 450). That was thousands of lines, and it
-  looked like a render starting over. `TQDM_DISABLE` switches it off in the workflow, and the
-  render prints one line per chunk: said as written, or what was missed and what was done.
+  1000, its upper limit; a chunk ends near 300 to 450). That was 13,966 of the 14,978 lines of
+  one render's log, and it looked like a render starting over. `TQDM_DISABLE` switches it off
+  in the workflow, and the render prints one line per reading: said as written, or what was
+  meant and what was heard, and which reading is kept.
+- **What a render costs.** About 1.2 minutes per reading of a chunk on the 4-core runner. A
+  new episode the length of 001 (34 chunks) is 40 minutes for the first readings plus the
+  readings done again; a render whose speech is cached takes under 3 minutes. The way to cut
+  the first render's wall-clock time is to split chunks across a job matrix (still out of
+  scope).
 - **What the owner sees.** Each segment in `timing.json` records `retakes` and `unsure` (what
   was meant and what was heard, for misses too small to stop the render), and the workflow
   summary lists them, so a reviewer knows where to listen.
 - **Cache.** Take 0 keeps the chunk's old cache name, so speech that was right is not
-  synthesised again; other takes add `|take=N` to the key. A sentence read on its own is cached
-  the same way, under its own text. What was heard is stored beside each reading. The cache is
-  uploaded even when the render fails. `--no-listen` skips the check.
+  synthesised again; other takes add `|take=N` to the key, and a reading in another spelling
+  has its own key because the text differs. A sentence read on its own is cached the same way,
+  under its own text. What was heard is stored beside each reading. The cache is uploaded even
+  when the render fails. `--no-listen` skips the check.
 
 Limits, said plainly: speech recognition is not an ear. It can miss a word that is said
 slightly wrong and it can flag one that is fine, so the owner's listen on Telegram stays the

@@ -5,17 +5,23 @@
 # The owner heard "retries" said as "retrees" and "PUT" as "patt" in episode 001 (13 Oct 2026).
 # The voice model learns pronunciation from spelling, so the cure is a spelling it reads right.
 #
-# say:   written form -> how to write it for the voice.
+# say:   written form -> how to write it for the voice: one spelling, or a list of them.
 #        A key in lowercase matches any casing ("Retries" too). A key with a capital in it
 #        matches only as written, so PUT (the HTTP method) is respelled and the verb "put" is not.
+#        With a list, the first spelling is used; when the listening check hears the chunk
+#        wrong, each further reading takes the next spelling. Put the one that works best first.
 # terms: jargon that speech recognition cannot spell. Every chunk of narration is listened to
 #        (src/channel_os/voice/listen.py) and read again when words are missed; these words only
 #        have to sound close to count as heard ("idempotency" is written down as "item potency").
+#
+# "retry": the model reads the ending like "poetry" or "entry". Written "re-try" it was still
+# heard wrong in 7 of the 19 chunks of episode 001 that hold the word (plain "retry": about 9),
+# so two words come first: "try" on its own is read the right way.
 say:
-  retry: re-try
-  retries: re-tries
-  retried: re-tried
-  retrying: re-trying
+  retry: [re try, ree try, re-try]
+  retries: [re tries, ree tries, re-tries]
+  retried: [re tried, ree tried, re-tried]
+  retrying: [re trying, ree trying, re-trying]
   GET: get
   PUT: put
   POST: post
