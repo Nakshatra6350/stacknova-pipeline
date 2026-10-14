@@ -1,0 +1,745 @@
+# Episode 004 — retry storms: how retries take down healthy systems, and four habits that stop
+# it. Written 14 October 2026 for the launch on 19 October. Follows 003 (Kafka) and leads into
+# 005 (rate limiter).
+id: 004-retry-storms
+version: 1
+status: draft            # draft | ready_to_render | rendering | rendered | published
+pillar: production-failures
+series: how-it-breaks
+language: en
+target_versions:
+  node: "24"
+estimated_minutes: 9
+next:                           # shown on the outro of the long video
+  title: "Design a Rate Limiter"
+  teaser: "You can't control how clients behave. So your service protects itself: a rate limiter, designed the way an interview expects."
+
+keywords:
+  primary: retry storm
+  secondary:
+    - exponential backoff and jitter
+    - circuit breaker pattern
+    - retry budget
+    - cascading failures
+    - thundering herd
+
+packaging:
+  titles:                       # ≤ 60 chars; top 2 go to YouTube A/B test
+    - "Retry Storms: How Retries Take Down Healthy Systems"
+    - "Retry Storm Explained: Backoff, Jitter, Circuit Breakers"
+    - "Retry Storms, Animated (and the 4 Habits That Stop Them)"
+    - "Retry Storm Fixes in Node.js, Line by Line"
+    - "Retry Storms: Why Your Retries Are the Outage"
+  thumbnail_texts:              # 2–4 words, must not repeat the title
+    - "RETRY = DDOS?"
+    - "27 CALLS, 1 CLICK"
+    - "ADD JITTER"
+  description: |
+    The database hiccuped for thirty seconds, and the service stayed down for an hour, buried
+    by its own clients' retries. How retries multiply across layers and clients, and the four
+    habits that stop a retry storm: backoff with jitter, deadlines, a retry budget and a
+    circuit breaker, line by line in Node.js. With AWS's December 2021 outage as the story.
+
+    {chapters}
+
+    Previous: inside Kafka — {previous_link}
+    Next: design a rate limiter — {next_link}
+
+    Sources:
+    {sources}
+  tags:
+    - retry storm
+    - exponential backoff
+    - jitter
+    - circuit breaker
+    - retry budget
+    - cascading failures
+    - thundering herd
+    - site reliability engineering
+    - distributed systems
+    - nodejs
+    - system design interview
+    - backend engineering
+  pinned_comment: "Have you seen retries make an outage worse? What finally stopped it? 👇"
+
+segments:
+  - id: s01
+    title: Down after recovery
+    narration: >-
+      Your database hiccups for thirty seconds. Then it recovers. And your service stays down for
+      the next hour. Nothing else broke. The database is healthy. It's being buried by your own
+      clients, retrying. It has a name: a retry storm. And it has taken down some of the biggest
+      systems in the world. In the next few minutes: how the safety net we all add becomes the
+      storm that keeps a system down. And four habits that stop it.
+    emphasis: [stays down, your own clients, four habits]
+    visual:
+      layout: console
+      systems:
+        - {id: clients, name: "Clients", sub: "apps, browsers, services", idle: "normal traffic"}
+        - {id: api, name: "API servers", sub: "retry on error", idle: "ok"}
+        - {id: db, name: "Database", sub: "the shared dependency", idle: "healthy"}
+      panels:
+        - {id: load, kind: list, title: "database · requests per second", unit: readings, empty: "No readings yet.", lane: db}
+      steps:
+        - {at: "Your database hiccups", action: log, target: db, params: {text: "slow for 30 s"}}
+        - {at: "Your database hiccups", action: item, target: load, params: {text: "normal", value: "1,000/s"}}
+        - {at: "Then it recovers", action: log, target: db, params: {text: "healthy again"}}
+        - {at: "stays down", action: send, target: "clients->api", params: {label: "requests", role: retry}}
+        - {at: "stays down", action: send, target: "api->db", params: {delay: 0.4, label: "retries", role: retry}}
+        - {at: "stays down", action: item, target: load, params: {delay: 0.6, text: "+ retries", value: "3,000/s", status: bad}}
+        - {at: "Nothing else broke", action: note, target: wire, params: {text: "No new bug. No new deploy."}}
+        - {at: "The database is healthy", action: highlight, target: db}
+        - {at: "buried by your own", action: send, target: "api->db", params: {label: "retries of retries", role: retry}}
+        - {at: "buried by your own", action: item, target: load, params: {delay: 0.5, text: "retries of retries", value: "9,000/s", status: bad}}
+        - {at: "buried by your own", action: stamp, target: load, params: {delay: 0.8, text: "RETRY STORM", status: bad}}
+        - {at: "the safety net", action: note, target: wire, params: {text: "The safety net became the storm.", status: bad}}
+        - {at: "four habits", action: highlight, target: api}
+
+  - id: s02
+    title: The retry we all write
+    narration: >-
+      Here's the retry most of us write. Call the service. If it throws, try again, right away, up
+      to three times. For one client and one blip, it's perfect. Here it is in Node. A loop, a
+      fetch, and a catch that simply goes around again. No pause between tries. No limit across
+      clients. And no question about what failed, or whether trying again can help. Many client
+      libraries and SDKs retry for you as well, so check what yours does before you add a loop on
+      top of it.
+    emphasis: [right away, No pause]
+    visual:
+      # Scene 1: one client, one blip.
+      - layout: sequence
+        header: ["THE RETRY", "WE ALL WRITE"]
+        actors:
+          - {id: client, label: "client", kind: client}
+          - {id: svc, label: "service", kind: service}
+        steps:
+          - {at: "Call the service", action: message, target: "client->svc", params: {text: "request"}}
+          - {at: "If it throws", action: message, target: "svc->client", params: {text: "error", role: error, status: bad}}
+          - {at: "try again, right away", action: message, target: "client->svc", params: {text: "retry 1", role: retry}}
+          - {at: "up to three times", action: message, target: "client->svc", params: {text: "retry 2", role: retry}}
+          - {at: "it's perfect", action: message, target: "svc->client", params: {text: "200 OK", role: reply, status: ok}}
+          - {at: "it's perfect", action: badge, target: client, params: {text: "LOOKS PERFECT", status: ok}}
+      # Scene 2: the same retry in Node.
+      - layout: code
+        from: "Here it is in Node"
+        header: ["IN CODE", "THE NAIVE RETRY"]
+        title: naive.mjs
+        language: js
+        reveal: true
+        lines:
+          - "export async function callNaive(url, init) {"
+          - "  for (let attempt = 1; ; attempt++) {"
+          - "    try {"
+          - "      return await fetch(url, init);"
+          - "    } catch (err) {"
+          - "      if (attempt === 3) throw err; // three tries, no pause"
+          - "    }"
+          - "  }"
+          - "}"
+        steps:
+          - {at: "Here it is in Node", action: show, target: "1-2"}
+          - {at: "A loop", action: highlight, target: "2"}
+          - {at: "a fetch", action: show, target: "3-4"}
+          - {at: "a fetch", action: highlight, target: "4"}
+          - {at: "goes around again", action: show, target: "5-9"}
+          - {at: "goes around again", action: highlight, target: "5-6"}
+          - {at: "No pause between tries", action: note, target: "6", params: {text: "the next try leaves at once", status: bad}}
+          - {at: "No limit across clients", action: note, target: "2", params: {text: "every client runs this loop", status: bad}}
+          - {at: "whether trying again can help", action: note, target: "5", params: {text: "any error, any cause: retry", status: bad}}
+
+  - id: s03
+    title: Retries multiply
+    narration: >-
+      Retries multiply. The browser retries the API three times. The API retries the service behind
+      it three times. That service retries the database three times. One click becomes twenty-seven
+      database calls, and they all arrive just when the database is struggling. Google's SRE book
+      does this math for three layers retrying four times each: sixty-four attempts for a single
+      user action. AWS works it through a five-layer stack: two hundred and forty-three times the
+      load. And while the database is slow, every caller is waiting, so new requests pile on top of
+      the old ones.
+    emphasis: [twenty-seven, sixty-four, two hundred and forty-three]
+    visual:
+      layout: cards
+      header: ["AMPLIFICATION", "ONE CLICK"]
+      joins: ["→", "→"]
+      cards:
+        - {id: api, title: "API", text: "3 tries"}
+        - {id: svc, title: "service", text: "3 × 3 = 9", hidden: true}
+        - {id: db, title: "database", text: "3 × 3 × 3 = 27", hidden: true}
+      steps:
+        - {at: "The browser retries the API", action: apply, target: api, params: {role: retry}}
+        - {at: "three times. The API", action: apply, target: api, params: {role: retry}}
+        - {at: "The API retries the service", action: show, target: svc}
+        - {at: "behind it three times", action: apply, target: svc, params: {role: retry}}
+        - {at: "That service retries the database", action: show, target: db}
+        - {at: "the database three times", action: apply, target: db, params: {role: retry}}
+        - {at: "twenty-seven", action: mark, target: db, params: {status: bad}}
+        - {at: "just when the database is struggling", action: apply, target: db, params: {role: error}}
+        - {at: "sixty-four attempts", action: highlight, target: db}
+        - {at: "two hundred and forty-three", action: apply, target: db, params: {role: error}}
+        - {at: "new requests pile on", action: focus, target: all}
+
+  - id: s04
+    title: Back off, with jitter
+    narration: >-
+      Habit one: back off. Don't retry right away. Wait, and wait longer each time: a hundred
+      milliseconds, then two hundred, then four hundred, up to a cap. But if every client backs off
+      on the same schedule, they all come back at the same moment, in waves. Backoff alone only moves
+      the stampede to a later moment. So add jitter: wait a
+      random time between zero and that ceiling. AWS compared schemes like this, and this full
+      jitter did the least work. Here it is in Node. The ceiling doubles with each attempt, up to
+      the cap. Then the client sleeps for a random slice of it.
+    emphasis: [back off, jitter, full jitter]
+    visual:
+      # Scene 1: waves, then a spread.
+      - layout: fanin
+        header: ["HABIT ONE", "BACK OFF, WITH JITTER"]
+        sources:
+          - {id: c1, label: "client 1"}
+          - {id: c2, label: "client 2"}
+          - {id: c3, label: "client 3"}
+          - {id: c4, label: "client 4"}
+        target: {id: db, label: "the database", title: db}
+        counter: "requests arriving"
+        steps:
+          - {at: "back off", action: tag, target: db, params: {text: "wait before retrying"}}
+          - {at: "a hundred", action: tag, target: db, params: {text: "100 ms, 200 ms, 400 ms …"}}
+          - {at: "the same schedule", action: fire, target: c1, params: {role: retry}}
+          - {at: "the same schedule", action: fire, target: c2, params: {role: retry}}
+          - {at: "at the same moment", action: fire, target: c3, params: {role: retry}}
+          - {at: "at the same moment", action: fire, target: c4, params: {role: retry}}
+          - {at: "in waves", action: badge, target: db, params: {text: "WAVES", status: bad}}
+          - {at: "So add jitter", action: tag, target: db, params: {text: "random wait: 0 … ceiling"}}
+          - {at: "a random time", action: fire, target: c2, params: {role: retry}}
+          - {at: "between zero", action: fire, target: c4, params: {role: retry}}
+          - {at: "and that ceiling", action: fire, target: c1, params: {role: retry}}
+          - {at: "AWS compared", action: fire, target: c3, params: {role: retry}}
+          - {at: "did the least work", action: badge, target: db, params: {text: "SPREAD OUT", status: ok}}
+      # Scene 2: the two lines that do it.
+      - layout: code
+        from: "Here it is in Node"
+        header: ["IN CODE", "FULL JITTER"]
+        title: backoff.mjs
+        language: js
+        reveal: true
+        lines:
+          - "const ceiling = Math.min(cap, base * 2 ** attempt);"
+          - "await sleep(Math.random() * ceiling); // full jitter"
+        steps:
+          - {at: "Here it is in Node", action: show, target: "1"}
+          - {at: "The ceiling doubles", action: highlight, target: "1"}
+          - {at: "up to the cap", action: note, target: "1", params: {text: "100, 200, 400 … at most 2,000 ms", status: info}}
+          - {at: "sleeps for a random slice", action: show, target: "2"}
+          - {at: "sleeps for a random slice", action: highlight, target: "2"}
+          - {at: "sleeps for a random slice", action: note, target: "2", params: {text: "anywhere from 0 to the ceiling", status: ok}}
+
+  - id: s05
+    title: Deadlines
+    narration: >-
+      Habit two: give every call a deadline. Without one, a slow call ties up the caller, and every
+      retry is one more request waiting in line. Here, AbortSignal dot timeout ends a fetch after a
+      fixed time. Then decide what's worth another try: no answer at all, a 503, or a 429 that
+      says too many requests. Anything else is an answer, so return it. And pass the deadline
+      down. If the user's request has two seconds left, the call behind it gets less than two. And
+      nobody retries a call whose answer can no longer be used.
+    emphasis: [a deadline, worth another try, pass the deadline down]
+    visual:
+      # Scene 1: one try, with a deadline, and what counts as worth retrying.
+      - layout: code
+        header: ["HABIT TWO", "A DEADLINE PER TRY"]
+        title: backoff.mjs
+        language: js
+        reveal: true
+        lines:
+          - "try {"
+          - "  const signal = AbortSignal.timeout(timeout); // deadline"
+          - "  answer = await fetch(url, { ...init, signal });"
+          - "  if (!RETRYABLE.has(answer.status)) {"
+          - "    budget.onSuccess();"
+          - "    return answer; // an answer we should not repeat"
+          - "  }"
+          - "} catch (err) {"
+          - "  answer = err; // no answer: a timeout or a network error"
+          - "}"
+        steps:
+          - {at: "give every call a deadline", action: show, target: "1-3"}
+          - {at: "ties up the caller", action: highlight, target: "3"}
+          - {at: "AbortSignal dot timeout", action: highlight, target: "2"}
+          - {at: "ends a fetch after a fixed time", action: note, target: "2", params: {text: "one second, then the try is over", status: info}}
+          - {at: "worth another try", action: show, target: "4-10"}
+          - {at: "no answer at all", action: highlight, target: "9"}
+          - {at: "a 503", action: highlight, target: "4"}
+          - {at: "too many requests", action: note, target: "4", params: {text: "RETRYABLE = 429 and 503", status: info}}
+          - {at: "Anything else is an answer", action: highlight, target: "6"}
+      # Scene 2: the deadline travels down.
+      - layout: sequence
+        from: "And pass the deadline down"
+        header: ["DEADLINES", "PASSED DOWN"]
+        actors:
+          - {id: user, label: "user request", kind: client}
+          - {id: api, label: "API", kind: service}
+          - {id: db, label: "database", kind: store}
+        steps:
+          - {at: "pass the deadline", action: message, target: "user->api", params: {text: "deadline: 2.0 s"}}
+          - {at: "two seconds left", action: note, target: api, params: {text: "spent 0.5 s"}}
+          - {at: "gets less than two", action: message, target: "api->db", params: {text: "deadline: 1.5 s"}}
+          - {at: "nobody retries", action: note, target: api, params: {text: "deadline passed: no retry", status: ok}}
+          - {at: "can no longer be used", action: badge, target: api, params: {text: "NO WASTED RETRIES", status: ok}}
+
+  - id: s06
+    title: A retry budget
+    narration: >-
+      Habit three: a retry budget. Retries should be a small extra on top of normal traffic, never a
+      multiple of it. Keep a bucket of tokens. Every retry spends a token. Every success puts back a
+      tenth of one. While things are healthy, the bucket stays full and retries just work. When
+      everything is failing, the bucket empties, and the client stops retrying and fails fast. Think
+      of it as a credit limit for retries: spend while things are good, and stop when the account is
+      empty. Here
+      it is in Node. The tokens are counted in tenths, as whole numbers, because ten additions of
+      zero point one don't quite make one. canRetry spends a token if there's one to spend.
+      onSuccess puts a tenth back, up to the maximum.
+    emphasis: [retry budget, fails fast, in tenths]
+    visual:
+      # Scene 1: the bucket.
+      - layout: cards
+        header: ["HABIT THREE", "A RETRY BUDGET"]
+        cards:
+          - id: bucket
+            title: "the bucket"
+            lines: [{id: v, key: tokens, value: "10"}]
+          - id: verdict
+            title: "the client"
+            lines: [{id: v, key: "on failure", value: "retry"}]
+        steps:
+          - {at: "a small extra", action: highlight, target: bucket}
+          - {at: "Every retry spends a token", action: apply, target: bucket, params: {line: v, value: "9", role: retry}}
+          - {at: "puts back a tenth", action: apply, target: bucket, params: {line: v, value: "9.1", status: ok}}
+          - {at: "the bucket stays full", action: set, target: bucket.v, params: {value: "10", status: ok}}
+          - {at: "everything is failing", action: apply, target: bucket, params: {line: v, value: "4", role: error}}
+          - {at: "the bucket empties", action: set, target: bucket.v, params: {value: "0", status: bad}}
+          - {at: "stops retrying", action: set, target: verdict.v, params: {value: "fail fast", status: info}}
+          - {at: "fails fast", action: mark, target: verdict, params: {status: ok}}
+      # Scene 2: the budget in Node.
+      - layout: code
+        from: "Here it is in Node"
+        header: ["IN CODE", "THE BUDGET"]
+        title: budget.mjs
+        language: js
+        reveal: true
+        lines:
+          - "canRetry() {"
+          - "  if (this.#tenths < 10) return false; // empty: fail fast"
+          - "  this.#tenths -= 10; // a retry costs a token"
+          - "  return true;"
+          - "}"
+          - ""
+          - "onSuccess() {"
+          - "  const refilled = this.#tenths + 1; // a tenth back"
+          - "  this.#tenths = Math.min(this.#max, refilled);"
+          - "}"
+        steps:
+          - {at: "Here it is in Node", action: show, target: "1-5"}
+          - {at: "counted in tenths", action: highlight, target: "3"}
+          - {at: "don't quite make one", action: note, target: "3", params: {text: "0.1 × 10 = 0.9999999999999999", status: bad}}
+          - {at: "canRetry spends a token", action: highlight, target: "2-3"}
+          - {at: "onSuccess puts a tenth back", action: show, target: "6-10"}
+          - {at: "onSuccess puts a tenth back", action: highlight, target: "8"}
+          - {at: "up to the maximum", action: highlight, target: "9"}
+
+  - id: s07
+    title: A circuit breaker
+    narration: >-
+      Habit four: a circuit breaker. After a run of failures, stop calling the service for a while,
+      and fail at once instead. That gives it room to recover. After a cooldown, let one call
+      through, as a probe. If it works, close the breaker and carry on. If it fails, open it again.
+      Here's a small one in Node. Once failures pass the threshold, the breaker is open. Until the
+      cooldown has passed, every call fails without leaving the building. After it, only one call at a
+      time may probe. Below, a success resets the count to zero. A failure adds one, and the one
+      that reaches the threshold opens the breaker.
+    emphasis: [circuit breaker, as a probe, open]
+    visual:
+      # Scene 1: closed, open, half-open.
+      - layout: cards
+        header: ["HABIT FOUR", "A CIRCUIT BREAKER"]
+        cards:
+          - {id: closed, title: "closed", text: "calls go through"}
+          - {id: open, title: "open", text: "fail at once", hidden: true}
+          - {id: half, title: "half-open", text: "one probe", hidden: true}
+        steps:
+          - {at: "a circuit breaker", action: mark, target: closed, params: {status: ok}}
+          - {at: "After a run of failures", action: apply, target: closed, params: {role: error}}
+          - {at: "stop calling the service", action: show, target: open}
+          - {at: "fail at once instead", action: mark, target: open, params: {status: info}}
+          - {at: "room to recover", action: highlight, target: open}
+          - {at: "After a cooldown", action: show, target: half}
+          - {at: "as a probe", action: apply, target: half, params: {role: retry}}
+          - {at: "If it works", action: highlight, target: closed}
+          - {at: "If it fails, open it again", action: highlight, target: open}
+      # Scene 2: the open check.
+      - layout: code
+        from: "Here's a small one in Node"
+        header: ["IN CODE", "OPEN, OR PROBE"]
+        title: breaker.mjs
+        language: js
+        reveal: true
+        lines:
+          - "if (this.#failures >= this.threshold) {"
+          - "  const waited = Date.now() - this.#openedAt;"
+          - "  if (waited < this.cooldownMs || this.#probing) {"
+          - "    throw new Error('circuit open: failing fast');"
+          - "  }"
+          - "  this.#probing = true; // half-open: one probe"
+          - "}"
+        steps:
+          - {at: "Here's a small one in Node", action: show, target: "1"}
+          - {at: "Once failures pass the threshold", action: highlight, target: "1"}
+          - {at: "until the", action: show, target: "2-5"}
+          - {at: "until the", action: highlight, target: "2-3"}
+          - {at: "without leaving the building", action: highlight, target: "4"}
+          - {at: "only one call at a", action: show, target: "6-7"}
+          - {at: "only one call at a", action: highlight, target: "6"}
+      # Scene 3: counting.
+      - layout: code
+        from: "Below, a success"
+        header: ["IN CODE", "COUNT, THEN OPEN"]
+        title: breaker.mjs
+        language: js
+        reveal: true
+        lines:
+          - "try {"
+          - "  const result = await fn();"
+          - "  this.#failures = 0; // closed again"
+          - "  return result;"
+          - "} catch (err) {"
+          - "  this.#failures += 1;"
+          - "  if (this.#failures >= this.threshold) {"
+          - "    this.#openedAt = Date.now(); // open"
+          - "  }"
+          - "  throw err;"
+        steps:
+          - {at: "Below, a success", action: show, target: "1-4"}
+          - {at: "resets the count to zero", action: highlight, target: "3"}
+          - {at: "A failure adds one", action: show, target: "5-10"}
+          - {at: "A failure adds one", action: highlight, target: "6"}
+          - {at: "opens the breaker", action: highlight, target: "7-8"}
+
+  - id: s08
+    title: What to retry
+    narration: >-
+      And retry only the right things. A timeout or a 503 is worth another try: you never got an
+      answer, or the server said it was overloaded. A 400 will fail the same way every time. A 404
+      means the thing isn't there, and it won't appear because you asked twice. If the server sends
+      a Retry-After header, wait at least that long. And
+      only retry operations that are safe to repeat, or that carry an idempotency key, the one from
+      episode one. Otherwise, a retry storm of payments is a storm of double charges.
+    emphasis: [Retry-After, idempotency key, double charges]
+    visual:
+      layout: cards
+      header: ["WHAT TO RETRY", "AND WHAT NOT TO"]
+      cards:
+        - id: timeout
+          title: "timeout / 503"
+          lines: [{id: v, key: retry, value: "?"}]
+        - id: bad
+          title: "400"
+          lines: [{id: v, key: retry, value: "?"}]
+        - id: after
+          title: "Retry-After: 30"
+          lines: [{id: v, key: retry, value: "?"}]
+        - id: pay
+          title: "POST /payments"
+          lines: [{id: v, key: retry, value: "?"}]
+      steps:
+        - {at: "A timeout or a 503", action: set, target: timeout.v, params: {value: "yes, back off", status: ok}}
+        - {at: "A 400 will fail", action: set, target: bad.v, params: {value: "no", status: bad}}
+        - {at: "Retry-After header", action: set, target: after.v, params: {value: "after 30 s", status: info}}
+        - {at: "safe to repeat", action: highlight, target: pay}
+        - {at: "carry an idempotency key", action: set, target: pay.v, params: {value: "only with a key", status: info}}
+        - {at: "storm of double charges", action: mark, target: pay, params: {status: bad}}
+
+  - id: s09
+    title: From production
+    narration: >-
+      This is how AWS's December 2021 outage went. On the seventh, in the us-east-1 region, an
+      automated activity to scale capacity started. It set off unexpected behaviour from a large
+      number of clients on AWS's internal network. A surge of connections overwhelmed the devices between two
+      networks. As requests failed, clients made even more connection attempts and retries, and the
+      congestion kept going. AWS wrote that those clients were built to back off, but a latent issue
+      stopped them from backing off enough. Parts of the region took until the afternoon to recover,
+      and the backoff fix was on the list of changes. Backoff isn't a nice-to-have. It's what keeps a
+      bad minute from turning into a bad day.
+    emphasis: [December 2021, more connection attempts and retries, back off]
+    visual:
+      layout: console
+      systems:
+        - {id: clients, name: "Internal clients", sub: "AWS services", idle: "normal"}
+        - {id: devices, name: "Network devices", sub: "between two networks", idle: "ok"}
+        - {id: main, name: "Main network", sub: "us-east-1", idle: "ok"}
+      panels:
+        - {id: timeline, kind: list, title: "7 December 2021 · Pacific time", unit: events, empty: "Morning.", lane: devices}
+      steps:
+        - {at: "December 2021 outage", action: note, target: wire, params: {text: "AWS post-event summary, December 2021."}}
+        - {at: "an automated activity to scale capacity", action: item, target: timeline, params: {text: "7:30 AM", value: "automated scaling starts"}}
+        - {at: "unexpected behaviour", action: send, target: "clients->devices", params: {label: "connections", role: retry}}
+        - {at: "A surge of connections", action: send, target: "clients->devices", params: {label: "surge", role: error}}
+        - {at: "overwhelmed the devices", action: log, target: devices, params: {text: "congested"}}
+        - {at: "overwhelmed the devices", action: item, target: timeline, params: {text: "morning", value: "devices overwhelmed", status: bad}}
+        - {at: "more connection attempts and retries", action: send, target: "clients->devices", params: {label: "retries", role: retry}}
+        - {at: "the congestion kept going", action: stamp, target: timeline, params: {text: "RETRY STORM", status: bad}}
+        - {at: "built to back off", action: highlight, target: clients}
+        - {at: "a latent issue", action: note, target: wire, params: {text: "The clients should have backed off. A latent issue stopped them.", status: bad}}
+        - {at: "until the afternoon", action: item, target: timeline, params: {text: "2:22 PM", value: "network devices recovered", status: ok}}
+        - {at: "the backoff fix", action: highlight, target: timeline}
+
+  - id: s10
+    title: The trade-offs
+    narration: >-
+      Each habit costs something. Backoff makes an unlucky request slower. A budget means some
+      requests fail that one more try would have saved. A breaker fails fast even after the
+      service has recovered, until the probe gets through. Tune them with care. Retry for too long,
+      and you hide a failure from your users. Give up too soon, and a short blip becomes an error
+      page. So watch your retry rate as a metric of its own, and keep budgets per downstream
+      service, so one noisy dependency can't spend everyone's retries.
+    emphasis: [retry rate, per downstream service]
+    visual:
+      layout: cards
+      header: ["THE TRADE-OFFS", "WHAT IT COSTS"]
+      cards:
+        - {id: backoff, title: "backoff", text: "slower unlucky requests", hidden: true}
+        - {id: budget, title: "budget", text: "some saveable requests fail", hidden: true}
+        - {id: breaker, title: "breaker", text: "fails fast after recovery", hidden: true}
+        - {id: watch, title: "watch", text: "retry rate, per dependency", hidden: true}
+      steps:
+        - {at: "Backoff makes", action: show, target: backoff}
+        - {at: "A budget means", action: show, target: budget}
+        - {at: "A breaker fails fast", action: show, target: breaker}
+        - {at: "watch your retry rate", action: show, target: watch}
+        - {at: "keep budgets per downstream service", action: mark, target: watch, params: {status: ok}}
+
+  - id: s11
+    title: Recap and next
+    narration: >-
+      Recap. Retries multiply, across layers and across every client at once. So back off, with
+      jitter. Give every call a deadline, and pass it down. Spend retries from a budget. Break the
+      circuit when a service is down. And only retry what's safe to repeat. Use all four: each one
+      alone leaves a gap the others close. Next episode: the other
+      side of the same problem. Your service can't control how clients behave, so it protects
+      itself, with a rate limiter, designed the way a system design interview expects.
+    emphasis: [Retries multiply, rate limiter]
+    visual:
+      # Scene 1: the four habits.
+      - layout: cards
+        header: ["RECAP", "FOUR HABITS"]
+        cards:
+          - {id: jitter, title: "backoff + jitter", text: "spread the retries", hidden: true}
+          - {id: deadline, title: "deadlines", text: "passed down", hidden: true}
+          - {id: budget, title: "a budget", text: "retries are an extra", hidden: true}
+          - {id: breaker, title: "a breaker", text: "fail fast, then probe", hidden: true}
+        steps:
+          - {at: "So back off", action: show, target: jitter}
+          - {at: "Give every call a deadline", action: show, target: deadline}
+          - {at: "Spend retries from a budget", action: show, target: budget}
+          - {at: "Break the circuit", action: show, target: breaker}
+          - {at: "safe to repeat", action: focus, target: all}
+      # Scene 2: next episode.
+      - layout: fanin
+        from: "Next episode"
+        header: ["NEXT EPISODE", "005"]
+        sources:
+          - {id: a, label: "client A"}
+          - {id: b, label: "client B"}
+          - {id: c, label: "client C"}
+        target: {id: api, label: "your service", title: api}
+        counter: "requests this second"
+        steps:
+          - {at: "can't control how clients behave", action: fire, target: a}
+          - {at: "can't control how clients behave", action: fire, target: b}
+          - {at: "protects", action: fire, target: c}
+          - {at: "with a rate limiter", action: badge, target: api, params: {text: "RATE LIMITED", status: ok}}
+          - {at: "system design interview", action: highlight, target: api}
+
+shorts:
+  - id: short-1
+    source: standalone
+    hook_on_screen: "Your retries need jitter"
+    script: >-
+      Your retries need jitter. A service blips, and a thousand clients fail at once. They all back
+      off, a hundred milliseconds, then two hundred, then four hundred. On exactly the same
+      schedule. So they all come back at exactly the same moment, in waves, and knock it over again.
+      Jitter fixes that: wait a random time between zero and the backoff ceiling. The retries spread
+      out, and the service gets room to recover. One line of code.
+    visual:
+      layout: fanin
+      header: ["RETRIES", "WHY JITTER"]
+      sources:
+        - {id: c1, label: "client 1"}
+        - {id: c2, label: "client 2"}
+        - {id: c3, label: "client 3"}
+        - {id: c4, label: "client 4"}
+      target: {id: svc, label: "the service", title: svc}
+      counter: "requests arriving"
+      steps:
+        - {at: "A service blips", action: badge, target: svc, params: {text: "BLIP", status: bad}}
+        - {at: "fail at once", action: fire, target: c1, params: {role: error}}
+        - {at: "fail at once", action: fire, target: c2, params: {role: error}}
+        - {at: "They all back", action: tag, target: svc, params: {text: "100 ms, 200 ms, 400 ms"}}
+        - {at: "the same schedule", action: fire, target: c1, params: {role: retry}}
+        - {at: "the same schedule", action: fire, target: c2, params: {role: retry}}
+        - {at: "the same moment", action: fire, target: c3, params: {role: retry}}
+        - {at: "the same moment", action: fire, target: c4, params: {role: retry}}
+        - {at: "in waves", action: badge, target: svc, params: {text: "KNOCKED OVER", status: bad}}
+        - {at: "Jitter fixes that", action: tag, target: svc, params: {text: "random wait: 0 … ceiling"}}
+        - {at: "a random time", action: fire, target: c3, params: {role: retry}}
+        - {at: "spread out", action: fire, target: c1, params: {role: retry}}
+        - {at: "room to recover", action: fire, target: c4, params: {role: retry}}
+        - {at: "One line of code", action: badge, target: svc, params: {text: "RECOVERED", status: ok}}
+    youtube_title: "Why Your Retries Need Jitter #Shorts"
+    instagram_caption: |
+      Same backoff schedule = same comeback moment = another outage. 🌊
+      Add jitter: a random wait between 0 and the backoff ceiling.
+      Save this for your next incident review.
+    pillar_hashtags: production-failures
+  - id: short-2
+    source: segments
+    segments: [s03]
+    hook_on_screen: "One click, 27 database calls"
+    youtube_title: "How Retries Multiply (Retry Amplification) #Shorts"
+    instagram_caption: |
+      3 layers × 3 retries = 27 calls from one click. 📈
+      Retry at one layer only, and back off.
+    pillar_hashtags: production-failures
+  - id: short-3
+    source: segments
+    segments: [s08]
+    hook_on_screen: "Don't retry this request"
+    youtube_title: "Which Errors Should You Retry? #Shorts"
+    instagram_caption: |
+      Timeout or 503: retry with backoff. 400: never. Retry-After: obey it. 🚦
+      Payments: only with an idempotency key.
+    pillar_hashtags: production-failures
+  - id: short-4
+    source: segments
+    segments: [s10]
+    hook_on_screen: "Every retry fix has a cost"
+    youtube_title: "The Hidden Cost of Retry Safety #Shorts"
+    instagram_caption: |
+      Backoff, budgets, breakers: each one costs something. ⚖️
+      Watch your retry rate like any other metric.
+    pillar_hashtags: production-failures
+  - id: short-5
+    source: standalone
+    hook_on_screen: "Circuit breakers in 40 seconds"
+    script: >-
+      A circuit breaker in forty seconds. Your service calls a dependency that's down. Every call
+      waits for a timeout, and every retry adds load to something already failing. A circuit
+      breaker counts failures in a row. Past a threshold, it opens: calls fail at once, without
+      even trying. After a cooldown, it lets one call through as a probe. If it works, the breaker
+      closes. If it fails, it opens again. Fast failures for you, room to recover for them.
+    visual:
+      layout: cards
+      header: ["CIRCUIT BREAKER", "THREE STATES"]
+      cards:
+        - {id: closed, title: "closed", text: "calls go through"}
+        - {id: open, title: "open", text: "fail at once", hidden: true}
+        - {id: half, title: "half-open", text: "one probe", hidden: true}
+      steps:
+        - {at: "a dependency that's down", action: apply, target: closed, params: {role: error}}
+        - {at: "every retry adds load", action: apply, target: closed, params: {role: retry}}
+        - {at: "counts failures in a row", action: highlight, target: closed}
+        - {at: "it opens", action: show, target: open}
+        - {at: "calls fail at once", action: mark, target: open, params: {status: info}}
+        - {at: "After a cooldown", action: show, target: half}
+        - {at: "as a probe", action: apply, target: half, params: {role: retry}}
+        - {at: "the breaker", action: mark, target: closed, params: {status: ok}}
+        - {at: "it opens again", action: highlight, target: open}
+        - {at: "room to recover", action: focus, target: all}
+    youtube_title: "Circuit Breakers in 40 Seconds #Shorts"
+    instagram_caption: |
+      Closed → open → half-open → closed. ⚡
+      Fail fast while a dependency is down, then probe before trusting it again.
+    pillar_hashtags: production-failures
+
+carousel:
+  slides:
+    - {headline: "Your retries are the outage", body: "How a retry storm works, in 5 slides"}
+    - {headline: "Retries multiply", body: "3 layers × 3 retries = 27 calls from one click"}
+    - {headline: "Back off, with jitter", body: "Wait a random time between 0 and an exponential ceiling"}
+    - {headline: "Budget your retries", body: "A token per retry, a tenth back per success"}
+    - {headline: "Break the circuit", body: "Fail fast while it's down, then send one probe"}
+    - {headline: "Follow @stacknova.dev", body: "Animated deep dive on YouTube: StackNova"}
+
+code_samples:
+  - lang: node
+    path: samples/node/naive.mjs
+    purpose: The retry most of us write first — three tries, no pause
+    shown_in: [s02]
+  - lang: node
+    path: samples/node/backoff.mjs
+    purpose: Deadline per try, retryable answers only, exponential backoff with full jitter
+    shown_in: [s04, s05]
+  - lang: node
+    path: samples/node/budget.mjs
+    purpose: A retry budget counted in whole tenths of a token
+    shown_in: [s06]
+  - lang: node
+    path: samples/node/breaker.mjs
+    purpose: A circuit breaker with one probe at a time
+    shown_in: [s07]
+
+sources:
+  - title: "AWS — Summary of the AWS Service Event in the Northern Virginia (US-EAST-1) Region, December 2021"
+    url: https://aws.amazon.com/message/12721/
+  - title: "AWS Builders' Library — Timeouts, retries, and backoff with jitter"
+    url: https://builder.aws.com/content/3EumjoZascWd1oZiEgL8ORlv3qE/timeouts-retries-and-backoff-with-jitter
+  - title: "AWS Architecture Blog — Exponential Backoff And Jitter (Marc Brooker, 2015)"
+    url: https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
+  - title: "Google SRE book — Addressing Cascading Failures"
+    url: https://sre.google/sre-book/addressing-cascading-failures/
+  - title: "RFC 9110 — HTTP Semantics, Retry-After"
+    url: https://www.rfc-editor.org/rfc/rfc9110#field.retry-after
+  - title: "Node.js — AbortSignal.timeout"
+    url: https://nodejs.org/api/globals.html#static-method-abortsignaltimeoutdelay
+
+fact_check:
+  - claim: "Three layers each retrying four times give 64 attempts for one user action"
+    source: https://sre.google/sre-book/addressing-cascading-failures/
+  - claim: "Retrying independently at every layer of a five-layer stack increases database load 243 times"
+    source: https://builder.aws.com/content/3EumjoZascWd1oZiEgL8ORlv3qE/timeouts-retries-and-backoff-with-jitter
+  - claim: "Jitter adds randomness to backoff to spread retries; full jitter did the least work of the approaches compared"
+    source: https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
+  - claim: "A token bucket lets calls retry while there are tokens, then at a fixed rate"
+    source: https://builder.aws.com/content/3EumjoZascWd1oZiEgL8ORlv3qE/timeouts-retries-and-backoff-with-jitter
+  - claim: "Use randomized exponential backoff, limit retries, consider a retry budget, and propagate deadlines"
+    source: https://sre.google/sre-book/addressing-cascading-failures/
+  - claim: "APIs with side effects aren't safe to retry unless they provide idempotency"
+    source: https://builder.aws.com/content/3EumjoZascWd1oZiEgL8ORlv3qE/timeouts-retries-and-backoff-with-jitter
+  - claim: "Retry-After tells a client how long to wait before a follow-up request"
+    source: https://www.rfc-editor.org/rfc/rfc9110#field.retry-after
+  - claim: "On 7 December 2021 an automated scaling activity triggered a client surge in us-east-1; failures led to more connection attempts and retries; a latent issue stopped clients backing off; network devices recovered at 2:22 PM PST"
+    source: https://aws.amazon.com/message/12721/
+  - claim: "Ten additions of 0.1 in floating point give 0.9999999999999999, so the budget counts whole tenths"
+    source: "derived from code sample samples/node/budget.mjs (samples.test.mjs)"
+
+story_ref: public-postmortem-aws-2021-12   # public post-event summary (owner's choice, 14 Oct 2026)
+
+localizations:
+  hi:
+    title: "Retry Storm: Retries स्वस्थ सिस्टम को कैसे गिरा देते हैं"
+    description: "डेटाबेस 30 सेकंड के लिए धीमा हुआ, और सर्विस एक घंटे तक बंद रही — अपने ही clients के retries से। Retries परतों में कैसे गुणा होते हैं, और retry storm रोकने की चार आदतें: backoff और jitter, deadlines, retry budget और circuit breaker, Node.js कोड के साथ।"
+  es:
+    title: "Tormentas de reintentos: cómo tumban sistemas sanos"
+    description: "La base de datos falló 30 segundos y el servicio siguió caído una hora, enterrado por los reintentos de sus propios clientes. Cómo se multiplican los reintentos y los cuatro hábitos que los frenan: backoff con jitter, plazos, presupuesto de reintentos y circuit breaker, en Node.js."
+  pt:
+    title: "Tempestades de retry: como derrubam sistemas saudáveis"
+    description: "O banco de dados travou por 30 segundos e o serviço ficou fora por uma hora, soterrado pelos retries dos próprios clientes. Como os retries se multiplicam e os quatro hábitos que os contêm: backoff com jitter, prazos, orçamento de retries e circuit breaker, em Node.js."
+  id:
+    title: "Retry Storm: bagaimana retry menjatuhkan sistem sehat"
+    description: "Database tersendat 30 detik, dan layanan tetap mati satu jam, tertimbun retry dari kliennya sendiri. Bagaimana retry berlipat ganda, dan empat kebiasaan yang menghentikannya: backoff dengan jitter, tenggat, anggaran retry, dan circuit breaker, di Node.js."
+  vi:
+    title: "Retry storm: khi retry đánh sập hệ thống khỏe mạnh"
+    description: "Cơ sở dữ liệu chậm 30 giây, và dịch vụ sập suốt một giờ, bị chính các client retry vùi lấp. Retry nhân lên như thế nào, và bốn thói quen ngăn retry storm: backoff kèm jitter, deadline, ngân sách retry và circuit breaker, viết bằng Node.js."
+  ar:
+    title: "عواصف إعادة المحاولة: كيف تُسقط الأنظمة السليمة"
+    description: "تعثرت قاعدة البيانات 30 ثانية، وبقيت الخدمة متوقفة ساعة كاملة تحت إعادة محاولات عملائها. كيف تتضاعف إعادة المحاولة، والعادات الأربع التي توقفها: التراجع مع العشوائية، والمهل، وميزانية إعادة المحاولة، وقاطع الدائرة، بلغة Node.js."
+
+next_episode: 005-rate-limiter

@@ -72,6 +72,20 @@ jobs:
         with:
           distribution: temurin
           java-version: "25"
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+      - name: Test every Node sample
+        run: |
+          set -euo pipefail
+          count=0
+          while IFS= read -r dir; do
+            echo "::group::$dir"
+            (cd "$dir" && node --test)
+            echo "::endgroup::"
+            count=$((count + 1))
+          done < <(find content/episodes -type d -path '*/samples/node')
+          echo "tested $count Node sample folder(s)"
       - name: Compile every Java sample
         run: |
           set -euo pipefail

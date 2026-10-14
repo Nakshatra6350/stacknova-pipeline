@@ -45,8 +45,10 @@ on:
 permissions:
   contents: write # creates and updates the draft Release that stores renders
 
+# One render at a time per episode: each episode has its own draft Release and voice cache, so
+# different episodes can render side by side (launch week needs several at once).
 concurrency:
-  group: render
+  group: render-${{ inputs.episode || github.sha }}
   cancel-in-progress: false
 
 jobs:
