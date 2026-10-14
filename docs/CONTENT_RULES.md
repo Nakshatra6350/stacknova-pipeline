@@ -4,7 +4,7 @@ These rules apply to every script, scene, caption and post. The night agent must
 check each one before setting `status: ready_to_render`; `reach/lint.py` enforces the mechanical ones.
 
 ## 1. Versions
-- Target the current stable/LTS release at script time. As of Oct 2026: **Java 25 LTS**, **Go 1.26**, **Node.js 24 LTS** (move to 26 when it enters LTS), current Spring Boot GA, current PostgreSQL major, Kafka 4.x (KRaft only), Redis 8.
+- Target the current stable/LTS release at script time. As of Oct 2026: **Java 25 LTS**, **Go 1.27** (released 19 August 2026; it added the `uuid` package), **Node.js 24 LTS** (move to 26 when it enters LTS), current Spring Boot GA, current PostgreSQL major, Kafka 4.x (KRaft only), Redis 8.
 - Before writing, open the official docs/release notes for every API or behaviour you describe; record them in `sources`.
 - If the mastery track or a book shows older behaviour, say what changed ("Before Java 21 you'd use a thread pool here; today virtual threads…").
 

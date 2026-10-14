@@ -109,7 +109,7 @@ docs/              specs — the source of truth for behaviour
 
 ## 7. Content rules (summary — full text in `docs/CONTENT_RULES.md`)
 
-- Teach **current** versions: Java 25 LTS, Go 1.26, Node 24 LTS (Node 26 when it becomes LTS), Spring Boot current GA, PostgreSQL current major. Verify against official docs/release notes at script time; call out version differences explicitly.
+- Teach **current** versions: Java 25 LTS, Go 1.27 (released 19 August 2026), Node 24 LTS (Node 26 when it becomes LTS), Spring Boot current GA, PostgreSQL current major. Verify against official docs/release notes at script time; call out version differences explicitly.
 - Source material (mastery track, books) is for ideas only. **Never** copy sentences, figures or code from books. All scripts, diagrams and guides are original.
 - No employer names, code, clients or data. Owner stories come only from `content/stories/` (private repo) and are already anonymised.
 - Every episode includes: a hook (first 2 s), the naive model, the real mechanism, a production story, trade-offs, recap + next episode.

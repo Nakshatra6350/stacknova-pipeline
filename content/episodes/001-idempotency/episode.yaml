@@ -7,7 +7,7 @@ pillar: money-systems
 series: how-it-breaks
 language: en
 target_versions:
-  go: "1.26"
+  go: "1.27"
   postgresql: "18"
 estimated_minutes: 10
 next:                           # shown on the outro of the long video
@@ -418,8 +418,8 @@ segments:
       Record it, do the work, and save the response next to the key. Seen it, and the work is
       finished? Don't charge again; return the saved response. To the client, the retry looks
       exactly like a successful first attempt. The duplicate became harmless. Here's the client
-      side, in Go. The key is made once, before the loop. Go's standard library has no UUID type;
-      the Text function in crypto/rand gives a random string that does the same job. Inside the
+      side, in Go. The key is made once, before the loop. Since Go 1.27 the standard library has a
+      uuid package, and NewV4 gives a random UUID. Inside the
       loop, the request is built again for every attempt, because a body that was sent once has
       been read. Every attempt sets the same key in the same header. If an answer comes back, any
       answer, the loop ends. Only silence, an error with no response, earns another try: wait one
@@ -512,7 +512,7 @@ segments:
         language: go
         reveal: true
         lines:
-          - "key := rand.Text() // once, before the first try"
+          - "key := uuid.NewV4().String() // once, before the first try"
           - "for attempt := 0; ; attempt++ {"
           - '  req, _ := http.NewRequest("POST", url, bytes.NewReader(b))'
           - '  req.Header.Set("Idempotency-Key", key)'
@@ -525,7 +525,7 @@ segments:
         steps:
           - {at: "Here's the client", action: show, target: "1"}
           - {at: "made once, before the loop", action: highlight, target: "1"}
-          - {at: "no UUID type", action: note, target: "1", params: {text: "crypto/rand.Text: 128 random bits, 26 characters", status: info}}
+          - {at: "a random UUID", action: note, target: "1", params: {text: "uuid.NewV4: 122 random bits (Go 1.27)", status: info}}
           - {at: "Inside the", action: show, target: "2-3"}
           - {at: "built again for every attempt", action: highlight, target: "3"}
           - {at: "has been read", action: note, target: "3", params: {text: "a sent body is used up: build it again", status: info}}
@@ -705,8 +705,8 @@ segments:
       holds if every link holds. Here's that link in our Go handler. The key we send the gateway
       is our own key with a prefix, so every retry of this payment sends the gateway the same key.
       If the call fails, we don't know whether the card was charged. So the row stays in progress,
-      a background job asks the gateway, with that same key, what happened, and the client is told
-      to try later. Only when the gateway answers do we save its answer next to our key.
+      and the client is told to try later. A background job asks the gateway, with that same key,
+      what happened. Only when the gateway answers do we save its answer next to our key.
     emphasis: [downstream, chain, every link]
     visual:
       - layout: console
@@ -818,9 +818,10 @@ segments:
           - {at: "our own key with a prefix", action: note, target: "1", params: {text: "pay-7f3c: the same on every retry", status: info}}
           - {at: "If the call fails", action: show, target: "2-7"}
           - {at: "If the call fails", action: highlight, target: "2"}
-          - {at: "the row stays in progress", action: highlight, target: "3-4"}
+          - {at: "the row stays in progress", action: highlight, target: "3"}
           - {at: "told to try later", action: highlight, target: "5"}
           - {at: "told to try later", action: note, target: "5", params: {text: "503: the client keeps its key", status: info}}
+          - {at: "A background job asks", action: highlight, target: "3-4"}
           - {at: "Only when the gateway answers", action: show, target: "8-9"}
           - {at: "Only when the gateway answers", action: highlight, target: "8-9"}
           - {at: "next to our key", action: note, target: "9", params: {text: "from now on, retries get this answer", status: ok}}
@@ -1300,8 +1301,10 @@ sources:
     url: https://docs.stripe.com/api/idempotent_requests
   - title: "IETF draft — The Idempotency-Key HTTP Header Field"
     url: https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/
-  - title: "Go standard library — crypto/rand.Text (added in Go 1.24)"
-    url: https://pkg.go.dev/crypto/rand#Text
+  - title: "Go 1.27 release notes — new uuid package"
+    url: https://go.dev/doc/go1.27
+  - title: "Go standard library — package uuid (NewV4)"
+    url: https://pkg.go.dev/uuid#NewV4
   - title: "Go standard library — net/http Client.Do"
     url: https://pkg.go.dev/net/http#Client.Do
 
@@ -1314,8 +1317,10 @@ fact_check:
     source: https://docs.stripe.com/api/idempotent_requests
   - claim: "A unique constraint makes the second concurrent insert fail"
     source: "derived from code sample samples/go/idempotency.go (ON CONFLICT DO NOTHING → 0 rows)"
-  - claim: "Go's standard library has no UUID type; crypto/rand.Text returns a random string with at least 128 bits of randomness"
-    source: https://pkg.go.dev/crypto/rand#Text
+  - claim: "Go 1.27 added a uuid package to the standard library"
+    source: https://go.dev/doc/go1.27
+  - claim: "uuid.NewV4 returns a random (version 4) UUID with 122 random bits"
+    source: https://pkg.go.dev/uuid#NewV4
   - claim: "Client.Do returns an error only when no usable answer came back; a non-2xx status is not an error"
     source: https://pkg.go.dev/net/http#Client.Do
   - claim: "A request body that was sent has been read (the Transport closes it), so each attempt builds its request again"

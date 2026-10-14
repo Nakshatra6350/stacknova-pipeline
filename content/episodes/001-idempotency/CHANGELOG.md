@@ -15,8 +15,10 @@ by line, in segments no Short is cut from, so the five Shorts are unchanged:
   unknown.
 
 The existing SQL listing in s06 stays. New samples `naive.go` and `client.go`; `idempotency.go`
-reordered so each listing is a contiguous excerpt. Sources and fact-check entries for
-`crypto/rand.Text` and `http.Client.Do`. Narration 1,434 words (was about 1,110).
+reordered so each listing is a contiguous excerpt. The samples now target Go 1.27 (released 19
+August 2026), whose new `uuid` package makes the client's key. Sources and fact-check entries
+for `uuid` and `http.Client.Do`. Narration 1,429 words (was about 1,110). Review in
+`REVIEW.md`.
 
 ## Version 1
 

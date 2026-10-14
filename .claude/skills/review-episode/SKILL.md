@@ -11,7 +11,7 @@ Act as two reviewers in turn and write findings to `content/episodes/<id>/REVIEW
 - Every technical claim: correct for the current version? Source present and does it actually say that?
 - Code samples compile, are idiomatic for the current version, and handle errors honestly.
 - The long video has 3–4 code walkthroughs (`docs/CONTENT_RULES.md` §4), each an excerpt of a
-  listed sample, explained line by line, in one language for the episode; none in the Shorts.
+  listed sample, explained line by line, in one language for the episode (Shorts need none).
   Fewer, or a listing that is only shown and not explained → blocker.
 - Oversimplifications that would mislead an interviewer or a production engineer.
 - Anything copied or closely paraphrased from a book or the mastery track → blocker.

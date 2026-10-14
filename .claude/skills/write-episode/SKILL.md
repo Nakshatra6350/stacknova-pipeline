@@ -14,7 +14,8 @@ revisions, the reject reason from `state/queue.json` or the owner's message.
    and `content/episodes/001-idempotency/episode.yaml` as the gold-standard example.
 2. Read the backlog item's `mastery_source` (private content repo) for **ideas only**. Do not copy text.
 3. Research current behaviour: open official docs / release notes for every API, version or
-   default you mention (Java 25 LTS, Go 1.26, Node 24 LTS unless newer). Add each to `sources`.
+   default you mention (Java 25 LTS, Go 1.27, Node 24 LTS unless newer; check the release page,
+   since a version named here can be out of date). Add each to `sources`.
 4. Write `segments` in the 6-part shape: hook → naive model → real mechanism → production story
    → trade-offs → recap + next. 1,100–2,200 words. Every segment gets a `visual` with steps whose
    `at` phrases appear verbatim in its narration, and `emphasis` words that appear verbatim.
