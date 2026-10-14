@@ -136,20 +136,23 @@ as out of scope below, came into scope, together with a check that does the list
 - **Why whole chunks, measured on episode 001 (13 October 2026).** Reading only the sentences
   of a chunk with a miss looked cheaper and was tried. It was not: 15 such chunks took 85
   minutes, 5.7 minutes each, against 1.2 minutes for one reading of a whole chunk (53 readings
-  in 64 minutes the run before), so four whole readings cost less than one pass of sentences. A model call has a cost that does
-  not shrink with the text, and a short sentence given alone is where the model rambles or
-  garbles ("Recap" came out as something else). It was also worse: 8 places not confirmed
-  against 5. Sentences are therefore the last resort, for a lost phrase only.
+  in 62 minutes the run before), so three or four whole readings cost what one pass of
+  sentences did. Each call costs about 24 seconds more than its speech (fitted over the 115
+  sentence readings), and a short sentence given alone is where the model rambles or garbles
+  ("Recap" came out as something else). It was also worse: 8 places not confirmed against 5.
+  Sentences are therefore the last resort, for a lost phrase only.
 - **The log.** The voice model draws a progress bar for every chunk ("Sampling", counting to
   1000, its upper limit; a chunk ends near 300 to 450). That was 13,966 of the 14,978 lines of
   one render's log, and it looked like a render starting over. `TQDM_DISABLE` switches it off
   in the workflow, and the render prints one line per reading: said as written, or what was
   meant and what was heard, and which reading is kept.
-- **What a render costs.** About 1.2 minutes per reading of a chunk on the 4-core runner. A
-  new episode the length of 001 (34 chunks) is 40 minutes for the first readings plus the
-  readings done again; a render whose speech is cached takes under 3 minutes. The way to cut
-  the first render's wall-clock time is to split chunks across a job matrix (still out of
-  scope).
+- **What a render costs.** The model's work grows with the speech it makes: 5 to 9 seconds
+  for each second of speech, because runners differ (the same kind of reading took 73 s on one
+  runner and 125 s on another, a day apart). A whole chunk is about 14 seconds of speech, so 1.2
+  to 2.1 minutes. A new episode the length of 001 (34 chunks) is 40 to 70 minutes for the first
+  readings, plus the readings done again (21 for 001, the second time it was rendered); a
+  render whose speech is cached takes under 3 minutes. The way to cut the first render's
+  wall-clock time is to split chunks across a job matrix (still out of scope).
 - **What the owner sees.** Each segment in `timing.json` records `retakes` and `unsure` (what
   was meant and what was heard, for misses too small to stop the render), and the workflow
   summary lists them, so a reviewer knows where to listen.
