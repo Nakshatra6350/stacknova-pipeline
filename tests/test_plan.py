@@ -249,6 +249,22 @@ def test_a_short_gets_the_follow_prompt_and_no_brand_scenes() -> None:
         "cta_ask"] == "Follow"
     assert last.chrome["title"] == "This retry charged you twice"
     assert last.chrome["pill_short"] == "EP 001"
+    assert last.chrome["cta_platform"] == "youtube"
+
+
+def test_the_reel_cut_of_a_short_asks_for_a_follow_the_instagram_way() -> None:
+    # config/brand.yaml: "the Reel cut of a Short says Follow".
+    visual = [scene([press("tapped Pay")])]
+    record = entry(("short-1", 0.0, 6.0), duration=6.0)
+    brand = {**BRAND, "video": {**BRAND["video"],
+                                "shorts_prompt": {"seconds": 3, "reel_ask": "Follow"}}}
+    last = plan_video(short_episode(visual), "short-1", record, brand, reel=True).clips[-1]
+    assert last.chrome["cta_ask"] == "Follow"
+    assert last.chrome["cta_platform"] == "instagram"
+    # A long video has no Reel cut.
+    episode, record = long_episode(3)
+    with pytest.raises(PlanError, match="only a Short"):
+        plan_video(episode, "long", record, BRAND, reel=True)
 
 
 def test_every_scene_carries_the_captions_spoken_during_it() -> None:

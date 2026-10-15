@@ -109,6 +109,21 @@ def test_a_short_is_animated_to_the_narration_the_voice_stage_left(
     assert "1 scene(s), portrait, theme nova" in printed
 
 
+def test_a_reel_cut_is_the_short_asking_for_a_follow(
+    narrated: Any, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = narrated()
+    recorder = Recorder()
+    assert scenes(root, recorder, "--reel") == 0
+    (call,) = recorder.calls
+    assert call["out"] == root / "out" / "900-fixture" / "preview" / "short-2.reel.mp4"
+    assert (call["format"], call["theme"]) == ("portrait", "nova")  # the Short's own look
+    assert call["plan"].clips[-1].chrome["cta_platform"] == "instagram"
+    capsys.readouterr()
+    assert scenes(root, Recorder(), "--reel", only="long") == 2
+    assert "only a Short has a Reel cut" in capsys.readouterr().err
+
+
 def test_a_long_video_gets_its_brand_scenes_and_the_outro_music(narrated: Any) -> None:
     root = narrated()
     narrate_long(root)

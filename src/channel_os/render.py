@@ -132,23 +132,27 @@ def render_scenes(
     theme_name: str | None = None,
     quality: float = 1.0,
     jobs: int = 1,
+    reel: bool = False,
 ) -> None:
     """Animate each target to its narration and write out_dir/preview/<target>.mp4.
 
     A long video also gets the logo intro after its first segment and the outro; `sounds`
     holds the audio for those ("intro", "outro"), and one without a file plays in silence.
+    With `reel`, each Short is drawn as its Instagram Reel cut, <target>.reel.mp4: the same
+    picture and sound in the Short's own look, ending on a Follow prompt.
     """
     for target in targets:
         entry = timing["targets"].get(target)
         if entry is None:
             raise ValueError(f"{target}: timing.json has no narration for it; render the voice")
-        plan = plan_video(episode, target, _with_pauses(entry, out_dir), brand)
+        plan = plan_video(episode, target, _with_pauses(entry, out_dir), brand, reel=reel)
         natural = natural_format(target)
         fmt = FORMATS[format_name] if format_name else natural
         theme = pick_theme(
             themes, episode["id"], target, theme_name or declared_theme(episode, target)
         )
         name = target if fmt is natural else f"{target}.{fmt.name}"
+        name = f"{name}.reel" if reel else name
         preview = renderer(plan, fmt, theme, out_dir / entry["narration"],
                            out_dir / "preview" / f"{name}.mp4", sounds, quality=quality, jobs=jobs)
         print(
@@ -191,6 +195,9 @@ def _parser() -> argparse.ArgumentParser:
                         help="picture size as a fraction of full size, e.g. 0.5 for a quick look")
     scenes.add_argument("--intro-sound", type=Path, default=None,
                         help="audio for the logo intro; without it the intro is silent")
+    scenes.add_argument("--reel", action="store_true",
+                        help="draw each Short as its Instagram Reel cut (<short>.reel.mp4); "
+                             "with --only all, every Short and no long video")
     scenes.add_argument("--jobs", type=int, default=1,
                         help="scenes drawn at the same time, each in its own process (default 1)")
     return parser
@@ -270,6 +277,8 @@ def main(
                 raise InputError(f"--quality must be between 0.1 and 1, not {args.quality}")
             if not 1 <= args.jobs <= 8:
                 raise InputError(f"--jobs must be between 1 and 8, not {args.jobs}")
+            if args.reel and args.only == LONG:
+                raise InputError("--reel: only a Short has a Reel cut")
     except (InputError, OSError, ValueError, TypeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -284,6 +293,8 @@ def main(
         return 0
 
     targets = all_targets(episode) if args.only == "all" else [args.only]
+    if args.stage == "scenes" and args.reel:
+        targets = [target for target in targets if target != LONG]
     if args.stage == "scenes":
         try:
             timing = load_json(out_dir / "timing.json")
@@ -301,7 +312,7 @@ def main(
                 sounds = (_sounds(brand, Path(work), sound_maker, args.intro_sound)
                           if LONG in targets else {})
                 render_scenes(episode, targets, timing, themes, brand, out_dir, renderer, sounds,
-                              args.format, args.theme, args.quality, args.jobs)
+                              args.format, args.theme, args.quality, args.jobs, args.reel)
         except (FfmpegError, ValueError, RuntimeError) as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 1

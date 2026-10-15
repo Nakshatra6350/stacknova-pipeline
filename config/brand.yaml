@@ -69,7 +69,9 @@ video:                        # what the planner adds around an episode's scenes
     seconds: 5
   shorts_prompt:              # like / comment / share / subscribe over the end of a Short
     seconds: 3                # no intro and no end card on Shorts (docs/REACH_PLAYBOOK.md)
-    ask: Subscribe            # the last button's word; the Reel cut of a Short says Follow (M3)
+    ask: Subscribe            # the last button's word on a YouTube Short
+    reel_ask: Follow          # and on its Instagram Reel cut, drawn with Instagram's marks
+                              # (render --reel, reel.short-N.mp4; built 15 Oct 2026)
 bios:                         # paste-ready versions in BRAND_PROFILE_TEXT.md
   youtube_name: "StackNova"
   instagram_name: "StackNova | Backend Systems"

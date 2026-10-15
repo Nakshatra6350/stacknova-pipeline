@@ -102,6 +102,7 @@ STATE = r"""(() => {
       parts: bar.children.length,
     } : null,
     cta: [...document.querySelectorAll('#cta .b')].map(text),
+    ctaIcons: [...document.querySelectorAll('#cta .b')].map(el => el.dataset.icon),
     third: $('third') ? {
       opacity: parseFloat($('third').style.opacity), text: text($('third')), box: box($('third')),
     } : null,
@@ -410,6 +411,20 @@ def test_a_short_ends_by_asking_for_the_subscribe(tall: Data) -> None:
     # config/brand.yaml, so the Reel cut of a Short can say Follow.
     assert tall["stamped"]["cta"] == []
     assert tall["end"]["cta"] == ["Like", "Comment", "Share", "Subscribe"]
+    assert tall["end"]["ctaIcons"] == ["like", "comment", "share", "bell"]
+
+
+def test_the_reel_cut_asks_for_a_follow_with_instagrams_marks(brand: Data, themes: Any) -> None:
+    episode = {"id": "001-test", "segments": [],
+               "shorts": [{"id": "short-1", "source": "standalone", "script": SCRIPT,
+                           "visual": VISUAL, "hook_on_screen": "This retry charged you twice"}]}
+    entry = {"duration": 12.0,
+             "segments": [{"id": "short-1", "start": 0.0, "duration": 12.0, "pauses": []}]}
+    (clip,) = plan_video(episode, "short-1", entry, brand, reel=True).clips
+    end = browser.probe(clip_data(clip, PORTRAIT, themes.themes["nova"]), PORTRAIT,
+                        {"end": 11.9}, STATE)["end"]
+    assert end["cta"] == ["Like", "Comment", "Share", "Follow"]
+    assert end["ctaIcons"] == ["heart", "comment", "send", "follow"]
 
 
 def test_the_instagram_handle_slides_in_and_out_again(wide: Data, brand: Data) -> None:

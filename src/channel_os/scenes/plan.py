@@ -258,10 +258,16 @@ def _brand_clip(scene: str, seconds: float, decl: Mapping[str, Any], fps: int) -
 
 
 def plan_video(episode: Mapping[str, Any], target: str, entry: Mapping[str, Any],
-               brand: Mapping[str, Any], fps: int = FPS) -> VideoPlan:
+               brand: Mapping[str, Any], fps: int = FPS, reel: bool = False) -> VideoPlan:
     """Everything a target's preview is made of: scenes with their chrome, the brand scenes of
-    a long video, and the audio to lay under them."""
+    a long video, and the audio to lay under them.
+
+    With `reel`, a Short is planned as its Instagram Reel cut: the same picture and sound, with
+    a prompt that asks for a Follow (`video.shorts_prompt.reel_ask`) in Instagram's marks.
+    """
     long_video = target == LONG
+    if reel and long_video:
+        raise PlanError("long: only a Short has a Reel cut")
     welcome = welcome_line(brand) if long_video else None
     scenes = plan_clips(episode, target, entry, fps, welcome)
     video = brand.get("video") or {}
@@ -324,8 +330,11 @@ def plan_video(episode: Mapping[str, Any], target: str, entry: Mapping[str, Any]
         if long_video:
             chrome["handle"] = windows.get(index, [])
         if prompt and index == len(scenes) - 1:
+            asks = video.get("shorts_prompt") or {}
             chrome["cta"] = [round(max(0.0, seconds - prompt), 3), round(seconds, 3)]
-            chrome["cta_ask"] = (video.get("shorts_prompt") or {}).get("ask", "Subscribe")
+            chrome["cta_ask"] = (asks.get("reel_ask", "Follow") if reel
+                                 else asks.get("ask", "Subscribe"))
+            chrome["cta_platform"] = "instagram" if reel else "youtube"
         clips.append(Clip(clip.unit, clip.spec, clip.frames, chrome))
         done_content += clip.frames
         if intro and clip.unit == units[0] and done_content == hook_frames:

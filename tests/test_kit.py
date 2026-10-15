@@ -78,6 +78,7 @@ def test_the_kit_is_also_written_as_data_for_a_posting_checklist(tmp_path: Path)
     assert data["long"]["title_b"] == "Payment System Design: Ledger, Idempotency, Webhooks"
     assert [short["id"] for short in data["shorts"]] == [f"short-{n}" for n in range(1, 6)]
     assert data["reels"][0]["caption"].endswith("#faang")
+    assert data["reels"][0]["video"] == "reel.short-1.mp4"  # the cut that asks for a Follow
     assert data["carousel"]["slides"][-1] == "carousel-06.jpg"
     assert {text["code"] for text in data["long"]["translations"]} == {
         "hi", "es", "pt", "id", "vi", "ar"}

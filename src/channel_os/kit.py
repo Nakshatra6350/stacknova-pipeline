@@ -128,7 +128,7 @@ def kit_data(episode: Mapping[str, Any], reach: Mapping[str, Any], brand: Mappin
             "description": (f"{short['hook_on_screen']}\n\nThe full animated deep dive: "
                             f"{link(eid)}\n\n#Shorts " + " ".join(tags[:3]))})
         reels.append({
-            "id": sid, "video": f"preview.{sid}.mp4",
+            "id": sid, "video": f"reel.{sid}.mp4",  # the Reel cut: it asks for a Follow
             "caption": (str(short["instagram_caption"]).rstrip()
                         + "\n\nThe full animated deep dive is on YouTube: StackNova (link in bio)."
                         f"\nFollow {instagram} for two deep dives a week.\n\n" + " ".join(tags))})
@@ -187,8 +187,8 @@ def kit_markdown(data: Mapping[str, Any]) -> str:
                 "the long video · altered or synthetic content: **Yes**", "",
                 _block(short["title"]), "", _block(short["description"]), ""]
     out += ["## Instagram Reels", "",
-            "The same files as the Shorts. Share to the feed too; add the AI label if you "
-            "want Instagram to match YouTube.", ""]
+            "The Shorts' Reel cuts: the same video, ending on a Follow prompt. Share to the "
+            "feed too; add the AI label if you want Instagram to match YouTube.", ""]
     for reel in data["reels"]:
         out += [f"### Reel from {reel['id']}", "", f"- Video: `{reel['video']}`", "",
                 _block(reel["caption"]), ""]
