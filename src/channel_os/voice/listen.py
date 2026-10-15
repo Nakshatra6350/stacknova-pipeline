@@ -99,6 +99,13 @@ def _numbers(tokens: Sequence[str]) -> list[str]:
             continue
         if index < len(tokens) and tokens[index] in ("hundred", "thousand"):
             value, index = value * (100 if tokens[index] == "hundred" else 1000), index + 1
+        if out and out[-1].isdigit() and int(out[-1]) % 100 == 0 and int(out[-1]) and value < 100:
+            out[-1] = str(int(out[-1]) + value)  # "a hundred forty-seven" is 147
+            continue
+        if (len(out) > 1 and out[-1] == "and" and out[-2].isdigit() and int(out[-2]) % 100 == 0
+                and int(out[-2]) and value < 100):
+            out[-2:] = [str(int(out[-2]) + value)]  # "two hundred and forty-three" is 243
+            continue
         out.append(str(value))
     return out
 

@@ -21,6 +21,10 @@ def test_words_are_compared_the_way_a_recogniser_writes_them() -> None:
     # Thousands are written with a comma: "50,000 requests" for "fifty thousand requests".
     assert words("fifty thousand requests") == words("50,000 requests") == ["50000", "requests"]
     assert words("a thousand machines") == words("1,000 machines") == ["1000", "machines"]
+    # Hundreds and what follows them are one number: "two hundred and forty-three" is 243.
+    assert words("two hundred and forty-three times") == words("243 times") == ["243", "times"]
+    assert words("a hundred forty-seven") == ["147"]
+    assert words("a hundred and the rest") == ["100", "and", "the", "rest"]
 
 
 def test_a_status_code_read_aloud_is_no_miss() -> None:

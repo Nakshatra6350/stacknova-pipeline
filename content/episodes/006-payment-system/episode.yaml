@@ -413,9 +413,10 @@ segments:
     title: The ledger
     narration: >-
       Now, where did the money go? A payment system keeps a double-entry ledger. Every movement is
-      a set of entries that add up to zero. Our forty-nine dollar payment: the provider owes us
-      4,900 cents. We owe the merchant 4,753. And 147 is our fee. Plus 4,900, minus 4,753, minus
-      147: zero. Entries are never changed or deleted; a mistake is fixed by new entries that
+      a set of entries that add up to zero, counted in cents. Our forty-nine dollar payment: the
+      provider owes us forty-nine dollars. We owe the merchant forty-seven dollars fifty-three.
+      And one dollar forty-seven is our fee. Plus forty-nine, minus forty-seven fifty-three, minus
+      one forty-seven: zero. Entries are never changed or deleted; a mistake is fixed by new entries that
       reverse it. And a balance is just the sum of an account's entries. Here's the posting. Add up
       the entries, and refuse anything that doesn't come to zero. Then write them all in one
       INSERT, which PostgreSQL applies completely or not at all.
@@ -446,8 +447,8 @@ segments:
           - {at: "the provider owes us", action: mark, target: psp, params: {status: ok}}
           - {at: "We owe the merchant", action: show, target: merchant}
           - {at: "is our fee", action: show, target: fee}
-          - {at: "Plus 4,900", action: show, target: sum}
-          - {at: "minus 147", action: set, target: sum.v, params: {value: "0", status: ok}}
+          - {at: "Plus forty-nine", action: show, target: sum}
+          - {at: "minus one forty-seven", action: set, target: sum.v, params: {value: "0", status: ok}}
           - {at: "never changed or deleted", action: badge, target: sum, params: {text: "APPEND-ONLY", status: ok}}
           - {at: "the sum of an account's entries", action: focus, target: all}
       # Scene 2: posting.
@@ -527,11 +528,11 @@ segments:
   - id: s10
     title: From production
     narration: >-
-      Stripe described its own ledger in 2024. It's an immutable log of double-entry records, and it
+      Stripe described its own ledger in twenty twenty-four. It's an immutable log of double-entry records, and it
       sees five billion events a day. The interesting part is how it finds mistakes. Money passes
       through clearing accounts, which should come back to zero once a flow completes. A balance
       that isn't zero means something is stuck or was recorded wrong, and a query finds it. Stripe
-      reports that all but a hundredth of a percent of its dollar volume is fully verified within
+      reports that all of its dollar volume but one part in ten thousand is fully verified within
       four days. The lesson for your own design: make every mistake show up as a number that isn't
       zero.
     emphasis: [Stripe, clearing accounts, a number that isn't zero]

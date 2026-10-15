@@ -29,6 +29,8 @@ say:
   POST: post
   DELETE: delete
   "409": four oh nine
+  "503": five oh three        # heard as "513" in episode 004 (15 Oct 2026)
+  "404": four oh four         # heard as "414" in episode 004 (15 Oct 2026)
   "429": four twenty nine     # the status code, as engineers say it (episode 005, 14 Oct 2026)
   RateLimit: Rate Limit       # the draft's header name, one word on screen
 terms:
