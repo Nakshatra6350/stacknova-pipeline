@@ -44,6 +44,13 @@ def test_a_crop_keeps_16_9_inside_the_frame_and_never_zooms_past_the_limit() -> 
     assert region["x"] >= 0 and region["x"] + region["width"] <= 1920
     full = _crop([0, 0, 1920, 1080])
     assert full == {"x": 0.0, "y": 0.0, "width": 1920, "height": 1080}
+    # A row of cards across the frame: 16:9 for a thumbnail, a wide strip for a slide.
+    row = [60, 450, 1860, 560]
+    thumb = _crop(row)
+    assert thumb["width"] / thumb["height"] == pytest.approx(16 / 9)
+    strip = _crop(row, widest=3.0)
+    assert strip["width"] / strip["height"] == pytest.approx(3.0)
+    assert strip["height"] < thumb["height"]
 
 
 def test_thumbnails_and_slides_are_drawn(tmp_path: Path) -> None:

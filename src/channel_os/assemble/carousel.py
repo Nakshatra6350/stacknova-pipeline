@@ -10,6 +10,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from channel_os.assemble.frames import aspect
 from channel_os.assemble.thumbnails import JPEG_QUALITY, fonts
 from channel_os.scenes.browser import open_page
 from channel_os.scenes.preview import EMBLEM
@@ -47,7 +48,10 @@ def draw_carousel(episode: Mapping[str, Any], cover_still: Path, folder: Path,
         data: dict[str, Any] = {
             "kind": sort, "index": index, "total": len(slides), "episode": f"EP {number}",
             "headline": slide["headline"], "body": slide["body"],
-            "frame": frame.as_uri() if frame else None, "emblem": EMBLEM.as_uri(),
+            "frame": frame.as_uri() if frame else None,
+            # 16:9, or a wider strip; never taller, whatever the picture is.
+            "aspect": min(max(aspect(frame) if frame else 0.0, 16 / 9), 3.0),
+            "emblem": EMBLEM.as_uri(),
             "fonts": fonts()}
         out = folder / f"carousel-{index + 1:02}.jpg"
         with open_page(WEB / "carousel.html", WIDTH, HEIGHT) as page:

@@ -46,7 +46,7 @@
     box-shadow: 0 0 0 3px rgba(123,92,255,0.9), 0 0 70px rgba(123,92,255,0.5), 0 30px 70px rgba(0,0,0,0.6); }
   .cover .shot { top: 184px; }
   .cover h1 { top: 770px; }
-  .idea .shot { top: 700px; }
+  .idea .shot { top: 700px; height: auto; }
   .idea h1 { top: 200px; }
   .follow .emblem { position: absolute; left: 50%; top: 250px; width: 300px; height: 300px;
     margin-left: -150px; border-radius: 64px; box-shadow: 0 0 120px rgba(255,138,61,0.45); }
@@ -95,8 +95,16 @@
     p.style.fontSize = line + 'px';
     p.style.top = (h.offsetTop + h.offsetHeight + (alone ? 56 : 36)) + 'px';
     fit(p, room[1], line, 28);
-    if (!alone && d.kind === 'idea' && p.getBoundingClientRect().bottom > 700 - 30)
-      return `the words run into the scene (bottom ${Math.round(p.getBoundingClientRect().bottom)})`;
+    if (!alone && d.kind === 'idea') {
+      // The scene keeps its own shape (16:9, or a wide strip for a row of cards) and sits in
+      // the middle of the room left between the words and the rail.
+      const shot = c.querySelector('.shot'), words = p.getBoundingClientRect().bottom;
+      const tall = Math.round(920 / d.aspect), rail = 1350 - 110;
+      if (rail - words - 60 < tall)
+        return `the words leave no room for the scene (bottom ${Math.round(words)})`;
+      shot.style.height = tall + 'px';
+      shot.style.top = Math.round(words + (rail - words - tall) / 2) + 'px';
+    }
     if (alone) {
       // The headline and its line sit as one block in the middle of the room between the
       // channel's mark and the rail, a little above centre.

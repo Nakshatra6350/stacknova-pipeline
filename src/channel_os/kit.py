@@ -189,7 +189,7 @@ def _images(root: Path, episode: Mapping[str, Any], plan: VideoPlan, brand: Mapp
     cover = still(hook[0], theme, kit / "stills" / "cover.png")
     ideas: list[Path] = []
     if (brand.get("carousel") or {}).get("scenes_on_every_slide"):
-        ideas = [still(clip, theme, kit / "stills" / f"slide-{index + 2}.png")
+        ideas = [still(clip, theme, kit / "stills" / f"slide-{index + 2}.png", widest=3.0)
                  for index, clip in enumerate(for_texts(idea_texts(episode), plan, episode))]
     return [*draw_thumbnails(episode, shots, brand, kit, variants),
             *draw_carousel(episode, cover, kit, ideas)]

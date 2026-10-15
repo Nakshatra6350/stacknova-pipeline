@@ -23,6 +23,7 @@ LATE = 0.9  # how far through its clip a still is taken
 EXIT_SECONDS = 0.5  # the last moments of a clip, when it may be leaving the screen
 MARGIN = 48  # pixels kept around what the scene draws
 MAX_ZOOM = 2.5  # a crop is never smaller than 40% of the frame's width
+WIDE = 16 / 9  # the widest a crop may be, as width over height; a carousel allows 3
 SHARPNESS = 1.5  # pixels per CSS pixel in a still, so a crop stays sharp when enlarged
 _SMALL_WORDS = {"a", "an", "and", "as", "at", "be", "by", "for", "in", "is", "it", "of", "on",
                 "or", "the", "to", "too", "why", "you", "your"}
@@ -86,16 +87,20 @@ def for_texts(texts: Sequence[str], plan: VideoPlan, episode: Mapping[str, Any])
     scenes = _scenes(plan)
     narration = {segment["id"]: f"{segment.get('title', '')} {segment.get('narration', '')}"
                  for segment in episode["segments"]}
+    # A recap repeats every keyword of the episode; the scene that explains it is better.
+    recaps = {segment["id"] for segment in episode["segments"]
+              if str(segment.get("title", "")).lower().startswith("recap")}
     fallback = picks(plan, episode, len(texts))
     chosen: list[Clip] = []
     for index, text in enumerate(texts):
         wanted = _words(text)
 
-        def score(clip: Clip, wanted: set[str] = wanted) -> int:
+        def score(clip: Clip, wanted: set[str] = wanted) -> float:
             steps = [{"target": step.target, **dict(step.params)} for step in clip.spec.steps]
             shown = _words(json.dumps([clip.spec.decl, steps]))
             said = _words(narration.get(clip.unit, ""))
-            return sum(2 * (word in shown) + (word in said) for word in wanted)
+            found = sum(2 * (word in shown) + (word in said) for word in wanted)
+            return found / 4 if clip.unit in recaps else float(found)
 
         free = [clip for clip in scenes if clip not in chosen]
         best = max(free, key=score, default=None)
@@ -108,21 +113,25 @@ def for_texts(texts: Sequence[str], plan: VideoPlan, episode: Mapping[str, Any])
     return chosen
 
 
-def _crop(box: Sequence[float]) -> dict[str, float]:
-    """A 16:9 region around `box`, inside the frame, at most MAX_ZOOM times enlarged."""
+def _crop(box: Sequence[float], widest: float = WIDE) -> dict[str, float]:
+    """A region around `box`, inside the frame, at most MAX_ZOOM times enlarged, whose width is
+    between 16:9 and `widest` times its height (a row of cards makes a wide strip)."""
     width, height = LANDSCAPE.width, LANDSCAPE.height
     x0, y0, x1, y1 = box[0] - MARGIN, box[1] - MARGIN, box[2] + MARGIN, box[3] + MARGIN
-    w = max(x1 - x0, (y1 - y0) * width / height, width / MAX_ZOOM)
-    w = min(w, width)
-    h = w * height / width
+    w = min(max(x1 - x0, width / MAX_ZOOM), width)
+    h = min(max(y1 - y0, w / widest), w * height / width)
+    w = max(w, h * width / height)  # never taller than 16:9
+    if w > width:
+        w, h = width, width * height / width
     cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
     left = min(max(0.0, cx - w / 2), width - w)
     top = min(max(0.0, cy - h / 2), height - h)
     return {"x": left, "y": top, "width": w, "height": h}
 
 
-def still(clip: Clip, theme: Theme, path: Path) -> Path:
-    """A 16:9 picture of `clip` near its end, cropped to what it draws, with no chrome."""
+def still(clip: Clip, theme: Theme, path: Path, widest: float = WIDE) -> Path:
+    """A picture of `clip` near its end, cropped to what it draws, with no chrome: 16:9, or up
+    to `widest` times as wide as tall when the scene is a wide strip."""
     data = clip_data(clip, LANDSCAPE, theme)
     data["chrome"] = None  # the scene alone: no top bar, captions or progress bar
     seconds = clip.frames / FPS
@@ -131,12 +140,18 @@ def still(clip: Clip, theme: Theme, path: Path) -> Path:
     with open_clip(data, LANDSCAPE, SHARPNESS) as page:
         page.evaluate("t => window.render(t)", at)
         box = page.evaluate(_CONTENT_BOX)
-        region = _crop(box) if box else None
+        region = _crop(box, widest) if box else None
         if region is None:
             page.screenshot(path=str(path))
         else:
             page.screenshot(path=str(path), clip=region)
     return path
+
+
+def aspect(png: Path) -> float:
+    """Width over height of a PNG, from its header."""
+    head = png.read_bytes()[16:24]
+    return int.from_bytes(head[:4], "big") / int.from_bytes(head[4:], "big")
 
 
 def stills(clips: Sequence[Clip], theme: Theme, folder: Path) -> list[Path]:
