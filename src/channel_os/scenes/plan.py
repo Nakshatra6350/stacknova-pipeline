@@ -96,6 +96,14 @@ def welcome_line(brand: Mapping[str, Any]) -> str | None:
     return str(text) if text else None
 
 
+def welcome_speed(brand: Mapping[str, Any]) -> float:
+    """How much faster than the narration the welcome line is said (1 when not set)."""
+    speed = float(((brand.get("video") or {}).get("welcome") or {}).get("speed", 1.0))
+    if not 0.5 <= speed <= 3.0:
+        raise ValueError(f"video.welcome.speed must be between 0.5 and 3, not {speed}")
+    return speed
+
+
 def plan_clips(episode: Mapping[str, Any], target: str, entry: Mapping[str, Any],
                fps: int = FPS, welcome: str | None = None) -> list[Clip]:
     """The scene clips of a target, in order. `entry` is the target's record in timing.json.

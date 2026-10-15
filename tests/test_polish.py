@@ -46,6 +46,12 @@ def test_tempo_alone_needs_no_headroom(neutral: VoiceSettings) -> None:
     assert polish_filters(replace(neutral, tempo=0.9)) == ["atempo=0.9"]
 
 
+def test_a_line_spoken_faster_multiplies_the_tempo(neutral: VoiceSettings) -> None:
+    # The welcome line, 1.7 times faster than the narration around it (owner, 15 Oct 2026).
+    assert polish_filters(replace(neutral, tempo=0.9), speed=1.7) == ["atempo=1.53"]
+    assert polish_filters(neutral, speed=1.7) == ["atempo=1.7"]
+
+
 def test_a_stalled_gap_is_cut_down_and_a_real_pause_is_left_alone(
     tmp_path: Path, audio: Any, neutral: VoiceSettings
 ) -> None:

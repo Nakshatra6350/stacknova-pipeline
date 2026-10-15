@@ -63,6 +63,13 @@ def test_a_long_video_says_the_welcome_line_after_the_hook(episode: Data) -> Non
     assert [unit.id for unit in select_units(episode, "short-2", welcome=line)] == ["short-2"]
 
 
+def test_the_welcome_line_carries_its_own_speed(episode: Data) -> None:
+    # The owner, 15 Oct 2026: the welcome was "very slow", make it 1.7 times faster.
+    units = select_units(episode, "long", welcome="Welcome to StackNova.", welcome_speed=1.7)
+    assert units[1] == Unit("welcome", "Welcome to StackNova.", speed=1.7)
+    assert {unit.speed for unit in units if unit.id != "welcome"} == {1.0}
+
+
 def test_an_unknown_target_is_an_error(episode: Data) -> None:
     with pytest.raises(ValueError, match="unknown target"):
         select_units(episode, "short-9")
@@ -204,6 +211,17 @@ def test_tempo_stretches_the_segments(
     first = narrate(UNITS[:1], "long", fake_synthesizer(), normal, tmp_path / "a", cache)
     second = narrate(UNITS[:1], "long", fake_synthesizer(), slower, tmp_path / "b", cache)
     assert second["duration"] == pytest.approx(first["duration"] / 0.8, abs=0.05)
+
+
+def test_a_unit_with_its_own_speed_is_faster_on_top_of_the_tempo(
+    tmp_path: Path, settings: VoiceSettings, fake_synthesizer: Any
+) -> None:
+    cache = tmp_path / "cache"
+    base = replace(settings, tempo=0.9)
+    plain = narrate(UNITS[:1], "long", fake_synthesizer(), base, tmp_path / "a", cache)
+    faster = narrate([replace(UNITS[0], speed=1.7)], "long", fake_synthesizer(), base,
+                     tmp_path / "b", cache)
+    assert faster["duration"] == pytest.approx(plain["duration"] / 1.7, abs=0.05)
 
 
 def test_update_timing_keeps_other_targets(tmp_path: Path) -> None:

@@ -26,19 +26,32 @@ SN.stages.brand = (() => {
     $('stage').style.filter = `brightness(${fade(t, 0, .25) * (1 - ease(seg(t, duration - .6, duration - .1)))})`;
   }
 
-  // The welcome line, said by the voice right after the logo: the line is the scene.
+  // The welcome line, said by the voice right after the logo: the line is the scene. Each
+  // sentence is a line of its own and arrives as the voice reaches it (by its place in the
+  // text, since a brand scene has no word times); the one that names the channel is the largest.
   function buildWelcome(root) {
     root.style.background = 'radial-gradient(1100px 760px at 50% 40%,#140b2c,#020008 70%)';
-    const line = esc(D.text).replace('StackNova', 'Stack<span class="grad">Nova</span>');
-    root.innerHTML = `<div class="center"><div style="display:grid;justify-items:center;gap:34px;max-width:86%">
-      <div class="emblem" id="wem" style="width:200px;height:200px"></div>
-      <div class="disp" id="wline" style="font-size:60px;line-height:1.2;text-align:center">${line}</div></div></div>`;
+    const parts = String(D.text).split(/(?<=[.!?])\s+/).filter(Boolean);
+    const total = parts.join(' ').length;
+    let before = 0;
+    welcomeAt = parts.map(part => { const share = before / total; before += part.length + 1; return share; });
+    const lines = parts.map((part, i) => {
+      const named = part.includes('StackNova');
+      const html = esc(part).replace('StackNova', 'Stack<span class="grad">Nova</span>');
+      return `<div class="disp wl" id="wl${i}" style="font-size:${named ? 64 : 46}px;line-height:1.18;text-align:center;text-wrap:balance;${named ? '' : 'color:var(--muted)'}">${html}</div>`;
+    }).join('');
+    root.innerHTML = `<div class="center"><div style="display:grid;justify-items:center;gap:22px;max-width:86%">
+      <div class="emblem" id="wem" style="width:200px;height:200px;margin-bottom:12px"></div>${lines}</div></div>`;
   }
 
+  let welcomeAt = [];
   function renderWelcome(t) {
-    const rise = ease(seg(t, .1, .9)), words = ease(seg(t, .35, 1.2));
+    const rise = ease(seg(t, .1, .9));
     Object.assign($('wem').style, { opacity: rise, transform: `scale(${.85 + .15 * rise})` });
-    Object.assign($('wline').style, { opacity: words, transform: `translateY(${30 * (1 - words)}px)` });
+    welcomeAt.forEach((share, i) => {
+      const at = .25 + share * Math.max(0, duration - 1), shown = ease(seg(t, at, at + .45));
+      Object.assign($(`wl${i}`).style, { opacity: shown, transform: `translateY(${24 * (1 - shown)}px)` });
+    });
     $('stage').style.filter = `brightness(${fade(t, 0, .25) * (1 - ease(seg(t, duration - .5, duration - .1)))})`;
   }
 

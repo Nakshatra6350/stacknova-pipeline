@@ -59,7 +59,10 @@ video:                        # what the planner adds around an episode's scenes
     seconds: 4.3
     sound: nod-up             # the owner's pick (S1 of three, 13 Oct 2026); made by src/channel_os/brand/sound.py
   welcome:                    # long videos only: said by the voice right after the logo intro (owner, 14 Oct 2026)
-    text: "This is StackNova: backend systems, explained from the inside."
+    # The owner's own words (15 Oct 2026): the channel covers backend, distributed systems and
+    # system design, so the line names no one subject.
+    text: "Every digital frontier begins with an idea. What brings it to life is the engineering beneath it. Welcome to StackNova — exploring the architecture of tomorrow, one system at a time."
+    speed: 1.7                # times faster than the narration: the owner found it "very slow" (15 Oct 2026)
   outro:                      # long videos only; no voice, music only
     seconds: 12
     music: lofi-nod           # the owner's pick (option 2); made by src/channel_os/brand/sound.py

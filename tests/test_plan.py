@@ -3,6 +3,7 @@ planner adds what an episode never writes (captions, the logo intro, the outro, 
 
 import copy
 from itertools import pairwise
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -19,6 +20,7 @@ from channel_os.scenes.plan import (
     plan_clips,
     plan_video,
     transition_styles,
+    welcome_speed,
 )
 
 SCRIPT = "You tapped Pay and got an error. So you tapped again. The fix is one key per payment."
@@ -410,6 +412,17 @@ def test_a_short_has_no_welcome_line() -> None:
     plan = plan_video(short_episode(scene([press("tapped Pay")])), "short-1",
                       entry(("short-1", 0.0, 6.0), duration=6.0), brand)
     assert [clip.unit for clip in plan.clips] == ["short-1"]
+
+
+def test_the_welcome_line_is_said_faster_than_the_narration() -> None:
+    # config/brand.yaml, the owner's call of 15 Oct 2026: 1.7 times faster.
+    root = Path(__file__).resolve().parents[1]
+    brand = yaml.safe_load((root / "config" / "brand.yaml").read_text("utf-8"))
+    assert welcome_speed(brand) == 1.7
+    assert brand["video"]["welcome"]["text"].startswith("Every digital frontier begins")
+    assert welcome_speed({}) == 1.0
+    with pytest.raises(ValueError, match=r"between 0\.5 and 3"):
+        welcome_speed({"video": {"welcome": {"speed": 5}}})
 
 
 S02 = ("If anything fails, the client retries. Clean. But that picture hides a question: when "

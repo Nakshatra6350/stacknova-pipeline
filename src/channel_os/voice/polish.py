@@ -25,12 +25,14 @@ def has_stall(src: Path, settings: VoiceSettings) -> bool:
     return any(end - start > limit for start, end in gaps)
 
 
-def polish_filters(settings: VoiceSettings, stalled: bool = False) -> list[str]:
+def polish_filters(settings: VoiceSettings, stalled: bool = False,
+                   speed: float = 1.0) -> list[str]:
     """ffmpeg audio filters for the pause cap, clarity EQ and tempo; empty when all are off.
 
     The pause cap is added only for audio that `has_stall`. The filter nudges ordinary pauses
     by a few milliseconds, and narration without a stall must come out exactly as it did
-    before the cap existed: the owner approved that audio.
+    before the cap existed: the owner approved that audio. `speed` makes one line faster than
+    the narration around it, on top of the tempo (the welcome line: 1.7, config/brand.yaml).
     """
     clarity = settings.clarity
     filters: list[str] = []
@@ -49,14 +51,15 @@ def polish_filters(settings: VoiceSettings, stalled: bool = False) -> list[str]:
         filters.append(f"equalizer=f={clarity.presence_hz}:t=q:w=1.0:g={clarity.presence_db}")
     if clarity.air_db:
         filters.append(f"highshelf=f={clarity.air_hz}:g={clarity.air_db}")
-    if settings.tempo != 1.0:
-        filters.append(f"atempo={settings.tempo}")
+    tempo = round(settings.tempo * speed, 4)
+    if tempo != 1.0:
+        filters.append(f"atempo={tempo:g}")
     return filters
 
 
-def polish(src: Path, dst: Path, settings: VoiceSettings) -> Path:
+def polish(src: Path, dst: Path, settings: VoiceSettings, speed: float = 1.0) -> Path:
     """Apply the configured filters to src; return src untouched when nothing is switched on."""
-    filters = polish_filters(settings, has_stall(src, settings))
+    filters = polish_filters(settings, has_stall(src, settings), speed)
     if not filters:
         return src
     dst.parent.mkdir(parents=True, exist_ok=True)

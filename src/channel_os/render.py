@@ -23,7 +23,7 @@ from typing import Any
 
 from channel_os.assemble.ffmpeg import FfmpegError
 from channel_os.scenes.formats import FORMATS, FPS, natural_format
-from channel_os.scenes.plan import LONG, declared_theme, plan_video, welcome_line
+from channel_os.scenes.plan import LONG, declared_theme, plan_video, welcome_line, welcome_speed
 from channel_os.scenes.theme import Themes, load_themes, pick_theme
 from channel_os.validate import (
     REACH_PATH,
@@ -77,15 +77,17 @@ def render_voice(
     lexicon: Lexicon | None = None,
     listener: Listener | None = None,
     welcome: str | None = None,
+    welcome_speed: float = 1.0,
 ) -> None:
     """Narrate each target and record it in out_dir/timing.json.
 
     With a listener every chunk is heard and read again until it says what the script says;
     what could still not be confirmed is printed, so someone knows where to listen. A long
-    video also says the channel's `welcome` line, as a unit after the hook.
+    video also says the channel's `welcome` line, as a unit after the hook, `welcome_speed`
+    times faster than the narration.
     """
     for target in targets:
-        units = select_units(episode, target, welcome)
+        units = select_units(episode, target, welcome, welcome_speed)
         entry = narrate(units, target, synthesizer, settings, out_dir, cache_dir, lexicon,
                         listener, _progress(target))
         update_timing(out_dir, episode["id"], target, entry)
@@ -262,7 +264,8 @@ def main(
         if args.stage == "voice":
             settings = load_settings(root / VOICE_CONFIG, args.model, args.overrides)
             lexicon = load_lexicon(root / PRONUNCIATION_CONFIG)
-            welcome = welcome_line(load_yaml(root / BRAND_CONFIG))
+            brand_config = load_yaml(root / BRAND_CONFIG)
+            welcome, speed = welcome_line(brand_config), welcome_speed(brand_config)
             if not args.reference.is_file():
                 raise InputError(f"{args.reference}: voice reference not found")
         else:
@@ -326,7 +329,7 @@ def main(
             synthesizer = make_synthesizer(settings, prepared)
             listener = None if args.no_listen else make_listener()
             render_voice(episode, targets, synthesizer, settings, out_dir, cache_dir, lexicon,
-                         listener, welcome)
+                         listener, welcome, speed)
     except (LoudnessError, FfmpegError, ValueError, RuntimeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
