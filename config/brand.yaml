@@ -62,8 +62,9 @@ video:                        # what the planner adds around an episode's scenes
     # The owner's own words (15 Oct 2026): the channel covers backend, distributed systems and
     # system design, so the line names no one subject.
     text: "Every digital frontier begins with an idea. What brings it to life is the engineering beneath it. Welcome to StackNova — exploring the architecture of tomorrow, one system at a time."
-    speed: 1.35               # times faster than the narration. The owner found the first one "very slow"
-                              # and asked for 1.7, then found 1.7 "very much faster" (15 Oct 2026)
+    speed: 1.25               # times faster than the narration. The owner found the first one "very slow"
+                              # and asked for 1.7, found 1.7 "very much faster", tried 1.35, then 1.25
+                              # (15 Oct 2026)
   outro:                      # long videos only; no voice, music only
     seconds: 12
     music: lofi-nod           # the owner's pick (option 2); made by src/channel_os/brand/sound.py

@@ -415,10 +415,10 @@ def test_a_short_has_no_welcome_line() -> None:
 
 
 def test_the_welcome_line_is_said_faster_than_the_narration() -> None:
-    # config/brand.yaml, the owner's call of 15 Oct 2026: 1.7 times faster was too fast; 1.35.
+    # config/brand.yaml, the owner's call of 15 Oct 2026: 1.7 was too fast, then 1.35, then 1.25.
     root = Path(__file__).resolve().parents[1]
     brand = yaml.safe_load((root / "config" / "brand.yaml").read_text("utf-8"))
-    assert welcome_speed(brand) == 1.35
+    assert welcome_speed(brand) == 1.25
     assert brand["video"]["welcome"]["text"].startswith("Every digital frontier begins")
     assert welcome_speed({}) == 1.0
     with pytest.raises(ValueError, match=r"between 0\.5 and 3"):
