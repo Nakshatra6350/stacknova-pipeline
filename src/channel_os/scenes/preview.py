@@ -15,11 +15,8 @@ from channel_os.scenes import code_model
 from channel_os.scenes.browser import RenderError, count_frames, render_clip
 from channel_os.scenes.formats import FPS, Format
 from channel_os.scenes.plan import Clip, VideoPlan
-from channel_os.scenes.theme import FACES, Theme
+from channel_os.scenes.theme import EMBLEM, FACES, FONT_DIR, Theme
 
-REPO = Path(__file__).resolve().parents[3]
-FONT_DIR = REPO / "assets" / "fonts"
-EMBLEM = REPO / "brand-assets" / "source" / "emblem-1264.jpg"
 # Layouts the page can draw: every stage the validator accepts (spec.STAGES), and the brand
 # scenes the planner adds.
 DRAWN = ("console", "cards", "fanin", "sequence", "code", "brand")

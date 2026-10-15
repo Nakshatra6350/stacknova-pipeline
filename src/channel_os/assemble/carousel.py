@@ -10,13 +10,17 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-from channel_os.assemble.frames import aspect
 from channel_os.assemble.thumbnails import JPEG_QUALITY, fonts
-from channel_os.scenes.browser import open_page
-from channel_os.scenes.preview import EMBLEM
+from channel_os.scenes.theme import EMBLEM
 
 WEB = Path(__file__).resolve().parent / "web"
 WIDTH, HEIGHT = 1080, 1350
+
+
+def aspect(png: Path) -> float:
+    """Width over height of a PNG, from its header."""
+    head = png.read_bytes()[16:24]
+    return int.from_bytes(head[:4], "big") / int.from_bytes(head[4:], "big")
 
 
 def kind(index: int, total: int, headline: str) -> str:
@@ -38,6 +42,8 @@ def draw_carousel(episode: Mapping[str, Any], cover_still: Path, folder: Path,
                   idea_stills: Sequence[Path] = ()) -> list[Path]:
     """carousel-01.jpg, carousel-02.jpg, ... in folder. `idea_stills` go on the idea slides in
     order; an idea slide without one carries its words alone."""
+    from channel_os.scenes.browser import open_page  # the browser: scenes dependency group
+
     slides = (episode.get("carousel") or {}).get("slides") or []
     number = str(episode["id"]).split("-", 1)[0]
     ideas = iter(idea_stills)

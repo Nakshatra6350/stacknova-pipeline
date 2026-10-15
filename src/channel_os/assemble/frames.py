@@ -148,12 +148,6 @@ def still(clip: Clip, theme: Theme, path: Path, widest: float = WIDE) -> Path:
     return path
 
 
-def aspect(png: Path) -> float:
-    """Width over height of a PNG, from its header."""
-    head = png.read_bytes()[16:24]
-    return int.from_bytes(head[:4], "big") / int.from_bytes(head[4:], "big")
-
-
 def stills(clips: Sequence[Clip], theme: Theme, folder: Path) -> list[Path]:
     return [still(clip, theme, folder / f"still-{index + 1}.png")
             for index, clip in enumerate(clips)]

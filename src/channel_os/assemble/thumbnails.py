@@ -11,9 +11,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-from channel_os.scenes.browser import open_page
-from channel_os.scenes.preview import EMBLEM, FONT_DIR
-from channel_os.scenes.theme import FACES
+from channel_os.scenes.theme import EMBLEM, FACES, FONT_DIR
 
 WEB = Path(__file__).resolve().parent / "web"
 LAYOUTS = ("verdict", "monitor")
@@ -36,6 +34,8 @@ def layouts(brand: Mapping[str, Any], count: int) -> list[str]:
 
 
 def draw(text: str, still: Path, layout: str, out: Path) -> Path:
+    from channel_os.scenes.browser import open_page  # the browser: scenes dependency group
+
     with open_page(WEB / "thumb.html", WIDTH, HEIGHT) as page:
         page.evaluate("d => window.draw(d)", {
             "layout": layout, "text": text, "frame": still.as_uri(), "emblem": EMBLEM.as_uri(),

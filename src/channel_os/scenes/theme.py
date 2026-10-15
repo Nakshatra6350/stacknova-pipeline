@@ -29,6 +29,9 @@ FACES = (
     ("JetBrains Mono", 400, "JetBrainsMono-Regular.ttf"),
     ("JetBrains Mono", 700, "JetBrainsMono-Bold.ttf"),
 )
+REPO = Path(__file__).resolve().parents[3]
+FONT_DIR = REPO / "assets" / "fonts"  # where FACES live
+EMBLEM = REPO / "brand-assets" / "source" / "emblem-1264.jpg"  # the channel's mark
 
 
 @dataclass(frozen=True)
