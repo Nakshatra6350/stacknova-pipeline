@@ -65,4 +65,9 @@ for ep in $episodes; do
     echo
   } >> "$GITHUB_STEP_SUMMARY"
   gh release upload "$tag" "$upload"/* --clobber
+
+  # A full render also refreshes the upload kit, which is drawn from the same narration.
+  if [ "$ONLY" = "all" ] && [ -z "$suffix" ]; then
+    EPISODE="$ep" MODEL="$model" bash scripts/build-kit.sh
+  fi
 done

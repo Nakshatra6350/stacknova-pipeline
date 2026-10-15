@@ -1,0 +1,113 @@
+<!doctype html>
+<!-- One Instagram carousel slide, 1080x1350 (assemble/carousel.py). window.draw(data) lays it
+     out and resolves once the words fit. Every slide looks like a still from the film: the
+     channel's mark at the top and, at the bottom, a rail with one segment per slide, the
+     current one lit, so the reader knows where they are in the swipe.
+     kind  cover  the hook's scene as a screen, then the headline
+           idea   the headline and its line, then the scene that matches them as a screen
+                  (the owner's pick of 15 October 2026); with no scene, the words alone,
+                  centred
+           follow the emblem, centred, and the ask -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  :root {
+    --night: #020008; --surface: #17122E; --white: #FFFFFF; --muted: #B7B0D6;
+    --violet: #7B5CFF; --pink: #FF4D8D; --orange: #FF8A3D; --gold: #FFD24D;
+  }
+  html, body { margin: 0; width: 1080px; height: 1350px; overflow: hidden; background: var(--night); }
+  #c { position: relative; width: 1080px; height: 1350px; overflow: hidden; color: var(--white);
+       font-family: "Inter", sans-serif;
+       background: radial-gradient(95% 55% at 85% 0%, #23124f 0%, #0a0420 50%, var(--night) 85%); }
+
+  .top { position: absolute; left: 80px; right: 80px; top: 72px; display: flex; align-items: center;
+         justify-content: space-between; }
+  .brand { display: flex; align-items: center; gap: 16px; font: 800 38px/1 "Inter Display", sans-serif;
+           letter-spacing: -0.02em; }
+  .brand img { width: 60px; height: 60px; border-radius: 14px; }
+  .nova { background: linear-gradient(90deg, var(--pink), var(--orange) 60%, var(--gold));
+          -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .ep { font: 700 26px/1 "JetBrains Mono", monospace; color: var(--muted); padding: 12px 18px;
+        border: 2px solid rgba(183,176,214,0.28); border-radius: 999px; }
+
+  .rail { position: absolute; left: 80px; right: 80px; bottom: 76px; display: flex; gap: 12px; }
+  .rail i { flex: 1; height: 8px; border-radius: 4px; background: rgba(183,176,214,0.2); }
+  .rail i.on { background: linear-gradient(90deg, var(--violet), var(--pink), var(--orange));
+               box-shadow: 0 0 18px rgba(255,77,141,0.6); }
+
+  h1 { position: absolute; left: 80px; right: 80px; margin: 0; font-family: "Inter Display", sans-serif;
+       font-weight: 800; letter-spacing: -0.03em; line-height: 0.98; text-wrap: balance; }
+  p { position: absolute; left: 80px; right: 80px; margin: 0; font-weight: 500; color: var(--muted);
+      line-height: 1.32; text-wrap: pretty; }
+
+  .shot { position: absolute; left: 80px; right: 80px; height: 517px;
+    border-radius: 24px; background-position: center; background-size: cover;
+    box-shadow: 0 0 0 3px rgba(123,92,255,0.9), 0 0 70px rgba(123,92,255,0.5), 0 30px 70px rgba(0,0,0,0.6); }
+  .cover .shot { top: 184px; }
+  .cover h1 { top: 770px; }
+  .idea .shot { top: 700px; }
+  .idea h1 { top: 200px; }
+  .follow .emblem { position: absolute; left: 50%; top: 250px; width: 300px; height: 300px;
+    margin-left: -150px; border-radius: 64px; box-shadow: 0 0 120px rgba(255,138,61,0.45); }
+  .follow h1, .follow p { text-align: center; }
+  .follow h1 { top: 640px; }
+</style>
+</head>
+<body>
+<div id="c"></div>
+<script>
+  async function fonts(list) {
+    for (const f of list) {
+      const face = new FontFace(f.family, `url("${f.url}")`, { weight: String(f.weight) });
+      document.fonts.add(await face.load());
+    }
+  }
+  // The largest size at which the element stays within `height` pixels.
+  function fit(el, height, start, floor) {
+    for (let size = start; size >= floor; size -= 2) {
+      el.style.fontSize = size + 'px';
+      if (el.getBoundingClientRect().height <= height) return size;
+    }
+    return floor;
+  }
+  const esc = s => String(s).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+
+  window.draw = async (d) => {
+    await fonts(d.fonts);
+    const c = document.getElementById('c');
+    c.className = d.kind;
+    const rail = Array.from({ length: d.total }, (_, i) => `<i class="${i === d.index ? 'on' : ''}"></i>`).join('');
+    c.innerHTML = `
+      <div class="top"><div class="brand"><img src="${d.emblem}" alt=""><span>Stack<span class="nova">Nova</span></span></div>
+        <span class="ep">${esc(d.episode)}</span></div>
+      ${d.frame && d.kind !== 'follow' ? `<div class="shot" style="background-image:url('${d.frame}')"></div>` : ''}
+      ${d.kind === 'follow' ? `<img class="emblem" src="${d.emblem}" alt="">` : ''}
+      <h1 id="h">${esc(d.headline)}</h1>
+      <p id="p">${esc(d.body)}</p>
+      <div class="rail">${rail}</div>`;
+    const h = document.getElementById('h'), p = document.getElementById('p');
+    const alone = d.kind === 'idea' && !d.frame;  // an idea slide with no scene to show
+    const room = { cover: [300, 150], idea: alone ? [520, 300] : [270, 150], follow: [260, 180] }[d.kind];
+    const big = { cover: 104, idea: alone ? 132 : 108, follow: 92 }[d.kind];
+    const line = d.kind === 'idea' ? (alone ? 48 : 44) : 40;
+    fit(h, room[0], big, 56);
+    p.style.fontSize = line + 'px';
+    p.style.top = (h.offsetTop + h.offsetHeight + (alone ? 56 : 36)) + 'px';
+    fit(p, room[1], line, 28);
+    if (!alone && d.kind === 'idea' && p.getBoundingClientRect().bottom > 700 - 30)
+      return `the words run into the scene (bottom ${Math.round(p.getBoundingClientRect().bottom)})`;
+    if (alone) {
+      // The headline and its line sit as one block in the middle of the room between the
+      // channel's mark and the rail, a little above centre.
+      const block = p.getBoundingClientRect().bottom - h.getBoundingClientRect().top;
+      const top = Math.round(190 + (1350 - 190 - 150 - block) * 0.42);
+      p.style.top = (top + (p.offsetTop - h.offsetTop)) + 'px';
+      h.style.top = top + 'px';
+    }
+    const bottom = p.getBoundingClientRect().bottom;
+    return bottom <= 1350 - 130 ? 'ok' : `the text runs into the rail (bottom ${Math.round(bottom)})`;
+  };
+</script>
+</body>
+</html>

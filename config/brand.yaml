@@ -42,6 +42,13 @@ fonts:
   sans_bold: "Inter Display ExtraBold"
   mono: "JetBrains Mono"
 watermark: "bottom-right"     # emblem, 6% width, 70% opacity
+thumbnail:                    # assemble/thumbnails.py; the owner's pick of 15 Oct 2026: "Mix: A and B"
+  # One layout per thumbnail, in order (thumb-a, thumb-b, thumb-c), so YouTube's Test & compare
+  # also tests the layout. verdict: the words stamped across the scene; monitor: the words on
+  # the left, the scene on a tilted screen.
+  layouts: [verdict, monitor, verdict]
+carousel:                     # assemble/carousel.py; the owner's pick of 15 Oct 2026
+  scenes_on_every_slide: true # each idea slide shows the scene that matches its words
 video:                        # what the planner adds around an episode's scenes (decided 12 Oct 2026)
   # How one scene gives way to the next. The owner's pick (13 Oct 2026): "keep all, make mix of
   # them on random". A list is mixed, one style per change of scene, the same way every time a
