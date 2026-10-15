@@ -30,7 +30,7 @@ fi
 
 uv run --no-sync python -m channel_os.kit --episode "$ep" --out "$out" --images
 
-cp "$out"/kit/*.srt "$out"/kit/*.jpg "$out"/kit/kit.md "$upload"/
+cp "$out"/kit/*.srt "$out"/kit/*.jpg "$out"/kit/kit.md "$out"/kit/kit.json "$upload"/
 (cd "$out/kit" && zip -q -r "$upload/kit.zip" . -x 'stills/*')
 gh release upload "$tag" "$upload"/* --clobber
 {

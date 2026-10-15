@@ -70,6 +70,19 @@ def test_the_kit_holds_every_text_to_paste(tmp_path: Path) -> None:
     assert "*Hindi (hi)*" in kit
 
 
+def test_the_kit_is_also_written_as_data_for_a_posting_checklist(tmp_path: Path) -> None:
+    out = _out(tmp_path)
+    build(ROOT, EPISODE, out)
+    data = json.loads((out / "kit" / "kit.json").read_text("utf-8"))
+    assert data["release"] == "ep-006-payment-system"
+    assert data["long"]["title_b"] == "Payment System Design: Ledger, Idempotency, Webhooks"
+    assert [short["id"] for short in data["shorts"]] == [f"short-{n}" for n in range(1, 6)]
+    assert data["reels"][0]["caption"].endswith("#faang")
+    assert data["carousel"]["slides"][-1] == "carousel-06.jpg"
+    assert {text["code"] for text in data["long"]["translations"]} == {
+        "hi", "es", "pt", "id", "vi", "ar"}
+
+
 def test_the_command_reports_a_missing_narration(tmp_path: Path, capsys: Any) -> None:
     assert main(["--episode", EPISODE, "--out", str(tmp_path), "--root", str(ROOT)]) == 1
     assert "timing.json" in capsys.readouterr().err

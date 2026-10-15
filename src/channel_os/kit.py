@@ -15,6 +15,7 @@ up, so the kit marks each one as [LINK: <episode id>] for the person posting to 
 """
 
 import argparse
+import json
 import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -97,78 +98,104 @@ def _block(text: str) -> str:
     return "```text\n" + text.rstrip("\n") + "\n```"
 
 
-def kit_markdown(episode: Mapping[str, Any], reach: Mapping[str, Any], brand: Mapping[str, Any],
-                 chapter_text: Sequence[str], before: str | None, after: str | None,
-                 durations: Mapping[str, float]) -> str:
-    """Every word to paste when posting the episode by hand, in posting order."""
-    eid = episode["id"]
+SETTINGS = ("category Education · language English · not made for kids · altered or synthetic "
+            "content: Yes (the narration is a cloned voice, docs/CONTENT_RULES.md)")
+
+
+def kit_data(episode: Mapping[str, Any], reach: Mapping[str, Any], brand: Mapping[str, Any],
+             chapter_text: Sequence[str], before: str | None, after: str | None,
+             durations: Mapping[str, float]) -> dict[str, Any]:
+    """Every word to paste when posting the episode by hand, and the file each one goes with."""
+    eid = str(episode["id"])
     packaging = episode["packaging"]
     handles = (brand.get("handles") or {}).get("confirmed") or {}
     instagram = handles.get("instagram", "")
     sets = reach.get("hashtag_sets") or {}
     long_tags = list(sets.get(episode["pillar"], []))
     titles = packaging["titles"]
-    out: list[str] = [f"# {eid}: {titles[0]}", ""]
-    out += [f"Files are in the draft Release `ep-{eid}`. Links between episodes are marked "
-            "`[LINK: <episode>]`: paste the YouTube link of that episode once it is up.", ""]
-
-    out += ["## YouTube: the long video", ""]
-    out += [f"- Video: `preview.long.mp4` ({durations.get(LONG, 0) / 60:.1f} min)",
-            "- Subtitles: `long.en.srt` (Subtitles → Add language → English → Upload file, "
-            "with timing)",
-            "- Thumbnail: `thumb-a.jpg`; for Test & compare add `thumb-b.jpg` and `thumb-c.jpg`",
-            "- Settings: category Education · language English · not made for kids · "
-            "altered or synthetic content: **Yes** (the narration is a cloned voice, "
-            "docs/CONTENT_RULES.md) · end screen: the next episode + subscribe", ""]
-    out += ["**Title**", "", _block(titles[0]), ""]
-    out += ["**Title B for Test & compare**", "", _block(titles[1]), ""]
-    out += ["**Description**", "",
-            _block(long_description(episode, chapter_text, before, after, long_tags)), ""]
-    out += ["**Tags**", "", _block(", ".join(packaging["tags"])), ""]
-    out += ["**Pinned comment**", "", _block(packaging["pinned_comment"]), ""]
-    localized = episode.get("localizations") or {}
-    if localized:
-        out += ["**Translations** (Languages → Add language → title and description)", ""]
-        for code, text in localized.items():
-            name = f"*{LANGUAGE_NAMES.get(code, code)} ({code})*"
-            if not (text or {}).get("title") or not (text or {}).get("description"):
-                out += [f"{name}: not translated yet, skip this language", ""]
-                continue
-            out += [name, "", _block(text["title"]), "", _block(text["description"]), ""]
-
-    out += ["## YouTube Shorts", ""]
+    translations = []
+    for code, text in (episode.get("localizations") or {}).items():
+        if (text or {}).get("title") and (text or {}).get("description"):
+            translations.append({"code": code, "language": LANGUAGE_NAMES.get(code, code),
+                                 "title": text["title"], "description": text["description"]})
+    shorts, reels = [], []
     for short in episode["shorts"]:
         sid = short["id"]
-        short_tags = list(sets.get(short.get("pillar_hashtags", episode["pillar"]), long_tags))
-        description = (f"{short['hook_on_screen']}\n\nThe full animated deep dive: {link(eid)}"
-                       f"\n\n#Shorts " + " ".join(short_tags[:3]))
-        out += [f"### {sid}: {short['youtube_title']}", "",
-                f"- Video: `preview.{sid}.mp4` ({durations.get(sid, 0):.0f} s) · subtitles: "
-                f"`{sid}.en.srt` (optional, the captions are burned in) · related video: "
-                "the long video · altered or synthetic content: **Yes**", "",
-                _block(short["youtube_title"]), "", _block(description), ""]
+        tags = list(sets.get(short.get("pillar_hashtags", episode["pillar"]), long_tags))
+        shorts.append({
+            "id": sid, "video": f"preview.{sid}.mp4", "seconds": round(durations.get(sid, 0)),
+            "subtitles": f"{sid}.en.srt", "title": short["youtube_title"],
+            "description": (f"{short['hook_on_screen']}\n\nThe full animated deep dive: "
+                            f"{link(eid)}\n\n#Shorts " + " ".join(tags[:3]))})
+        reels.append({
+            "id": sid, "video": f"preview.{sid}.mp4",
+            "caption": (str(short["instagram_caption"]).rstrip()
+                        + "\n\nThe full animated deep dive is on YouTube: StackNova (link in bio)."
+                        f"\nFollow {instagram} for two deep dives a week.\n\n" + " ".join(tags))})
+    slides = (episode.get("carousel") or {}).get("slides") or []
+    carousel = None
+    if slides:
+        first = slides[0]
+        carousel = {
+            "slides": [f"carousel-{n:02}.jpg" for n in range(1, len(slides) + 1)],
+            "caption": (f"{first['headline']}: {first['body']}. Swipe through, then save it for "
+                        "your next system design interview.\n\nThe full animated deep dive is "
+                        f"on YouTube: StackNova (link in bio).\nFollow {instagram} for more.\n\n"
+                        + " ".join(long_tags))}
+    return {
+        "episode": eid, "release": f"ep-{eid}",
+        "long": {
+            "video": "preview.long.mp4", "minutes": round(durations.get(LONG, 0) / 60, 1),
+            "subtitles": "long.en.srt", "thumbnails": ["thumb-a.jpg", "thumb-b.jpg", "thumb-c.jpg"],
+            "settings": SETTINGS, "title": titles[0], "title_b": titles[1],
+            "description": long_description(episode, chapter_text, before, after, long_tags),
+            "tags": ", ".join(packaging["tags"]), "pinned_comment": packaging["pinned_comment"],
+            "translations": translations},
+        "shorts": shorts, "reels": reels, "carousel": carousel}
 
+
+def kit_markdown(data: Mapping[str, Any]) -> str:
+    """kit_data as a page to read and copy from, in posting order."""
+    eid, long = data["episode"], data["long"]
+    out: list[str] = [f"# {eid}: {long['title']}", ""]
+    out += [f"Files are in the draft Release `{data['release']}`. Links between episodes are "
+            "marked `[LINK: <episode>]`: paste the YouTube link of that episode once it is up.",
+            ""]
+    out += ["## YouTube: the long video", ""]
+    out += [f"- Video: `{long['video']}` ({long['minutes']:.1f} min)",
+            f"- Subtitles: `{long['subtitles']}` (Subtitles → Add language → English → Upload "
+            "file, with timing)",
+            f"- Thumbnail: `{long['thumbnails'][0]}`; for Test & compare add "
+            + " and ".join(f"`{name}`" for name in long["thumbnails"][1:]),
+            "- Settings: " + long["settings"].replace("Yes", "**Yes**")
+            + " · end screen: the next episode + subscribe", ""]
+    out += ["**Title**", "", _block(long["title"]), ""]
+    out += ["**Title B for Test & compare**", "", _block(long["title_b"]), ""]
+    out += ["**Description**", "", _block(long["description"]), ""]
+    out += ["**Tags**", "", _block(long["tags"]), ""]
+    out += ["**Pinned comment**", "", _block(long["pinned_comment"]), ""]
+    if long["translations"]:
+        out += ["**Translations** (Languages → Add language → title and description)", ""]
+        for text in long["translations"]:
+            out += [f"*{text['language']} ({text['code']})*", "", _block(text["title"]), "",
+                    _block(text["description"]), ""]
+    out += ["## YouTube Shorts", ""]
+    for short in data["shorts"]:
+        out += [f"### {short['id']}: {short['title']}", "",
+                f"- Video: `{short['video']}` ({short['seconds']} s) · subtitles: "
+                f"`{short['subtitles']}` (optional, the captions are burned in) · related video: "
+                "the long video · altered or synthetic content: **Yes**", "",
+                _block(short["title"]), "", _block(short["description"]), ""]
     out += ["## Instagram Reels", "",
             "The same files as the Shorts. Share to the feed too; add the AI label if you "
             "want Instagram to match YouTube.", ""]
-    for short in episode["shorts"]:
-        sid = short["id"]
-        short_tags = list(sets.get(short.get("pillar_hashtags", episode["pillar"]), long_tags))
-        caption = (str(short["instagram_caption"]).rstrip() +
-                   f"\n\nThe full animated deep dive is on YouTube: StackNova (link in bio)."
-                   f"\nFollow {instagram} for two deep dives a week.\n\n" + " ".join(short_tags))
-        out += [f"### Reel from {sid}", "", f"- Video: `preview.{sid}.mp4`", "", _block(caption),
-                ""]
-
-    slides = (episode.get("carousel") or {}).get("slides") or []
-    if slides:
-        first = slides[0]
-        caption = (f"{first['headline']}: {first['body']}. Swipe through, then save it for your "
-                   f"next system design interview.\n\nThe full animated deep dive is on YouTube: "
-                   f"StackNova (link in bio).\nFollow {instagram} for more.\n\n"
-                   + " ".join(long_tags))
-        files = ", ".join(f"`carousel-{n:02}.jpg`" for n in range(1, len(slides) + 1))
-        out += ["## Instagram carousel", "", f"- Slides: {files}", "", _block(caption), ""]
+    for reel in data["reels"]:
+        out += [f"### Reel from {reel['id']}", "", f"- Video: `{reel['video']}`", "",
+                _block(reel["caption"]), ""]
+    if data["carousel"]:
+        files = ", ".join(f"`{name}`" for name in data["carousel"]["slides"])
+        out += ["## Instagram carousel", "", f"- Slides: {files}", "",
+                _block(data["carousel"]["caption"]), ""]
     return "\n".join(out).rstrip() + "\n"
 
 
@@ -228,9 +255,13 @@ def build(root: Path, episode_id: str, out_dir: Path, images: bool = False,
             if images:
                 written += _images(root, episode, plan, brand, kit, variants)
     before, after = _neighbours(episode_id, root)
+    data = kit_data(episode, reach, brand, chapter_text, before, after, durations)
     path = kit / "kit.md"
-    path.write_text(kit_markdown(episode, reach, brand, chapter_text, before, after, durations),
-                    encoding="utf-8", newline="\n")
+    path.write_text(kit_markdown(data), encoding="utf-8", newline="\n")
+    written.append(path)
+    path = kit / "kit.json"
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=1) + "\n", encoding="utf-8",
+                    newline="\n")
     written.append(path)
     return written
 
