@@ -130,8 +130,11 @@ def kit_markdown(episode: Mapping[str, Any], reach: Mapping[str, Any], brand: Ma
     if localized:
         out += ["**Translations** (Languages → Add language → title and description)", ""]
         for code, text in localized.items():
-            out += [f"*{LANGUAGE_NAMES.get(code, code)} ({code})*", "",
-                    _block(text["title"]), "", _block(text["description"]), ""]
+            name = f"*{LANGUAGE_NAMES.get(code, code)} ({code})*"
+            if not (text or {}).get("title") or not (text or {}).get("description"):
+                out += [f"{name}: not translated yet, skip this language", ""]
+                continue
+            out += [name, "", _block(text["title"]), "", _block(text["description"]), ""]
 
     out += ["## YouTube Shorts", ""]
     for short in episode["shorts"]:
