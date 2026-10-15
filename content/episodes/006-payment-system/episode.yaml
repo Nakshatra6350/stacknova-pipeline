@@ -1,0 +1,805 @@
+# Episode 006 — design a payment system at senior level: the capstone of the payments
+# reliability arc (001 idempotency, 002 outbox, 003 Kafka, 004 retry storms, 005 rate limiter).
+# Written 14 October 2026 for the launch on 19 October.
+id: 006-payment-system
+version: 1
+status: draft            # draft | ready_to_render | rendering | rendered | published
+pillar: interview-depth
+series: interview-depth
+language: en
+target_versions:
+  node: "24"
+  postgresql: "18"
+estimated_minutes: 12
+next:                           # shown on the outro of the long video
+  title: "How HashMap Really Works Inside Java"
+  teaser: "Buckets, hashes and trees: what really happens when you call put."
+
+keywords:
+  primary: payment system
+  secondary:
+    - system design interview
+    - design a payment system
+    - double entry ledger
+    - payment idempotency
+    - stripe webhooks
+
+packaging:
+  titles:                       # ≤ 60 chars; top 2 go to YouTube A/B test
+    - "Design a Payment System (Senior System Design Interview)"
+    - "Payment System Design: Ledger, Idempotency, Webhooks"
+    - "Payment System Design, Animated: Never Charge Twice"
+    - "How Payment Systems Really Work (System Design)"
+    - "Payment System Design in Node.js, Line by Line"
+  thumbnail_texts:              # 2–4 words, must not repeat the title
+    - "DID THE MONEY MOVE?"
+    - "SUM = ZERO"
+    - "TIMEOUT ≠ FAILED"
+  description: |
+    A customer taps Pay, the connection drops, and nobody knows if the money moved. Here's how to
+    design a payment system at senior level: requirements, idempotency keys scoped per merchant,
+    money as integer cents, a payment state machine, timeouts that mean "unknown", signed and
+    deduplicated webhooks, an outbox to Kafka, a double-entry ledger and daily reconciliation.
+    Four Node.js walkthroughs, and Stripe's own ledger as the story. The capstone of the
+    payments series.
+
+    {chapters}
+
+    Previous: design a rate limiter — {previous_link}
+    Next: how HashMap really works — {next_link}
+
+    Sources:
+    {sources}
+  tags:
+    - payment system design
+    - system design interview
+    - design a payment system
+    - double entry ledger
+    - idempotency
+    - webhooks
+    - stripe
+    - state machine
+    - reconciliation
+    - outbox pattern
+    - node.js
+    - postgresql
+    - distributed systems
+    - backend engineering
+  pinned_comment: "Your payment provider times out. Do you mark the payment failed, retry, or wait? 👇"
+
+segments:
+  - id: s01
+    title: Did the money move?
+    narration: >-
+      A customer taps Pay for a forty-nine dollar order. Your server asks the payment provider to
+      charge the card, and the connection drops. Did the money move? You don't know. Whatever you
+      do next, the customer must be charged exactly once, and every cent must be accounted for.
+      That's what a payment system really is: a reliable answer to one question at every step.
+      This is the capstone of the series. We'll design one at senior level, with everything from
+      the last five episodes in one place.
+    emphasis: [Did the money move, exactly once, every cent]
+    visual:
+      layout: console
+      phone:
+        title: Checkout
+        total: "$49.00"
+        method: "Visa •••• 4242"
+        items: [["Running shoes", "$45.00"], ["Shipping", "$4.00"]]
+      systems:
+        - {id: api, name: "Payments API", sub: "POST /v1/payments", idle: "listening"}
+        - {id: psp, name: "Payment provider", sub: "charges the card"}
+      panels:
+        - {id: status, kind: list, title: "payment pay_1 · status", unit: states, empty: "Not created yet.", lane: api}
+      steps:
+        - {at: "taps Pay", action: tap, target: phone}
+        - at: "taps Pay"
+          action: send
+          target: "phone->api"
+          params:
+            delay: 0.1
+            label: "POST /payments"
+            wire:
+              title: "Create payment"
+              method: POST
+              path: /v1/payments
+              headers: {Idempotency-Key: order-77}
+              body: {amount: 4900, currency: usd}
+        - {at: "Your server asks", action: item, target: status, params: {text: "created", value: "$49.00"}}
+        - {at: "charge the card", action: send, target: "api->psp", params: {label: "charge $49.00"}}
+        - {at: "the connection drops", action: send, target: "psp->api", params: {label: "200 OK", role: reply, lost: 0.6}}
+        - {at: "Did the money move?", action: note, target: wire, params: {text: "No answer. Charged, or not?", status: bad}}
+        - {at: "You don't know", action: item, target: status, params: {text: "pending", value: "unknown", status: bad}}
+        - {at: "charged exactly once", action: stamp, target: status, params: {text: "EXACTLY ONCE", status: ok}}
+        - {at: "every cent must be accounted for", action: highlight, target: psp}
+        - {at: "a reliable answer", action: highlight, target: api}
+        - {at: "the capstone", action: note, target: wire, params: {text: "001 · 002 · 003 · 004 · 005, in one design", status: info}}
+
+  - id: s02
+    title: The requirements
+    narration: >-
+      Start with the requirements, as you would in an interview. Merchants call our API to take
+      payments, refund them, and check their status. We don't talk to card networks ourselves: a
+      payment service provider, a PSP, does that for us. The hard requirements aren't features.
+      Never charge a customer twice. Never lose track of a cent. Keep a history that auditors can
+      trust. And when we must choose, correctness beats availability: a payment that waits is
+      better than a payment that's wrong. Scale? Say ten million payments a day. That's a little
+      over a hundred a second on average, and several times that at peak.
+    emphasis: [PSP, correctness beats availability, ten million payments a day]
+    visual:
+      layout: cards
+      header: ["REQUIREMENTS", "BEFORE ANY BOX OR ARROW"]
+      cards:
+        - {id: api, title: "the API", text: "pay · refund · status", hidden: true}
+        - {id: psp, title: "a PSP", text: "talks to the card networks", hidden: true}
+        - id: musts
+          title: "the hard part"
+          hidden: true
+          lines:
+            - {id: once, key: "charged", value: "?"}
+            - {id: cent, key: "lost cents", value: "?"}
+            - {id: first, key: "first", value: "?"}
+        - id: scale
+          title: "scale"
+          hidden: true
+          lines:
+            - {id: day, key: "per day", value: "?"}
+            - {id: sec, key: "per second", value: "?"}
+      steps:
+        - {at: "Merchants call our API", action: show, target: api}
+        - {at: "a payment service provider", action: show, target: psp}
+        - {at: "The hard requirements", action: show, target: musts}
+        - {at: "Never charge a customer twice", action: set, target: musts.once, params: {value: "once", status: ok}}
+        - {at: "Never lose track of a cent", action: set, target: musts.cent, params: {value: "none", status: ok}}
+        - {at: "auditors can trust", action: highlight, target: musts}
+        - {at: "correctness beats availability", action: set, target: musts.first, params: {value: "correctness", status: info}}
+        - {at: "Scale?", action: show, target: scale}
+        - {at: "ten million payments a day", action: set, target: scale.day, params: {value: "10 million", status: info}}
+        - {at: "a little over a hundred a second", action: set, target: scale.sec, params: {value: "~116 average", status: info}}
+        - {at: "several times that at peak", action: highlight, target: scale.sec}
+
+  - id: s03
+    title: The design on one page
+    narration: >-
+      Here's the design on one page. The payments API takes each request with an idempotency key,
+      from episode one, behind a rate limit per merchant, from episode five. The payment service
+      keeps each payment as a row in PostgreSQL, moving through a fixed set of states. It calls the
+      PSP through an adapter, with timeouts, backoff and a retry budget, from episode four. Every
+      change also writes an event to an outbox, from episode two. A relay publishes it to Kafka,
+      from episode three, for receipts, shipping and analytics. A double-entry ledger records where
+      every cent went. And a reconciliation job checks it all against the PSP's reports, every day.
+    emphasis: [idempotency key, outbox, double-entry ledger, reconciliation]
+    visual:
+      layout: console
+      systems:
+        - {id: api, name: "Payments API", sub: "keys · rate limits", idle: "listening"}
+        - {id: pay, name: "Payment service", sub: "PostgreSQL · outbox", idle: "ready"}
+        - {id: psp, name: "PSP adapter", sub: "timeouts · backoff", idle: "ready"}
+        - {id: kafka, name: "Kafka", sub: "payment events", idle: "ready"}
+      panels:
+        - {id: parts, kind: list, title: "from this series", unit: parts, empty: "One design, five episodes.", lane: pay}
+      steps:
+        - {at: "the design on one page", action: highlight, target: api}
+        - at: "with an idempotency key"
+          action: send
+          target: "api->pay"
+          params:
+            label: "create pay_1"
+            wire:
+              title: "Create payment"
+              method: POST
+              path: /v1/payments
+              headers: {Idempotency-Key: order-77, Authorization: "Bearer m_1 key"}
+              hi: [Idempotency-Key]
+              body: {amount: 4900, currency: usd}
+        - {at: "with an idempotency key", action: item, target: parts, params: {delay: 0.4, text: "idempotency keys", value: "001"}}
+        - {at: "a rate limit per merchant", action: item, target: parts, params: {text: "rate limits", value: "005"}}
+        - {at: "as a row in PostgreSQL", action: log, target: pay, params: {text: "pay_1: created"}}
+        - {at: "a fixed set of states", action: log, target: pay, params: {text: "pay_1: created → pending"}}
+        - {at: "It calls the", action: send, target: "pay->psp", params: {label: "authorize $49.00"}}
+        - {at: "a retry budget", action: item, target: parts, params: {text: "timeouts, backoff, budget", value: "004"}}
+        - {at: "writes an event to an outbox", action: log, target: pay, params: {text: "outbox ← payment.authorized"}}
+        - {at: "from episode two", action: item, target: parts, params: {text: "outbox", value: "002"}}
+        - {at: "A relay publishes it to Kafka", action: send, target: "pay->kafka", params: {label: "payment.authorized"}}
+        - {at: "from episode three", action: item, target: parts, params: {text: "Kafka", value: "003"}}
+        - {at: "for receipts", action: log, target: kafka, params: {text: "receipts · shipping · analytics"}}
+        - {at: "A double-entry ledger", action: log, target: pay, params: {text: "ledger: +4900 −4753 −147"}}
+        - {at: "a reconciliation job", action: log, target: psp, params: {text: "daily report ↔ ledger"}}
+        - {at: "every day", action: stamp, target: parts, params: {text: "ONE DESIGN", status: ok}}
+
+  - id: s04
+    title: Taking the payment once
+    narration: >-
+      Start where the money comes in. Amounts are whole numbers of cents, never floating point:
+      forty-nine dollars is 4,900 cents. That's how Stripe's API takes them too. The merchant sends
+      an idempotency key with each payment, and the key belongs to that merchant's account. Two
+      merchants can use the same key and never collide. Here's the create, in Node. Insert the
+      payment, unless this merchant already used this key. If a row came back, it's the first
+      time. If not, fetch the payment the first request made. Same key, different amount? That's a
+      bug in the merchant's code, so refuse it. Otherwise it's a retry, and it gets the same
+      payment back.
+    emphasis: [whole numbers of cents, that merchant's account, the same payment]
+    visual:
+      # Scene 1: what comes in.
+      - layout: cards
+        header: ["THE REQUEST", "MONEY AND A KEY"]
+        cards:
+          - id: amount
+            title: "the amount"
+            lines:
+              - {id: usd, key: "dollars", value: "49.00"}
+              - {id: cents, key: "stored", value: "?"}
+          - id: key
+            title: "the idempotency key"
+            hidden: true
+            lines:
+              - {id: m, key: "merchant", value: "m_1"}
+              - {id: k, key: "key", value: "order-77"}
+        steps:
+          - {at: "Amounts are whole numbers of cents", action: highlight, target: amount.usd}
+          - {at: "is 4,900 cents", action: set, target: amount.cents, params: {value: "4900 cents", status: ok}}
+          - {at: "Stripe's API takes them", action: mark, target: amount, params: {status: ok}}
+          - {at: "The merchant sends", action: show, target: key}
+          - {at: "belongs to that merchant's account", action: highlight, target: key.m}
+          - {at: "never collide", action: badge, target: key, params: {text: "SCOPED PER MERCHANT", status: ok}}
+      # Scene 2: the create.
+      - layout: code
+        from: "Here's the create"
+        header: ["IN CODE", "CREATE ONCE"]
+        title: payments.mjs
+        language: js
+        reveal: true
+        lines:
+          - "const ins = await db.query("
+          - "  `INSERT INTO payments (merchant_id, idem_key, amount)"
+          - "   VALUES ($1, $2, $3)"
+          - "   ON CONFLICT (merchant_id, idem_key) DO NOTHING"
+          - "   RETURNING *`, [merchantId, key, amount]);"
+          - "if (ins.rowCount === 1) return ins.rows[0]; // first time"
+          - "const old = await find(db, merchantId, key);"
+          - "if (Number(old.amount) !== amount) throw new KeyReused(key);"
+          - "return old; // a retry gets the same payment"
+        steps:
+          - {at: "Insert the", action: show, target: "1-5"}
+          - {at: "already used this key", action: highlight, target: "4"}
+          - {at: "If a row came back", action: show, target: "6"}
+          - {at: "If a row came back", action: highlight, target: "6"}
+          - {at: "fetch the payment the first request made", action: show, target: "7"}
+          - {at: "fetch the payment the first request made", action: highlight, target: "7"}
+          - {at: "Same key, different amount", action: show, target: "8"}
+          - {at: "Same key, different amount", action: highlight, target: "8"}
+          - {at: "so refuse it", action: note, target: "8", params: {text: "a bug in the caller: refuse", status: bad}}
+          - {at: "Otherwise it's a retry", action: show, target: "9"}
+          - {at: "Otherwise it's a retry", action: highlight, target: "9"}
+
+  - id: s05
+    title: A state machine
+    narration: >-
+      A payment is a state machine. It's created, then pending while we wait for the provider. The
+      provider authorizes it, or declines it and it fails. An authorized payment is captured when
+      the order ships, or voided if it doesn't. A captured payment can be refunded. Any other move
+      is a bug, so the code refuses it. Here's the move itself. First, check the map of allowed
+      moves. Then update the row, but only if it's still in the status we expect. That WHERE clause
+      makes the check and the write one step. Two workers can both see pending. One updates a row.
+      The other updates none, and knows someone got there first.
+    emphasis: [state machine, one step, got there first]
+    visual:
+      # Scene 1: the states.
+      - layout: cards
+        header: ["THE PAYMENT", "A STATE MACHINE"]
+        joins: ["→", "→", "→"]
+        cards:
+          - {id: created, title: "created", text: "the row exists"}
+          - {id: pending, title: "pending", text: "waiting on the PSP", hidden: true}
+          - {id: auth, title: "authorized", text: "money on hold", hidden: true}
+          - {id: cap, title: "captured", text: "money taken", hidden: true}
+        steps:
+          - {at: "It's created", action: highlight, target: created}
+          - {at: "then pending", action: show, target: pending}
+          - {at: "The provider authorizes it", action: show, target: auth}
+          - {at: "declines it and it fails", action: badge, target: pending, params: {text: "OR FAILED", status: bad}}
+          - {at: "captured when the order ships", action: show, target: cap}
+          - {at: "voided if it doesn't", action: badge, target: auth, params: {text: "OR VOIDED", status: info}}
+          - {at: "can be refunded", action: badge, target: cap, params: {text: "THEN REFUNDED", status: info}}
+          - {at: "Any other move is a bug", action: focus, target: all}
+      # Scene 2: one guarded move.
+      - layout: code
+        from: "Here's the move itself"
+        header: ["IN CODE", "ONE GUARDED MOVE"]
+        title: payments.mjs
+        language: js
+        reveal: true
+        lines:
+          - "export async function transition(db, id, from, to) {"
+          - "  if (!NEXT[from]?.includes(to)) {"
+          - "    throw new IllegalMove(`${from} -> ${to}`);"
+          - "  }"
+          - "  const res = await db.query("
+          - "    `UPDATE payments SET status = $3"
+          - "     WHERE id = $1 AND status = $2`, [id, from, to]);"
+          - "  return res.rowCount === 1; // 0: someone moved it first"
+          - "}"
+        steps:
+          - {at: "Here's the move itself", action: show, target: "1-4"}
+          - {at: "check the map of allowed moves", action: highlight, target: "2"}
+          - {at: "Then update the row", action: show, target: "5-7"}
+          - {at: "still in the status we expect", action: highlight, target: "7"}
+          - {at: "makes the check and the write one step", action: highlight, target: "6-7"}
+          - {at: "One updates a row", action: show, target: "8-9"}
+          - {at: "One updates a row", action: highlight, target: "8"}
+          - {at: "The other updates none", action: note, target: "8", params: {text: "the late worker sees 0 rows", status: info}}
+
+  - id: s06
+    title: When the provider goes quiet
+    narration: >-
+      Now the call that started this video. We ask the provider to authorize forty-nine dollars,
+      and the reply never comes. Never mark that payment failed: the money may have moved. It stays
+      pending, and we ask again with the same idempotency key. A provider like Stripe saves the
+      result of the first request under that key, so the retry gets the same answer back, not a
+      second charge. Retries back off, with jitter, inside a budget, as in episode four. And if the
+      provider stays silent, a webhook or a status check settles it later.
+    emphasis: [Never mark that payment failed, the same idempotency key, not a second charge]
+    visual:
+      layout: sequence
+      header: ["THE PROVIDER", "A TIMEOUT IS NOT A NO"]
+      actors:
+        - {id: svc, label: "payment service", kind: service}
+        - {id: psp, label: "payment provider", kind: service}
+      steps:
+        - {at: "authorize forty-nine dollars", action: message, target: "svc->psp", params: {text: "authorize $49 · key pay_1"}}
+        - {at: "the reply never comes", action: note, target: svc, params: {text: "timeout: no reply", status: bad}}
+        - {at: "Never mark that payment failed", action: badge, target: svc, params: {text: "NOT FAILED: UNKNOWN", status: info}}
+        - {at: "It stays", action: note, target: svc, params: {text: "status: pending", status: info}}
+        - {at: "we ask again", action: message, target: "svc->psp", params: {text: "authorize $49 · key pay_1", role: retry}}
+        - {at: "saves the", action: note, target: psp, params: {text: "key pay_1: approved (saved)", status: ok}}
+        - {at: "gets the same answer back", action: message, target: "psp->svc", params: {text: "approved · same reply", role: reply, status: ok}}
+        - {at: "Retries back off", action: divider, target: all, params: {text: "backoff · jitter · budget"}}
+        - {at: "stays silent", action: highlight, target: psp}
+
+  - id: s07
+    title: Webhooks
+    narration: >-
+      The provider also tells us what happened, by webhook. Plan for three things. Anyone can call
+      that endpoint, so check the signature: an HMAC of the timestamp and the body, with a secret
+      only you and the provider know. Events can arrive twice, so store each one once. And they can
+      arrive out of order, so never let an old event undo a newer state. Here's the handler. A bad
+      signature gets a 400 and nothing else. Then the event goes into an inbox table, keyed by its
+      id. A duplicate inserts nothing. Either way, answer 200 at once, and let a worker apply the
+      inbox. The worker moves payments with that same guarded transition, so a late event changes
+      nothing.
+    emphasis: [check the signature, store each one once, out of order]
+    visual:
+      # Scene 1: three things to plan for.
+      - layout: cards
+        header: ["WEBHOOKS", "PLAN FOR THREE THINGS"]
+        cards:
+          - {id: forged, title: "forged", text: "check the signature", hidden: true}
+          - {id: twice, title: "twice", text: "store each event once", hidden: true}
+          - {id: order, title: "out of order", text: "old can't undo new", hidden: true}
+        steps:
+          - {at: "Anyone can call", action: show, target: forged}
+          - {at: "only you and the provider know", action: mark, target: forged, params: {status: ok}}
+          - {at: "Events can arrive twice", action: show, target: twice}
+          - {at: "store each one once", action: mark, target: twice, params: {status: ok}}
+          - {at: "arrive out of order", action: show, target: order}
+          - {at: "never let an old event undo", action: mark, target: order, params: {status: ok}}
+      # Scene 2: the handler.
+      - layout: code
+        from: "Here's the handler"
+        header: ["IN CODE", "THE WEBHOOK HANDLER"]
+        title: webhook.mjs
+        language: js
+        reveal: true
+        lines:
+          - "export async function onEvent(db, key, header, raw) {"
+          - "  if (!verify(key, header, raw)) return 400; // not genuine"
+          - "  const event = JSON.parse(raw);"
+          - "  await db.query("
+          - "    `INSERT INTO inbox (event_id, body) VALUES ($1, $2)"
+          - "     ON CONFLICT (event_id) DO NOTHING`, [event.id, raw]);"
+          - "  // 0 rows: seen before. Either way, the provider gets 200."
+          - "  return 200;"
+          - "}"
+        steps:
+          - {at: "Here's the handler", action: show, target: "1-2"}
+          - {at: "A bad signature gets a 400", action: highlight, target: "2"}
+          - {at: "goes into an inbox table", action: show, target: "3-6"}
+          - {at: "keyed by its", action: highlight, target: "5"}
+          - {at: "A duplicate inserts nothing", action: highlight, target: "6"}
+          - {at: "answer 200 at once", action: show, target: "7-9"}
+          - {at: "answer 200 at once", action: highlight, target: "8"}
+          - {at: "let a worker apply the inbox", action: note, target: "8", params: {text: "a worker applies the inbox later", status: info}}
+
+  - id: s08
+    title: The ledger
+    narration: >-
+      Now, where did the money go? A payment system keeps a double-entry ledger. Every movement is
+      a set of entries that add up to zero, counted in cents. Our forty-nine dollar payment: the
+      provider owes us forty-nine dollars. We owe the merchant forty-seven dollars fifty-three.
+      And one dollar forty-seven is our fee. Plus forty-nine, minus forty-seven fifty-three, minus
+      one forty-seven: zero. Entries are never changed or deleted; a mistake is fixed by new entries that
+      reverse it. And a balance is just the sum of an account's entries. Here's the posting. Add up
+      the entries, and refuse anything that doesn't come to zero. Then write them all in one
+      INSERT, which PostgreSQL applies completely or not at all.
+    emphasis: [double-entry ledger, add up to zero, never changed or deleted]
+    visual:
+      # Scene 1: one movement.
+      - layout: cards
+        header: ["THE LEDGER", "EVERY MOVEMENT SUMS TO ZERO"]
+        joins: ["+", "+", "="]
+        cards:
+          - id: psp
+            title: "PSP owes us"
+            lines: [{id: v, key: cents, value: "+4900"}]
+          - id: merchant
+            title: "we owe merchant"
+            hidden: true
+            lines: [{id: v, key: cents, value: "−4753"}]
+          - id: fee
+            title: "our fee"
+            hidden: true
+            lines: [{id: v, key: cents, value: "−147"}]
+          - id: sum
+            title: "the sum"
+            hidden: true
+            lines: [{id: v, key: cents, value: "?"}]
+        steps:
+          - {at: "add up to zero", action: highlight, target: psp}
+          - {at: "the provider owes us", action: mark, target: psp, params: {status: ok}}
+          - {at: "We owe the merchant", action: show, target: merchant}
+          - {at: "is our fee", action: show, target: fee}
+          - {at: "Plus forty-nine", action: show, target: sum}
+          - {at: "minus one forty-seven", action: set, target: sum.v, params: {value: "0", status: ok}}
+          - {at: "never changed or deleted", action: badge, target: sum, params: {text: "APPEND-ONLY", status: ok}}
+          - {at: "the sum of an account's entries", action: focus, target: all}
+      # Scene 2: posting.
+      - layout: code
+        from: "Here's the posting"
+        header: ["IN CODE", "POST A MOVEMENT"]
+        title: ledger.mjs
+        language: js
+        reveal: true
+        lines:
+          - "export async function post(db, paymentId, entries) {"
+          - "  const sum = entries.reduce((s, e) => s + e.amount, 0);"
+          - "  if (sum !== 0) throw new Unbalanced(sum); // must be zero"
+          - "  await db.query("
+          - "    `INSERT INTO entries (payment_id, account, amount)"
+          - "     SELECT $1, * FROM unnest($2::text[], $3::bigint[])`,"
+          - "    [paymentId, entries.map((e) => e.account),"
+          - "     entries.map((e) => e.amount)]);"
+          - "}"
+        steps:
+          - {at: "Here's the posting", action: show, target: "1-3"}
+          - {at: "Add up", action: highlight, target: "2"}
+          - {at: "doesn't come to zero", action: highlight, target: "3"}
+          - {at: "Then write them all", action: show, target: "4-9"}
+          - {at: "in one", action: highlight, target: "5-6"}
+          - {at: "completely or not at all", action: note, target: "6", params: {text: "one statement: all rows or none", status: ok}}
+
+  - id: s09
+    title: Events and reconciliation
+    narration: >-
+      Two more pieces close the loop. When a payment changes state, the same transaction writes an
+      event to the outbox, and the relay publishes it to Kafka. Receipts, shipping and analytics
+      each consume it at their own pace. Each one handles duplicates, because delivery is at least
+      once. Then reconciliation. Every day, the provider sends a settlement report: what it really
+      charged and paid out. A job matches every line against our ledger. A charge the provider has
+      and we don't, or the other way round, raises an alert for a person to check. It's the last
+      line of defence, and it catches what every other layer missed.
+    emphasis: [outbox, at least once, reconciliation, last line of defence]
+    visual:
+      # Scene 1: events out.
+      - layout: console
+        systems:
+          - {id: pay, name: "Payment service", sub: "PostgreSQL + outbox", idle: "ready"}
+          - {id: kafka, name: "Kafka", sub: "payment events", idle: "ready"}
+          - {id: rcpt, name: "Receipts · shipping", sub: "at least once", idle: "waiting"}
+        steps:
+          - {at: "changes state", action: log, target: pay, params: {text: "pay_1 → captured"}}
+          - {at: "the same transaction writes an event", action: log, target: pay, params: {text: "+ outbox row, same transaction"}}
+          - {at: "the relay publishes it", action: send, target: "pay->kafka", params: {label: "payment.captured"}}
+          - {at: "each consume it", action: send, target: "kafka->rcpt", params: {label: "payment.captured"}}
+          - {at: "handles duplicates", action: send, target: "kafka->rcpt", params: {label: "payment.captured (again)", role: retry}}
+          - {at: "at least", action: log, target: rcpt, params: {text: "seen evt_42: skip"}}
+      # Scene 2: reconciliation.
+      - layout: cards
+        from: "Then reconciliation"
+        header: ["RECONCILIATION", "EVERY DAY"]
+        cards:
+          - id: ours
+            title: "our ledger"
+            lines:
+              - {id: a, key: "pay_1", value: "4900"}
+              - {id: b, key: "pay_2", value: "1200"}
+          - id: theirs
+            title: "provider's report"
+            hidden: true
+            lines:
+              - {id: a, key: "pay_1", value: "4900"}
+              - {id: b, key: "pay_2", value: "?"}
+        steps:
+          - {at: "sends a settlement report", action: show, target: theirs}
+          - {at: "matches every line", action: highlight, target: ours.a}
+          - {at: "matches every line", action: highlight, target: theirs.a}
+          - {at: "A charge the provider has and we don't", action: set, target: theirs.b, params: {value: "missing", status: bad}}
+          - {at: "raises an alert", action: badge, target: theirs, params: {text: "ALERT: CHECK pay_2", status: bad}}
+          - {at: "the last", action: focus, target: all}
+
+  - id: s10
+    title: From production
+    narration: >-
+      Stripe described its own ledger in twenty twenty-four. It's an immutable log of double-entry records, and it
+      sees five billion events a day. The interesting part is how it finds mistakes. Money passes
+      through clearing accounts, which should come back to zero once a flow completes. A balance
+      that isn't zero means something is stuck or was recorded wrong, and a query finds it. Stripe
+      reports that all of its dollar volume but one part in ten thousand is fully verified within
+      four days. The lesson for your own design: make every mistake show up as a number that isn't
+      zero.
+    emphasis: [Stripe, clearing accounts, a number that isn't zero]
+    visual:
+      layout: cards
+      header: ["FROM PRODUCTION", "STRIPE'S LEDGER, 2024"]
+      cards:
+        - {id: log, title: "an immutable log", text: "double-entry records", hidden: true}
+        - {id: scale, title: "5 billion", text: "events a day", hidden: true}
+        - id: clearing
+          title: "a clearing account"
+          hidden: true
+          lines: [{id: v, key: balance, value: "0"}]
+        - {id: days, title: "within 4 days", text: "volume fully verified", hidden: true}
+      steps:
+        - {at: "It's an immutable log", action: show, target: log}
+        - {at: "five billion events a day", action: show, target: scale}
+        - {at: "Money passes through clearing accounts", action: show, target: clearing}
+        - {at: "A balance that isn't zero", action: set, target: clearing.v, params: {value: "1200", status: bad}}
+        - {at: "something is stuck", action: mark, target: clearing, params: {status: bad}}
+        - {at: "a query finds it", action: highlight, target: clearing}
+        - {at: "Stripe reports that", action: show, target: days}
+        - {at: "make every mistake show up", action: focus, target: all}
+
+  - id: s11
+    title: The trade-offs
+    narration: >-
+      Every choice here has a price. Authorizing now and capturing later protects customers, but
+      authorizations expire, so capture can't wait forever. Waiting for the provider makes checkout
+      slower; answering pending is faster, but the customer learns the result later. Choosing
+      correctness means some payments wait during an outage, instead of guessing. A hosted card
+      form keeps card numbers off your servers. If they touch your servers, PCI DSS can mean more
+      than three hundred security controls. And a ledger and reconciliation are work nobody sees,
+      until the day they save you.
+    emphasis: [authorizations expire, correctness, PCI DSS]
+    visual:
+      layout: cards
+      header: ["THE TRADE-OFFS", "WHAT EACH CHOICE COSTS"]
+      cards:
+        - {id: auth, title: "auth, then capture", text: "authorizations expire", hidden: true}
+        - {id: wait, title: "wait or pending", text: "slower, or later", hidden: true}
+        - {id: correct, title: "correct first", text: "some payments wait", hidden: true}
+        - {id: pci, title: "hosted card form", text: "card numbers stay away", hidden: true}
+      steps:
+        - {at: "Authorizing now and capturing later", action: show, target: auth}
+        - {at: "can't wait forever", action: highlight, target: auth}
+        - {at: "Waiting for the provider", action: show, target: wait}
+        - {at: "Choosing", action: show, target: correct}
+        - {at: "A hosted card form", action: show, target: pci}
+        - {at: "more than three hundred", action: highlight, target: pci}
+        - {at: "work nobody sees", action: focus, target: all}
+
+  - id: s12
+    title: Recap and next
+    narration: >-
+      Recap. Take each payment once, with an idempotency key scoped to the merchant. Store money as
+      whole cents. Move every payment through a state machine, one guarded step at a time. Treat a
+      timeout as unknown, never as failed, and retry with the same key. Verify webhooks, store them
+      once, and apply them in state order. Record every cent in a ledger that sums to zero, and
+      reconcile it every day. That's the payments series, end to end. Next, we go inside the tools
+      you use every day, starting with how a Java HashMap really works.
+    emphasis: [scoped to the merchant, unknown, never as failed, sums to zero]
+    visual:
+      # Scene 1: the design on one screen.
+      - layout: cards
+        header: ["RECAP", "THE DESIGN"]
+        cards:
+          - {id: once, title: "once", text: "a key per merchant"}
+          - {id: states, title: "state machine", text: "guarded steps", hidden: true}
+          - {id: unknown, title: "timeout", text: "unknown, not failed", hidden: true}
+          - {id: ledger, title: "ledger", text: "sums to zero, reconciled", hidden: true}
+        steps:
+          - {at: "Take each payment once", action: mark, target: once, params: {status: ok}}
+          - {at: "Move every payment through", action: show, target: states}
+          - {at: "Treat a timeout as unknown", action: show, target: unknown}
+          - {at: "Record every cent", action: show, target: ledger}
+          - {at: "end to end", action: focus, target: all}
+      # Scene 2: next episode.
+      - layout: cards
+        from: "Next, we go inside"
+        header: ["NEXT EPISODE", "INSIDE THE TOOLS"]
+        cards:
+          - {id: map, title: "Java HashMap", text: "how it really works", hidden: true}
+        steps:
+          - {at: "Next, we go inside", action: show, target: map}
+          - {at: "how a Java HashMap really works", action: highlight, target: map}
+
+shorts:
+  - id: short-1
+    source: standalone
+    hook_on_screen: "Never store money as floats"
+    script: >-
+      Never store money as a floating-point number. In JavaScript, a tenth plus two tenths isn't
+      three tenths. It's a tiny bit more, because binary can't hold a tenth exactly. Add that up
+      across millions of payments, and cents appear and vanish. Store whole numbers in the smallest
+      unit instead: ten cents plus twenty cents is thirty cents, exactly. That's how Stripe's API
+      takes amounts, in whole cents. And that's why your money column should never be a float.
+    visual:
+      layout: cards
+      header: ["MONEY", "FLOATS OR CENTS?"]
+      cards:
+        - id: float
+          title: "0.1 + 0.2"
+          lines: [{id: v, key: "is", value: "?"}]
+        - id: cents
+          title: "10¢ + 20¢"
+          hidden: true
+          lines: [{id: v, key: "is", value: "?"}]
+      steps:
+        - {at: "Never store money", action: highlight, target: float}
+        - {at: "isn't three tenths", action: set, target: float.v, params: {value: "0.30000000000000004", status: bad}}
+        - {at: "a tiny bit more", action: mark, target: float, params: {status: bad}}
+        - {at: "binary can't hold a tenth", action: highlight, target: float.v}
+        - {at: "millions of payments", action: apply, target: float, params: {role: error}}
+        - {at: "Store whole numbers", action: show, target: cents}
+        - {at: "thirty cents, exactly", action: set, target: cents.v, params: {value: "30¢", status: ok}}
+        - {at: "in whole cents", action: mark, target: cents, params: {status: ok}}
+        - {at: "never be a float", action: focus, target: all}
+    youtube_title: "Never Store Money as a Float #Shorts"
+    instagram_caption: |
+      0.1 + 0.2 = 0.30000000000000004 💸
+      Store money as whole cents. Your ledger will thank you.
+    pillar_hashtags: interview-depth
+  - id: short-2
+    source: segments
+    segments: [s06]
+    hook_on_screen: "A timeout is not a failure"
+    youtube_title: "Your Payment Provider Timed Out. Now What? #Shorts"
+    instagram_caption: |
+      No reply ≠ declined. ⏳
+      Keep it pending, retry with the same idempotency key, let the provider's saved answer decide.
+    pillar_hashtags: interview-depth
+  - id: short-3
+    source: segments
+    segments: [s10]
+    hook_on_screen: "How Stripe catches its mistakes"
+    youtube_title: "How Stripe's Ledger Catches Its Own Mistakes #Shorts"
+    instagram_caption: |
+      Clearing accounts should come back to zero. 🧮
+      Any balance that doesn't is a mistake you can query.
+    pillar_hashtags: interview-depth
+  - id: short-4
+    source: segments
+    segments: [s11]
+    hook_on_screen: "Payment design trade-offs"
+    youtube_title: "Payment System Trade-offs in 40 Seconds #Shorts"
+    instagram_caption: |
+      Auth then capture, pending or wait, correctness first, hosted card forms. ⚖️
+      Every payment design pays for something.
+    pillar_hashtags: interview-depth
+  - id: short-5
+    source: standalone
+    hook_on_screen: "Double-entry in 40 seconds"
+    script: >-
+      Double-entry bookkeeping, in forty seconds. Every movement of money is written twice: where it
+      came from, and where it went. So the entries always add up to zero. A customer pays
+      forty-nine dollars. The provider owes you forty-nine. You owe the merchant forty-seven
+      fifty-three, and keep one dollar forty-seven as your fee. Add them up: zero. If a sum is ever
+      not zero, money went somewhere you didn't record. That's why every serious payment system
+      keeps a double-entry ledger.
+    visual:
+      layout: cards
+      header: ["DOUBLE-ENTRY", "IN 40 SECONDS"]
+      cards:
+        - {id: psp, title: "+$49.00", text: "the provider owes you"}
+        - {id: merchant, title: "−$47.53", text: "you owe the merchant", hidden: true}
+        - {id: fee, title: "−$1.47", text: "your fee", hidden: true}
+        - {id: sum, title: "= $0.00", text: "always", hidden: true}
+      steps:
+        - {at: "written twice", action: highlight, target: psp}
+        - {at: "A customer pays", action: highlight, target: psp}
+        - {at: "The provider owes you", action: mark, target: psp, params: {status: ok}}
+        - {at: "You owe the merchant", action: show, target: merchant}
+        - {at: "as your fee", action: show, target: fee}
+        - {at: "Add them up", action: show, target: sum}
+        - {at: "If a sum is ever", action: focus, target: sum}
+        - {at: "money went somewhere", action: highlight, target: sum}
+        - {at: "keeps a double-entry ledger", action: focus, target: all}
+    youtube_title: "Double-Entry Bookkeeping for Engineers #Shorts"
+    instagram_caption: |
+      +49.00 − 47.53 − 1.47 = 0 🧾
+      Every movement of money sums to zero. If it doesn't, something's missing.
+    pillar_hashtags: interview-depth
+
+carousel:
+  slides:
+    - {headline: "Design a payment system", body: "The senior-level answer, in 5 slides"}
+    - {headline: "Take it once", body: "An idempotency key per merchant · amounts in whole cents"}
+    - {headline: "A state machine", body: "created → pending → authorized → captured, one guarded step at a time"}
+    - {headline: "Timeout ≠ failed", body: "Keep it pending; retry with the same key"}
+    - {headline: "Ledger + reconciliation", body: "Entries sum to zero · checked against the provider daily"}
+    - {headline: "Follow @stacknova.dev", body: "Animated deep dive on YouTube: StackNova"}
+
+code_samples:
+  - lang: node
+    path: samples/node/payments.mjs
+    purpose: Create a payment once per idempotency key (scoped per merchant) and move it through a guarded state machine
+    shown_in: [s04, s05]
+  - lang: node
+    path: samples/node/webhook.mjs
+    purpose: Verify a provider's webhook signature (HMAC-SHA256) and store each event once in an inbox
+    shown_in: [s07]
+  - lang: node
+    path: samples/node/ledger.mjs
+    purpose: Post a double-entry movement that must sum to zero, in one atomic INSERT
+    shown_in: [s08]
+  - lang: sql
+    path: samples/node/schema.sql
+    purpose: The payments, entries and inbox tables
+    shown_in: [s04, s07, s08]
+
+sources:
+  - title: "Stripe — Ledger: Stripe's system for tracking and validating money movement (Ilya Ganelin, 2024)"
+    url: https://stripe.dev/blog/ledger-stripe-system-for-tracking-and-validating-money-movement
+  - title: "Stripe API — Idempotent requests"
+    url: https://docs.stripe.com/api/idempotent_requests
+  - title: "Stripe — Receive events in your webhook endpoint (duplicates, ordering, signatures)"
+    url: https://docs.stripe.com/webhooks
+  - title: "Stripe — Supported currencies (amounts in the minor unit)"
+    url: https://docs.stripe.com/currencies
+  - title: "Stripe — Place a hold on a payment method (authorization and capture)"
+    url: https://docs.stripe.com/payments/place-a-hold-on-a-payment-method
+  - title: "Stripe — Integration security guide (PCI DSS)"
+    url: https://docs.stripe.com/security/guide
+  - title: "PostgreSQL — INSERT ... ON CONFLICT"
+    url: https://www.postgresql.org/docs/current/sql-insert.html
+  - title: "Node.js — crypto (createHmac, timingSafeEqual)"
+    url: https://nodejs.org/docs/latest-v24.x/api/crypto.html
+
+fact_check:
+  - claim: "Stripe's API takes amounts in the currency's minor unit (cents for USD)"
+    source: https://docs.stripe.com/currencies
+  - claim: "Stripe saves the result of the first request with an idempotency key and returns it on retries, and refuses a reused key with different parameters"
+    source: https://docs.stripe.com/api/idempotent_requests
+  - claim: "Webhook events can be delivered more than once and are not guaranteed to arrive in order; Stripe signs each with an HMAC-SHA256 of the timestamp and body in the Stripe-Signature header; return 2xx quickly"
+    source: https://docs.stripe.com/webhooks
+  - claim: "An authorized card payment must be captured before the authorization expires (usually 7 days for online card payments)"
+    source: https://docs.stripe.com/payments/place-a-hold-on-a-payment-method
+  - claim: "Handling card data directly can mean more than 300 PCI DSS security controls; low-risk integrations send card data to Stripe without passing through your servers"
+    source: https://docs.stripe.com/security/guide
+  - claim: "Stripe's Ledger is an immutable log of double-entry records, sees five billion events a day, uses clearing accounts that should return to zero, and verifies 99.99% of dollar volume within four days"
+    source: https://stripe.dev/blog/ledger-stripe-system-for-tracking-and-validating-money-movement
+  - claim: "A single INSERT ... SELECT is atomic; ON CONFLICT DO NOTHING inserts no row when the unique key exists"
+    source: https://www.postgresql.org/docs/current/sql-insert.html
+  - claim: "10 million payments a day is about 116 a second on average; a conditional UPDATE lets only one of two workers move a payment"
+    source: "derived from arithmetic and code sample samples/node/payments.mjs"
+
+story_ref: public-writeup-stripe-ledger   # public engineering write-up (owner's choice, 14 Oct 2026)
+
+localizations:
+  hi:
+    title: "Payment System डिज़ाइन करें (Senior System Design Interview)"
+    description: "ग्राहक Pay दबाता है, कनेक्शन टूट जाता है, और कोई नहीं जानता कि पैसा कटा या नहीं। Senior स्तर पर payment system का डिज़ाइन: merchant के हिसाब से idempotency keys, पैसे को पूरे cents में रखना, payment state machine, timeout का मतलब 'अज्ञात', signed और deduplicated webhooks, Kafka तक outbox, double-entry ledger और रोज़ का reconciliation — Node.js कोड के साथ।"
+  es:
+    title: "Diseña un sistema de pagos (entrevista senior de system design)"
+    description: "El cliente pulsa Pagar, la conexión se corta y nadie sabe si el dinero se movió. Cómo diseñar un sistema de pagos a nivel senior: claves de idempotencia por comercio, dinero en centavos enteros, una máquina de estados, timeouts que significan «desconocido», webhooks firmados y sin duplicados, outbox hacia Kafka, un ledger de partida doble y conciliación diaria. Con Node.js."
+  pt:
+    title: "Projete um sistema de pagamentos (entrevista sênior de system design)"
+    description: "O cliente toca em Pagar, a conexão cai e ninguém sabe se o dinheiro foi movido. Como projetar um sistema de pagamentos em nível sênior: chaves de idempotência por lojista, dinheiro em centavos inteiros, uma máquina de estados, timeouts que significam «desconhecido», webhooks assinados e sem duplicatas, outbox para o Kafka, um ledger de partidas dobradas e conciliação diária. Em Node.js."
+  id:
+    title: "Desain Sistem Pembayaran (Wawancara System Design Senior)"
+    description: "Pelanggan menekan Bayar, koneksi terputus, dan tak ada yang tahu apakah uangnya berpindah. Cara mendesain sistem pembayaran di level senior: kunci idempotensi per merchant, uang dalam sen bulat, state machine pembayaran, timeout yang berarti «tidak diketahui», webhook bertanda tangan tanpa duplikat, outbox ke Kafka, ledger double-entry, dan rekonsiliasi harian. Dengan Node.js."
+  vi:
+    title: "Thiết kế hệ thống thanh toán (phỏng vấn System Design cấp senior)"
+    description: "Khách hàng bấm Thanh toán, kết nối bị ngắt, và không ai biết tiền đã đi hay chưa. Cách thiết kế hệ thống thanh toán ở cấp senior: idempotency key theo từng merchant, tiền lưu bằng số cent nguyên, máy trạng thái thanh toán, timeout nghĩa là «chưa biết», webhook có chữ ký và chống trùng, outbox sang Kafka, sổ cái kép và đối soát hằng ngày. Bằng Node.js."
+  ar:
+    title: "صمّم نظام مدفوعات (مقابلة تصميم أنظمة للمستوى المتقدم)"
+    description: "يضغط العميل على «ادفع»، فينقطع الاتصال، ولا يعرف أحد هل انتقل المال أم لا. كيف تصمّم نظام مدفوعات على مستوى متقدم: مفاتيح منع التكرار لكل تاجر، والمبالغ بالسنتات الصحيحة، وآلة حالات للدفعة، ومهلة تعني «غير معروف»، وwebhooks موقّعة بلا تكرار، وoutbox إلى Kafka، ودفتر قيد مزدوج، ومطابقة يومية. بلغة Node.js."
+
+next_episode: 007-hashmap-internals

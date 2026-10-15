@@ -68,6 +68,36 @@ jobs:
         with:
           go-version: stable
           cache: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "25"
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+      - name: Test every Node sample
+        run: |
+          set -euo pipefail
+          count=0
+          while IFS= read -r dir; do
+            echo "::group::$dir"
+            (cd "$dir" && node --test)
+            echo "::endgroup::"
+            count=$((count + 1))
+          done < <(find content/episodes -type d -path '*/samples/node')
+          echo "tested $count Node sample folder(s)"
+      - name: Compile every Java sample
+        run: |
+          set -euo pipefail
+          count=0
+          while IFS= read -r dir; do
+            echo "::group::$dir"
+            mapfile -t sources < <(find "$dir" -name '*.java')
+            javac --release 25 -d "$RUNNER_TEMP/classes/$count" "${sources[@]}"
+            echo "::endgroup::"
+            count=$((count + 1))
+          done < <(find content/episodes -type d -path '*/samples/java')
+          echo "compiled $count Java sample folder(s)"
       - name: Vet and build every Go sample
         run: |
           set -euo pipefail
@@ -75,7 +105,10 @@ jobs:
           while IFS= read -r mod; do
             dir=$(dirname "$mod")
             echo "::group::$dir"
-            (cd "$dir" && go vet ./... && go build ./...)
+            # tidy writes go.sum for samples that use a library (go.sum is not committed:
+            # the owner's machine has an older Go than the libraries need).
+            (cd "$dir" && go mod tidy && go vet ./... && go build ./... \
+              && test -z "$(gofmt -l .)")
             echo "::endgroup::"
             count=$((count + 1))
           done < <(find content/episodes -name go.mod)

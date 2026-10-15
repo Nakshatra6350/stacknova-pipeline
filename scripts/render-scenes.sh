@@ -65,4 +65,19 @@ for ep in $episodes; do
     echo
   } >> "$GITHUB_STEP_SUMMARY"
   gh release upload "$tag" "$upload"/* --clobber
+
+  # A full render also draws each Short's Instagram Reel cut (the same video, ending on a Follow
+  # prompt) and refreshes the upload kit, which is drawn from the same narration.
+  if [ "$ONLY" = "all" ] && [ -z "$suffix" ]; then
+    reels="$RUNNER_TEMP/reels-$ep"
+    rm -rf "$reels" && mkdir -p "$reels"
+    reel_args=(--episode "$ep" --stage scenes --only all --reel --out "$out" --jobs 3)
+    if [ "${ALLOW_DRAFT:-false}" = "true" ]; then reel_args+=(--allow-draft); fi
+    uv run --no-sync python -m channel_os.render "${reel_args[@]}"
+    for file in "$out"/preview/*.reel.mp4; do
+      cp "$file" "$reels/reel.$(basename "$file" .reel.mp4).mp4"
+    done
+    gh release upload "$tag" "$reels"/* --clobber
+    EPISODE="$ep" MODEL="$model" bash scripts/build-kit.sh
+  fi
 done

@@ -1330,10 +1330,24 @@ fact_check:
 
 story_ref: duplicate-callback          # needs content/stories/duplicate-callback.md (private repo)
 
-localizations:                          # filled by the night agent before ready_to_render
-  hi: {title: null, description: null}
-  es: {title: null, description: null}
-  pt: {title: null, description: null}
-  id: {title: null, description: null}
+localizations:                          # written 15 Oct 2026 for the launch upload kit
+  hi:
+    title: "आपका पेमेंट दो बार क्यों कटा? (Idempotency)"
+    description: "आपने Pay दबाया, \"something went wrong\" दिखा, फिर से दबाया — और पैसे दो बार कट गए। जानिए वह असली कमी जिसकी वजह से यह होता है, और कैसे idempotency keys retries को सुरक्षित बनाती हैं — Go कोड के साथ।"
+  es:
+    title: "¿Por qué te cobraron dos veces? (Idempotency)"
+    description: "Pulsaste Pagar, viste «algo salió mal», volviste a pulsar… y te cobraron dos veces. Aquí está el hueco exacto que lo causa y cómo las idempotency keys hacen seguros los reintentos. Con código en Go."
+  pt:
+    title: "Por que seu pagamento foi cobrado duas vezes? (Idempotency)"
+    description: "Você tocou em Pagar, viu «algo deu errado», tocou de novo — e foi cobrado duas vezes. Veja a falha exata que causa isso e como as idempotency keys tornam as novas tentativas seguras. Com código em Go."
+  id:
+    title: "Kenapa Pembayaranmu Ditagih Dua Kali? (Idempotency)"
+    description: "Kamu menekan Bayar, muncul «terjadi kesalahan», lalu menekan lagi — dan ditagih dua kali. Inilah celah persis penyebabnya, dan bagaimana idempotency key membuat percobaan ulang aman. Dengan kode Go."
+  vi:
+    title: "Vì sao bạn bị trừ tiền hai lần? (Idempotency)"
+    description: "Bạn bấm Thanh toán, thấy «đã xảy ra lỗi», bấm lại — và bị trừ tiền hai lần. Đây là lỗ hổng chính xác gây ra điều đó, và cách idempotency key giúp việc thử lại trở nên an toàn. Kèm code Go."
+  ar:
+    title: "لماذا خُصم مبلغ الدفع مرتين؟ (Idempotency)"
+    description: "ضغطت «ادفع» فظهرت رسالة «حدث خطأ ما»، فضغطت مرة أخرى — فخُصم المبلغ مرتين. إليك الثغرة الدقيقة التي تسبب ذلك، وكيف يجعل idempotency key إعادة المحاولة آمنة. مع شيفرة Go."
 
 next_episode: 002-outbox-pattern

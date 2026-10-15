@@ -48,24 +48,33 @@ class PronunciationError(RuntimeError):
     """The voice lost a phrase of the script in every reading it was given."""
 
 
+WELCOME = "welcome"  # the unit id of the channel's welcome line in a long video
+
+
 @dataclass(frozen=True)
 class Unit:
     """One stretch of narration that becomes one seg-<id>.wav file."""
 
     id: str
     text: str
+    speed: float = 1.0  # how much faster than the narration around it this unit is said
 
 
 def all_targets(episode: Mapping[str, Any]) -> list[str]:
     return ["long", *(short["id"] for short in episode["shorts"])]
 
 
-def select_units(episode: Mapping[str, Any], only: str) -> list[Unit]:
+def select_units(episode: Mapping[str, Any], only: str, welcome: str | None = None,
+                 welcome_speed: float = 1.0) -> list[Unit]:
     """Units for one target: 'long' is every segment; a Short is its script or its segments.
 
     A unit that is still a [STORY:...] placeholder is left out: there is nothing to say yet.
     Only a draft can hold one (the validator refuses it at ready_to_render), so this is what
     lets a draft be previewed before the owner's story is written.
+
+    `welcome` is the channel's welcome line (config/brand.yaml). A long video says it as a unit
+    of its own right after the hook, where the logo intro plays, `welcome_speed` times faster
+    than the narration; Shorts never say it.
     """
     narrations = {segment["id"]: segment["narration"] for segment in episode["segments"]}
     if only == "long":
@@ -81,6 +90,8 @@ def select_units(episode: Mapping[str, Any], only: str) -> list[Unit]:
     units = [unit for unit in chosen if STORY_PLACEHOLDER not in unit.text]
     if not units:
         raise ValueError(f"{only}: nothing to narrate yet, it is all story placeholders")
+    if only == "long" and welcome and len(units) > 1:
+        units.insert(1, Unit(WELCOME, welcome, welcome_speed))
     return units
 
 
@@ -280,7 +291,7 @@ def narrate(
         for unit in units:
             raw, retakes, unsure = _raw_unit(unit, synthesizer, settings, cache_dir, Path(work),
                                              lexicon, listener, report)
-            polished = polish(raw, Path(work) / f"polished-{unit.id}.wav", settings)
+            polished = polish(raw, Path(work) / f"polished-{unit.id}.wav", settings, unit.speed)
             segment = voice_dir / f"seg-{unit.id}.wav"
             normalize(polished, segment, target)
             duration = duration_seconds(segment)

@@ -79,6 +79,21 @@ spec. Render episode 001 segments in render.yml.
 > pauses. M3 builds the burned-in word-by-word captions and the SRT on the same word times.
 **Acceptance:** `long.mp4`, `short-1..3.mp4`, `reel-1..3.mp4`, `carousel-1/01..10.jpg`, `thumb-a/b/c.jpg`, `en.srt`, translated `.srt`, `manifest.json`; captions meet every test in docs/CAPTIONS_SPEC.md; encode H.264 high, AAC 192k, faststart.
 
+> **Part built early (15 October 2026), for the launch posted by hand on 19 October.**
+> `python -m channel_os.kit --episode <id> [--images]` writes the *upload kit* into
+> `out/<id>/kit/`: `<target>.en.srt` for every video (captions/srt.py: sentence cues, two lines
+> of 42, 1-7 s, timed from the measured word times and placed where the video plan puts each
+> unit, so the logo intro is counted), `kit.md` with every title, description (chapters and
+> sources filled in), tag, pinned comment, translation, Short description and Instagram caption
+> with hashtags, and with `--images` `thumb-a/b/c.jpg` (assemble/thumbnails.py) and
+> `carousel-01..NN.jpg` (assemble/carousel.py), drawn over stills of the episode's own scenes
+> (assemble/frames.py). The owner's picks of 15 October: thumbnails mix the two layouts
+> (verdict, monitor, verdict) and every idea slide of a carousel shows its scene
+> (config/brand.yaml `thumbnail`, `carousel`). `.github/workflows/kit.yml` builds a kit into the
+> episode's draft Release, and a full render does so at its end (scripts/build-kit.sh). Still
+> to do in M3: burned-in captions to CAPTIONS_SPEC, the hook card, Reels with their own end
+> card, translated subtitle tracks, `manifest.json`.
+
 ```text
 Implement M3 following docs/CAPTIONS_SPEC.md exactly (alignment, grouping, look, safe zone,
 hook card, SRT rules, acceptance tests). Cut shorts using episode.yaml shorts[] (each lists the

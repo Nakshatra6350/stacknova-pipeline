@@ -91,6 +91,8 @@ src/channel_os/
   validate.py      CLI: python -m channel_os.validate <episode.yaml> (schema + reach lint)
   render.py        CLI: python -m channel_os.render --episode <id> --stage voice|scenes
                    (voice needs --reference <wav>; scenes reads the voice stage's output)
+  kit.py           CLI: python -m channel_os.kit --episode <id> [--images]: the upload kit
+                   (subtitles, chapters, texts to paste, thumbnails, carousel) for posting by hand
 scripts/           render-voice.sh and render-scenes.sh (the two jobs of render.yml),
                    install-skills.ps1, update-skills.ps1
 .github/workflows/ render.yml, notify.yml, watch-approvals.yml, publish.yml,

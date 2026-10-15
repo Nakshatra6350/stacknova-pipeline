@@ -1,5 +1,6 @@
-// Brand scenes for long videos: the logo intro (played after the hook) and the outro.
-// The planner adds them; episodes never write them. decl: { scene: 'intro' | 'outro', ... }.
+// Brand scenes for long videos: the logo intro (played after the hook), the welcome line said
+// after it, and the outro. The planner adds them; episodes never write them.
+// decl: { scene: 'intro' | 'welcome' | 'outro', ... }.
 SN.stages.brand = (() => {
   const { ease, seg, fade, pop, bump, esc, $, ICON } = SN;
   let D, duration;
@@ -23,6 +24,35 @@ SN.stages.brand = (() => {
     Object.assign($('tt').style, { opacity: line, letterSpacing: (.2 + .22 * line) + 'em' });
     // In from black and out to black, so it sits cleanly between two scenes.
     $('stage').style.filter = `brightness(${fade(t, 0, .25) * (1 - ease(seg(t, duration - .6, duration - .1)))})`;
+  }
+
+  // The welcome line, said by the voice right after the logo: the line is the scene. Each
+  // sentence is a line of its own and arrives as the voice reaches it (by its place in the
+  // text, since a brand scene has no word times); the one that names the channel is the largest.
+  function buildWelcome(root) {
+    root.style.background = 'radial-gradient(1100px 760px at 50% 40%,#140b2c,#020008 70%)';
+    const parts = String(D.text).split(/(?<=[.!?])\s+/).filter(Boolean);
+    const total = parts.join(' ').length;
+    let before = 0;
+    welcomeAt = parts.map(part => { const share = before / total; before += part.length + 1; return share; });
+    const lines = parts.map((part, i) => {
+      const named = part.includes('StackNova');
+      const html = esc(part).replace('StackNova', 'Stack<span class="grad">Nova</span>');
+      return `<div class="disp wl" id="wl${i}" style="font-size:${named ? 64 : 46}px;line-height:1.18;text-align:center;text-wrap:balance;${named ? '' : 'color:var(--muted)'}">${html}</div>`;
+    }).join('');
+    root.innerHTML = `<div class="center"><div style="display:grid;justify-items:center;gap:22px;max-width:86%">
+      <div class="emblem" id="wem" style="width:200px;height:200px;margin-bottom:12px"></div>${lines}</div></div>`;
+  }
+
+  let welcomeAt = [];
+  function renderWelcome(t) {
+    const rise = ease(seg(t, .1, .9));
+    Object.assign($('wem').style, { opacity: rise, transform: `scale(${.85 + .15 * rise})` });
+    welcomeAt.forEach((share, i) => {
+      const at = .25 + share * Math.max(0, duration - 1), shown = ease(seg(t, at, at + .45));
+      Object.assign($(`wl${i}`).style, { opacity: shown, transform: `translateY(${24 * (1 - shown)}px)` });
+    });
+    $('stage').style.filter = `brightness(${fade(t, 0, .25) * (1 - ease(seg(t, duration - .5, duration - .1)))})`;
   }
 
   const asks = () => [
@@ -57,8 +87,10 @@ SN.stages.brand = (() => {
     $('stage').style.filter = `brightness(${fade(t, 0, .3)})`;
   }
 
+  const scenes = { intro: [buildIntro, renderIntro], welcome: [buildWelcome, renderWelcome],
+                   outro: [buildOutro, renderOutro] };
   return {
-    build(clip, root) { D = clip.decl; duration = clip.duration; (D.scene === 'intro' ? buildIntro : buildOutro)(root); },
-    render(t) { (D.scene === 'intro' ? renderIntro : renderOutro)(t); },
+    build(clip, root) { D = clip.decl; duration = clip.duration; scenes[D.scene][0](root); },
+    render(t) { scenes[D.scene][1](t); },
   };
 })();

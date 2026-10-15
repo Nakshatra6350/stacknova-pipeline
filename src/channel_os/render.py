@@ -23,7 +23,7 @@ from typing import Any
 
 from channel_os.assemble.ffmpeg import FfmpegError
 from channel_os.scenes.formats import FORMATS, FPS, natural_format
-from channel_os.scenes.plan import LONG, declared_theme, plan_video
+from channel_os.scenes.plan import LONG, declared_theme, plan_video, welcome_line, welcome_speed
 from channel_os.scenes.theme import Themes, load_themes, pick_theme
 from channel_os.validate import (
     REACH_PATH,
@@ -76,14 +76,18 @@ def render_voice(
     cache_dir: Path,
     lexicon: Lexicon | None = None,
     listener: Listener | None = None,
+    welcome: str | None = None,
+    welcome_speed: float = 1.0,
 ) -> None:
     """Narrate each target and record it in out_dir/timing.json.
 
     With a listener every chunk is heard and read again until it says what the script says;
-    what could still not be confirmed is printed, so someone knows where to listen.
+    what could still not be confirmed is printed, so someone knows where to listen. A long
+    video also says the channel's `welcome` line, as a unit after the hook, `welcome_speed`
+    times faster than the narration.
     """
     for target in targets:
-        units = select_units(episode, target)
+        units = select_units(episode, target, welcome, welcome_speed)
         entry = narrate(units, target, synthesizer, settings, out_dir, cache_dir, lexicon,
                         listener, _progress(target))
         update_timing(out_dir, episode["id"], target, entry)
@@ -130,23 +134,27 @@ def render_scenes(
     theme_name: str | None = None,
     quality: float = 1.0,
     jobs: int = 1,
+    reel: bool = False,
 ) -> None:
     """Animate each target to its narration and write out_dir/preview/<target>.mp4.
 
     A long video also gets the logo intro after its first segment and the outro; `sounds`
     holds the audio for those ("intro", "outro"), and one without a file plays in silence.
+    With `reel`, each Short is drawn as its Instagram Reel cut, <target>.reel.mp4: the same
+    picture and sound in the Short's own look, ending on a Follow prompt.
     """
     for target in targets:
         entry = timing["targets"].get(target)
         if entry is None:
             raise ValueError(f"{target}: timing.json has no narration for it; render the voice")
-        plan = plan_video(episode, target, _with_pauses(entry, out_dir), brand)
+        plan = plan_video(episode, target, _with_pauses(entry, out_dir), brand, reel=reel)
         natural = natural_format(target)
         fmt = FORMATS[format_name] if format_name else natural
         theme = pick_theme(
             themes, episode["id"], target, theme_name or declared_theme(episode, target)
         )
         name = target if fmt is natural else f"{target}.{fmt.name}"
+        name = f"{name}.reel" if reel else name
         preview = renderer(plan, fmt, theme, out_dir / entry["narration"],
                            out_dir / "preview" / f"{name}.mp4", sounds, quality=quality, jobs=jobs)
         print(
@@ -189,6 +197,9 @@ def _parser() -> argparse.ArgumentParser:
                         help="picture size as a fraction of full size, e.g. 0.5 for a quick look")
     scenes.add_argument("--intro-sound", type=Path, default=None,
                         help="audio for the logo intro; without it the intro is silent")
+    scenes.add_argument("--reel", action="store_true",
+                        help="draw each Short as its Instagram Reel cut (<short>.reel.mp4); "
+                             "with --only all, every Short and no long video")
     scenes.add_argument("--jobs", type=int, default=1,
                         help="scenes drawn at the same time, each in its own process (default 1)")
     return parser
@@ -253,6 +264,8 @@ def main(
         if args.stage == "voice":
             settings = load_settings(root / VOICE_CONFIG, args.model, args.overrides)
             lexicon = load_lexicon(root / PRONUNCIATION_CONFIG)
+            brand_config = load_yaml(root / BRAND_CONFIG)
+            welcome, speed = welcome_line(brand_config), welcome_speed(brand_config)
             if not args.reference.is_file():
                 raise InputError(f"{args.reference}: voice reference not found")
         else:
@@ -267,6 +280,8 @@ def main(
                 raise InputError(f"--quality must be between 0.1 and 1, not {args.quality}")
             if not 1 <= args.jobs <= 8:
                 raise InputError(f"--jobs must be between 1 and 8, not {args.jobs}")
+            if args.reel and args.only == LONG:
+                raise InputError("--reel: only a Short has a Reel cut")
     except (InputError, OSError, ValueError, TypeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -281,6 +296,8 @@ def main(
         return 0
 
     targets = all_targets(episode) if args.only == "all" else [args.only]
+    if args.stage == "scenes" and args.reel:
+        targets = [target for target in targets if target != LONG]
     if args.stage == "scenes":
         try:
             timing = load_json(out_dir / "timing.json")
@@ -298,7 +315,7 @@ def main(
                 sounds = (_sounds(brand, Path(work), sound_maker, args.intro_sound)
                           if LONG in targets else {})
                 render_scenes(episode, targets, timing, themes, brand, out_dir, renderer, sounds,
-                              args.format, args.theme, args.quality, args.jobs)
+                              args.format, args.theme, args.quality, args.jobs, args.reel)
         except (FfmpegError, ValueError, RuntimeError) as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 1
@@ -312,7 +329,7 @@ def main(
             synthesizer = make_synthesizer(settings, prepared)
             listener = None if args.no_listen else make_listener()
             render_voice(episode, targets, synthesizer, settings, out_dir, cache_dir, lexicon,
-                         listener)
+                         listener, welcome, speed)
     except (LoudnessError, FfmpegError, ValueError, RuntimeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

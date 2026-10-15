@@ -71,13 +71,14 @@ def timing_path(root: Path) -> Path:
 def narrate_long(root: Path) -> None:
     """Record a narration of the long video in timing.json without running the voice stage."""
     timing = json.loads(timing_path(root).read_text(encoding="utf-8"))
+    # The voice stage says the welcome line (config/brand.yaml) right after the hook.
     timing["targets"]["long"] = {
         "narration": "voice/long/narration.wav",
-        "duration": 36.0,
+        "duration": 48.0,
         "segments": [
             {"id": unit, "file": f"voice/long/seg-{unit}.wav", "start": index * 12.0,
              "duration": 11.75, "pauses": []}
-            for index, unit in enumerate(["s01", "s02", "s03"])
+            for index, unit in enumerate(["s01", "welcome", "s02", "s03"])
         ],
     }
     timing_path(root).write_text(json.dumps(timing), encoding="utf-8")
@@ -108,13 +109,29 @@ def test_a_short_is_animated_to_the_narration_the_voice_stage_left(
     assert "1 scene(s), portrait, theme nova" in printed
 
 
+def test_a_reel_cut_is_the_short_asking_for_a_follow(
+    narrated: Any, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = narrated()
+    recorder = Recorder()
+    assert scenes(root, recorder, "--reel") == 0
+    (call,) = recorder.calls
+    assert call["out"] == root / "out" / "900-fixture" / "preview" / "short-2.reel.mp4"
+    assert (call["format"], call["theme"]) == ("portrait", "nova")  # the Short's own look
+    assert call["plan"].clips[-1].chrome["cta_platform"] == "instagram"
+    capsys.readouterr()
+    assert scenes(root, Recorder(), "--reel", only="long") == 2
+    assert "only a Short has a Reel cut" in capsys.readouterr().err
+
+
 def test_a_long_video_gets_its_brand_scenes_and_the_outro_music(narrated: Any) -> None:
     root = narrated()
     narrate_long(root)
     recorder, composer = Recorder(), Composer()
     assert scenes(root, recorder, only="long", composer=composer) == 0
     (call,) = recorder.calls
-    assert [clip.unit for clip in call["plan"].clips] == ["s01", "intro", "s02", "s03", "outro"]
+    assert [clip.unit for clip in call["plan"].clips] == [
+        "s01", "intro", "welcome", "s02", "s03", "outro"]
     assert (call["format"], call["out"].name) == ("landscape", "long.mp4")
     # Both sounds are the ones config/brand.yaml names, the owner's picks.
     assert composer.made == ["lofi-nod", "nod-up"]

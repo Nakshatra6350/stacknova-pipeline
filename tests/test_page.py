@@ -102,6 +102,7 @@ STATE = r"""(() => {
       parts: bar.children.length,
     } : null,
     cta: [...document.querySelectorAll('#cta .b')].map(text),
+    ctaIcons: [...document.querySelectorAll('#cta .b')].map(el => el.dataset.icon),
     third: $('third') ? {
       opacity: parseFloat($('third').style.opacity), text: text($('third')), box: box($('third')),
     } : null,
@@ -143,16 +144,18 @@ def short_clip(brand: Data, visual: Data = VISUAL) -> Any:
 
 
 def long_plan(brand: Data) -> Any:
-    """A long video of two 12 s segments: the hook, the logo, the second segment, the outro."""
+    """A long video of two 12 s segments: the hook, the logo, the welcome line (3 s), the second
+    segment, the outro."""
     segments = [{"id": unit, "title": title, "narration": SCRIPT, "emphasis": ["one key"],
                  "visual": VISUAL}
                 for unit, title in (("s01", "The double charge"), ("s02", "The fix"))]
     episode = {"id": "001-test", "segments": segments, "shorts": [],
                "packaging": {"titles": ["Why Your Payment Got Charged Twice"]},
                "next": {"title": "The Outbox Pattern", "teaser": "Two writes, one transaction."}}
-    entry = {"duration": 24.0,
-             "segments": [{"id": unit, "start": start, "duration": 12.0, "pauses": []}
-                          for unit, start in (("s01", 0.0), ("s02", 12.0))]}
+    entry = {"duration": 27.0,
+             "segments": [{"id": unit, "start": start, "duration": length, "pauses": []}
+                          for unit, start, length in (("s01", 0.0, 12.0), ("welcome", 12.0, 3.0),
+                                                      ("s02", 15.0, 12.0))]}
     return plan_video(episode, "long", entry, brand)
 
 
@@ -163,7 +166,7 @@ def seen(clip: Any, fmt: Format, theme: Any) -> Data:
 @pytest.fixture(scope="module")
 def wide(brand: Data, themes: Any) -> Data:
     """The second segment of a long video, in landscape, at each moment of TIMES."""
-    return seen(long_plan(brand).clips[2], LANDSCAPE, themes.themes["control"])
+    return seen(long_plan(brand).clips[3], LANDSCAPE, themes.themes["control"])
 
 
 @pytest.fixture(scope="module")
@@ -317,7 +320,7 @@ def moving(brand: Data, style: str) -> Data:
 def test_a_scene_arrives_block_by_block_and_slides_away(brand: Data, themes: Any) -> None:
     # The second segment of a long video: it follows the logo and is followed by the outro,
     # so it also comes up from black and goes back to it.
-    clip = long_plan(moving(brand, "slide")).clips[2]
+    clip = long_plan(moving(brand, "slide")).clips[3]
     view = browser.probe(clip_data(clip, LANDSCAPE, themes.themes["control"]), LANDSCAPE,
                          MOMENTS, MOVES_STATE)
     assert set(view["first"]["blocks"]) == {0} and view["first"]["light"] == "brightness(0)"
@@ -356,7 +359,7 @@ def test_a_short_is_whole_on_its_first_and_last_frame(brand: Data, themes: Any) 
 
 def test_a_scene_can_arrive_in_one_style_and_leave_in_another(brand: Data, themes: Any) -> None:
     # The owner asked for the three styles mixed, so the two ends of a scene often differ.
-    data = clip_data(long_plan(moving(brand, "slide")).clips[2], LANDSCAPE,
+    data = clip_data(long_plan(moving(brand, "slide")).clips[3], LANDSCAPE,
                      themes.themes["control"])
     data["chrome"].update(enter="scene", enter_style="wipe", exit="scene", exit_style="zoom",
                           from_black=False, to_black=False)
@@ -374,14 +377,14 @@ def test_the_wipe_covers_the_frame_and_the_zoom_dissolves_the_scene(
     brand: Data, themes: Any
 ) -> None:
     theme = themes.themes["control"]
-    wipe = browser.probe(clip_data(long_plan(moving(brand, "wipe")).clips[2], LANDSCAPE, theme),
+    wipe = browser.probe(clip_data(long_plan(moving(brand, "wipe")).clips[3], LANDSCAPE, theme),
                          LANDSCAPE, MOMENTS, MOVES_STATE)
     # A change of segment is wiped across the whole frame, in black next to a brand scene.
     assert wipe["first"]["veil"] == {"width": 1920, "height": 1080, "black": "veil back black"}
     assert wipe["settled"]["veil"] is None
     assert wipe["last"]["veil"] == {"width": 1920, "height": 1080, "black": "veil black"}
     assert wipe["first"]["light"] == "" and set(wipe["first"]["blocks"]) == {1}
-    zoom = browser.probe(clip_data(long_plan(moving(brand, "zoom")).clips[2], LANDSCAPE, theme),
+    zoom = browser.probe(clip_data(long_plan(moving(brand, "zoom")).clips[3], LANDSCAPE, theme),
                          LANDSCAPE, MOMENTS, MOVES_STATE)
     assert zoom["first"]["scene"]["transform"] == "scale(0.93)"
     assert zoom["first"]["scene"]["opacity"] == 0 and "blur" in zoom["first"]["scene"]["filter"]
@@ -408,6 +411,20 @@ def test_a_short_ends_by_asking_for_the_subscribe(tall: Data) -> None:
     # config/brand.yaml, so the Reel cut of a Short can say Follow.
     assert tall["stamped"]["cta"] == []
     assert tall["end"]["cta"] == ["Like", "Comment", "Share", "Subscribe"]
+    assert tall["end"]["ctaIcons"] == ["like", "comment", "share", "bell"]
+
+
+def test_the_reel_cut_asks_for_a_follow_with_instagrams_marks(brand: Data, themes: Any) -> None:
+    episode = {"id": "001-test", "segments": [],
+               "shorts": [{"id": "short-1", "source": "standalone", "script": SCRIPT,
+                           "visual": VISUAL, "hook_on_screen": "This retry charged you twice"}]}
+    entry = {"duration": 12.0,
+             "segments": [{"id": "short-1", "start": 0.0, "duration": 12.0, "pauses": []}]}
+    (clip,) = plan_video(episode, "short-1", entry, brand, reel=True).clips
+    end = browser.probe(clip_data(clip, PORTRAIT, themes.themes["nova"]), PORTRAIT,
+                        {"end": 11.9}, STATE)["end"]
+    assert end["cta"] == ["Like", "Comment", "Share", "Follow"]
+    assert end["ctaIcons"] == ["heart", "comment", "send", "follow"]
 
 
 def test_the_instagram_handle_slides_in_and_out_again(wide: Data, brand: Data) -> None:
@@ -455,6 +472,19 @@ def test_the_intro_raises_the_logo_and_fades_to_black(brand: Data, themes: Any) 
     assert view["lit"]["light"] == "brightness(1)" and view["lit"]["emblem"] == 1
     assert view["lit"]["word"] == "StackNova"
     assert view["lit"]["tagline"] == "LIGHT UP YOUR WHOLE STACK."
+    assert view["last"]["light"] == "brightness(0)"
+
+
+def test_the_welcome_line_follows_the_logo_in_and_out_of_black(brand: Data, themes: Any) -> None:
+    # The owner's choice, 14 October 2026: a welcome line in every long video, after the logo.
+    welcome = long_plan(brand).clips[2]
+    assert welcome.unit == "welcome" and welcome.spec.layout == "brand"
+    times = {"first": 0.0, "lit": 1.5, "last": welcome.frames / 30 - 0.05}
+    view = browser.probe(clip_data(welcome, LANDSCAPE, themes.themes["control"]), LANDSCAPE,
+                         times, BRAND_STATE)
+    assert view["first"]["light"] == "brightness(0)"
+    assert view["lit"]["light"] == "brightness(1)"
+    assert view["lit"]["page"] == brand["video"]["welcome"]["text"]
     assert view["last"]["light"] == "brightness(0)"
 
 

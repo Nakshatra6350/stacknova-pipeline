@@ -1,0 +1,45 @@
+name: kit
+
+# Builds an episode's upload kit (subtitles, chapters, texts to paste, thumbnails, carousel
+# slides) from the narration timing already in its draft Release, and puts it back there.
+# Publishes nothing. Inputs reach the shell only through environment variables, and every
+# action is pinned to a commit.
+
+on:
+  workflow_dispatch:
+    inputs:
+      episode:
+        description: "Episode id, for example 001-idempotency"
+        required: true
+        type: string
+
+permissions:
+  contents: write # updates the draft Release that stores the episode's renders
+
+concurrency:
+  group: render-${{ inputs.episode }} # never alongside a render of the same episode
+  cancel-in-progress: false
+
+jobs:
+  kit:
+    name: kit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      EPISODE: ${{ inputs.episode }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+      - name: Install scenes dependencies
+        run: uv sync --locked --no-default-groups --group scenes
+      # Thumbnails and slides are drawn in the Chrome the runner image ships.
+      - name: Show the browser
+        run: google-chrome --version
+      - name: Build the kit
+        run: bash scripts/build-kit.sh

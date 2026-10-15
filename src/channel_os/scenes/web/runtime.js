@@ -24,6 +24,10 @@ window.SN = (() => {
     comment: icon('<path d="M4 5h16v11H9l-5 4z"/>'),
     share: icon('<path d="M13 5l7 6-7 6v-4c-5 0-8 2-9 5 0-6 3-10 9-10z"/>'),
     bell: icon('<path d="M6 17V11a6 6 0 0 1 12 0v6l2 2H4zM10 21h4"/>'),
+    // The Reel cut's marks: plain outlines of a heart, a paper plane and a person with a plus.
+    heart: icon('<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>'),
+    send: icon('<path d="M21 4L3 11l7 3 3 7 8-17zM10 14l11-10"/>'),
+    follow: icon('<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.6 3.2-5.5 6.5-5.5s5.9 1.9 6.5 5.5M18.5 7.5v6M15.5 10.5h6"/>'),
     // A plain camera outline, not Instagram's logo.
     cam: icon('<rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r="1" fill="currentColor"/>', 26, 'style="color:#fff"'),
   };
@@ -67,11 +71,15 @@ window.SN = (() => {
       Object.assign($('third').style, { left: (1876 - 372 * slide) + 'px', width: '372px', opacity: slide });
     }
     if ($('cta')) {
-      // The last button is the platform's word: Subscribe on YouTube, Follow on Instagram.
-      const [a] = c.cta, items = [['like', 'Like', 'err'], ['comment', 'Comment', 'a'], ['share', 'Share', 'b'], ['bell', esc(c.cta_ask || 'Subscribe'), 'c']];
+      // The last button is the platform's word: Subscribe on YouTube, Follow on Instagram, each
+      // with that platform's marks (the planner says which: chrome.cta_platform).
+      const ig = c.cta_platform === 'instagram', ask = esc(c.cta_ask || (ig ? 'Follow' : 'Subscribe'));
+      const [a] = c.cta, items = ig
+        ? [['heart', 'Like', 'err'], ['comment', 'Comment', 'a'], ['send', 'Share', 'b'], ['follow', ask, 'c']]
+        : [['like', 'Like', 'err'], ['comment', 'Comment', 'a'], ['share', 'Share', 'b'], ['bell', ask, 'c']];
       set('cta', t < a ? '' : items.map(([name, label, lane], i) => {
         const at = a + i * .35;
-        return `<span class="b${t >= at + .1 && t < at + .7 ? ' on' : ''}" style="--hue:var(--${lane});opacity:${fade(t, at, .25)};transform:scale(${pop(t, at) || .8})">${ICON[name]}${label}</span>`;
+        return `<span class="b${t >= at + .1 && t < at + .7 ? ' on' : ''}" data-icon="${name}" style="--hue:var(--${lane});opacity:${fade(t, at, .25)};transform:scale(${pop(t, at) || .8})">${ICON[name]}${label}</span>`;
       }).join(''));
     }
   }

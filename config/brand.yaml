@@ -42,6 +42,13 @@ fonts:
   sans_bold: "Inter Display ExtraBold"
   mono: "JetBrains Mono"
 watermark: "bottom-right"     # emblem, 6% width, 70% opacity
+thumbnail:                    # assemble/thumbnails.py; the owner's pick of 15 Oct 2026: "Mix: A and B"
+  # One layout per thumbnail, in order (thumb-a, thumb-b, thumb-c), so YouTube's Test & compare
+  # also tests the layout. verdict: the words stamped across the scene; monitor: the words on
+  # the left, the scene on a tilted screen.
+  layouts: [verdict, monitor, verdict]
+carousel:                     # assemble/carousel.py; the owner's pick of 15 Oct 2026
+  scenes_on_every_slide: true # each idea slide shows the scene that matches its words
 video:                        # what the planner adds around an episode's scenes (decided 12 Oct 2026)
   # How one scene gives way to the next. The owner's pick (13 Oct 2026): "keep all, make mix of
   # them on random". A list is mixed, one style per change of scene, the same way every time a
@@ -51,6 +58,11 @@ video:                        # what the planner adds around an episode's scenes
   intro:                      # long videos only, played AFTER the first segment: "hook first always then intro"
     seconds: 4.3
     sound: nod-up             # the owner's pick (S1 of three, 13 Oct 2026); made by src/channel_os/brand/sound.py
+  welcome:                    # long videos only: said by the voice right after the logo intro (owner, 14 Oct 2026)
+    # The owner's own words (15 Oct 2026): the channel covers backend, distributed systems and
+    # system design, so the line names no one subject.
+    text: "Every digital frontier begins with an idea. What brings it to life is the engineering beneath it. Welcome to StackNova — exploring the architecture of tomorrow, one system at a time."
+    speed: 1.7                # times faster than the narration: the owner found it "very slow" (15 Oct 2026)
   outro:                      # long videos only; no voice, music only
     seconds: 12
     music: lofi-nod           # the owner's pick (option 2); made by src/channel_os/brand/sound.py
@@ -60,7 +72,9 @@ video:                        # what the planner adds around an episode's scenes
     seconds: 5
   shorts_prompt:              # like / comment / share / subscribe over the end of a Short
     seconds: 3                # no intro and no end card on Shorts (docs/REACH_PLAYBOOK.md)
-    ask: Subscribe            # the last button's word; the Reel cut of a Short says Follow (M3)
+    ask: Subscribe            # the last button's word on a YouTube Short
+    reel_ask: Follow          # and on its Instagram Reel cut, drawn with Instagram's marks
+                              # (render --reel, reel.short-N.mp4; built 15 Oct 2026)
 bios:                         # paste-ready versions in BRAND_PROFILE_TEXT.md
   youtube_name: "StackNova"
   instagram_name: "StackNova | Backend Systems"

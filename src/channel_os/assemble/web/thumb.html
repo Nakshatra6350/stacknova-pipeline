@@ -1,0 +1,98 @@
+<!doctype html>
+<!-- A YouTube thumbnail, 1280x720 (assemble/thumbnails.py). window.draw(data) lays it out and
+     resolves once the words fit. Two layouts, picked by data.layout:
+     verdict  the episode's own scene fills the frame; the words are stamped across it, the way
+              the film stamps a verdict on a panel ("TWO CHARGES")
+     monitor  the scene floats on the right as a tilted screen; the words stand on the left
+     The words must read at 160 px wide, so they are as large as the space allows. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  :root {
+    --night: #020008; --surface: #17122E; --white: #FFFFFF; --muted: #B7B0D6;
+    --violet: #7B5CFF; --pink: #FF4D8D; --orange: #FF8A3D; --gold: #FFD24D;
+  }
+  html, body { margin: 0; width: 1280px; height: 720px; overflow: hidden; background: var(--night); }
+  #c { position: relative; width: 1280px; height: 720px; overflow: hidden; color: var(--white);
+       font-family: "Inter Display", "Inter", sans-serif; }
+  .shot { position: absolute; background-position: center; background-size: cover; background-repeat: no-repeat; }
+  .words { position: absolute; font-weight: 800; letter-spacing: -0.025em; line-height: 0.94;
+           text-transform: uppercase; text-wrap: balance; }
+
+  /* The channel's mark, top left, where YouTube puts nothing over a thumbnail. */
+  .brand { position: absolute; left: 52px; top: 40px; display: flex; align-items: center; gap: 14px;
+           font: 800 34px/1 "Inter Display", sans-serif; letter-spacing: -0.02em; z-index: 3; }
+  .brand img { width: 52px; height: 52px; border-radius: 12px; }
+  .brand .nova { background: linear-gradient(90deg, var(--pink), var(--orange) 60%, var(--gold));
+                 -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+  /* verdict */
+  .verdict .shot { inset: -4%; filter: saturate(1.2) brightness(0.62); transform: scale(1.06); }
+  .verdict .shade { position: absolute; inset: 0;
+    background: linear-gradient(160deg, rgba(2,0,8,0.92) 0%, rgba(2,0,8,0.35) 26%, rgba(2,0,8,0) 45%),
+                radial-gradient(110% 95% at 38% 55%, rgba(2,0,8,0.30), rgba(2,0,8,0.05) 55%, rgba(2,0,8,0.70)); }
+  .verdict .words { left: 70px; top: 50%; max-width: 1060px; padding: 22px 40px 28px;
+    border: 10px solid var(--pink); border-radius: 30px; background: rgba(2,0,8,0.78);
+    transform: translateY(-46%) rotate(-3deg); transform-origin: left center;
+    box-shadow: 0 0 70px rgba(255,77,141,0.55), inset 0 0 46px rgba(255,77,141,0.22);
+    text-shadow: 0 4px 24px rgba(0,0,0,0.6); }
+
+  /* monitor */
+  .monitor { background: radial-gradient(70% 85% at 78% 48%, #22134f 0%, #0b0420 45%, var(--night) 80%); }
+  .monitor .shot { right: -120px; top: 120px; width: 800px; height: 450px; border-radius: 20px;
+    transform: perspective(1500px) rotateY(-17deg) rotateX(3deg);
+    box-shadow: 0 0 0 3px rgba(123,92,255,0.95), 0 0 80px rgba(123,92,255,0.6), 0 40px 90px rgba(0,0,0,0.7); }
+  .monitor .words { left: 56px; top: 50%; width: 540px; transform: translateY(-44%);
+    text-shadow: 0 6px 30px rgba(2,0,8,0.9); }
+  .monitor .rule { display: block; width: 240px; height: 14px; margin-top: 30px; border-radius: 7px;
+    background: linear-gradient(90deg, var(--violet), var(--pink), var(--orange)); }
+</style>
+</head>
+<body>
+<div id="c"></div>
+<script>
+  async function fonts(list) {
+    for (const f of list) {
+      const face = new FontFace(f.family, `url("${f.url}")`, { weight: String(f.weight) });
+      document.fonts.add(await face.load());
+    }
+  }
+
+  // The largest size at which the words fit their box in at most `lines` lines.
+  function fit(el, box, start, floor, lines) {
+    for (let size = start; size >= floor; size -= 2) {
+      el.style.fontSize = size + 'px';
+      const r = el.getBoundingClientRect();
+      const rows = Math.round((el.scrollHeight - pad(el)) / (size * 0.94));
+      // A word longer than a fixed-width box overflows it without widening it.
+      const wide = Math.max(r.width, el.scrollWidth);
+      if (wide <= box.w && r.height <= box.h && rows <= lines) return size;
+    }
+    return floor;
+  }
+  function pad(el) {
+    const s = getComputedStyle(el);
+    return parseFloat(s.paddingTop) + parseFloat(s.paddingBottom);
+  }
+
+  window.draw = async (d) => {
+    await fonts(d.fonts);
+    const c = document.getElementById('c');
+    c.className = d.layout;
+    c.innerHTML = `
+      <div class="shot" style="background-image:url('${d.frame}')"></div>
+      ${d.layout === 'verdict' ? '<div class="shade"></div>' : ''}
+      <div class="brand"><img src="${d.emblem}" alt=""><span>Stack<span class="nova">Nova</span></span></div>
+      <div class="words" id="w"></div>`;
+    const w = document.getElementById('w');
+    w.textContent = d.text;
+    if (d.layout === 'monitor') w.insertAdjacentHTML('beforeend', '<i class="rule"></i>');
+    const size = d.layout === 'verdict'
+      ? fit(w, { w: 1100, h: 520 }, 168, 80, 2)
+      : fit(w, { w: 540, h: 560 }, 150, 70, 3);
+    return size;
+  };
+</script>
+</body>
+</html>

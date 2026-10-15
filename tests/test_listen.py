@@ -18,6 +18,20 @@ def test_words_are_compared_the_way_a_recogniser_writes_them() -> None:
     # writes "$200" whether or not the word was said.
     assert words("a four oh nine conflict") == ["a", "409", "conflict"]
     assert words("you've added two hundred") == words("you have added $200")
+    # Thousands are written with a comma: "50,000 requests" for "fifty thousand requests".
+    assert words("fifty thousand requests") == words("50,000 requests") == ["50000", "requests"]
+    assert words("a thousand machines") == words("1,000 machines") == ["1000", "machines"]
+    # Hundreds and what follows them are one number: "two hundred and forty-three" is 243.
+    assert words("two hundred and forty-three times") == words("243 times") == ["243", "times"]
+    assert words("a hundred forty-seven") == ["147"]
+    assert words("a hundred and the rest") == ["100", "and", "the", "rest"]
+
+
+def test_a_status_code_read_aloud_is_no_miss() -> None:
+    # "429" is said "four twenty nine" (config/pronunciation.yaml); a recogniser may write it
+    # either way.
+    assert missed("Reply with 429, Too Many Requests.", "reply with four twenty nine too many "
+                  "requests") == []
 
 
 def test_the_same_words_are_no_miss() -> None:

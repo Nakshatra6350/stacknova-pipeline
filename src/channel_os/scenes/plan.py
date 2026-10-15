@@ -23,7 +23,7 @@ from channel_os.captions.align import TimedWord
 from channel_os.scenes.formats import FPS, frame_count
 from channel_os.scenes.phrases import anchors, normalise, time_at
 from channel_os.scenes.spec import SceneSpec, SpecError, build_scenes
-from channel_os.voice.narrate import select_units
+from channel_os.voice.narrate import WELCOME, select_units
 
 LONG = "long"
 CAPTION_CHARS = 84  # a caption longer than this is split at a comma so it stays on two lines
@@ -90,15 +90,38 @@ def _words(segment: Mapping[str, Any]) -> list[TimedWord]:
             for offset, start, end in segment.get("words") or ()]
 
 
+def welcome_line(brand: Mapping[str, Any]) -> str | None:
+    """The channel's welcome line, said after the logo intro of a long video, if there is one."""
+    text = ((brand.get("video") or {}).get("welcome") or {}).get("text")
+    return str(text) if text else None
+
+
+def welcome_speed(brand: Mapping[str, Any]) -> float:
+    """How much faster than the narration the welcome line is said (1 when not set)."""
+    speed = float(((brand.get("video") or {}).get("welcome") or {}).get("speed", 1.0))
+    if not 0.5 <= speed <= 3.0:
+        raise ValueError(f"video.welcome.speed must be between 0.5 and 3, not {speed}")
+    return speed
+
+
 def plan_clips(episode: Mapping[str, Any], target: str, entry: Mapping[str, Any],
-               fps: int = FPS) -> list[Clip]:
-    """The scene clips of a target, in order. `entry` is the target's record in timing.json."""
+               fps: int = FPS, welcome: str | None = None) -> list[Clip]:
+    """The scene clips of a target, in order. `entry` is the target's record in timing.json.
+
+    With a `welcome` line, a long video has a brand clip for it, which the voice stage
+    narrated as a unit of its own right after the hook.
+    """
     timed = {segment["id"]: segment for segment in entry["segments"]}
     visuals = _visuals(episode, target)
     cuts: list[tuple[float, str, SceneSpec]] = []
-    for unit in select_units(episode, target):
+    for unit in select_units(episode, target, welcome):
         if unit.id not in timed:
             raise PlanError(f"{unit.id}: timing.json has no narration for it; render the voice")
+        if unit.id == WELCOME:
+            spec = SceneSpec("brand", 0.0, timed[unit.id]["duration"],
+                             {"scene": "welcome", "text": unit.text}, ())
+            cuts.append((timed[unit.id]["start"], unit.id, spec))
+            continue
         if visuals.get(unit.id) is None:
             raise PlanError(f"{unit.id}: it has no visual to draw")
         segment = timed[unit.id]
@@ -169,7 +192,7 @@ def _handle_windows(scenes: Sequence[Clip], hook: str, shares: Sequence[float], 
         at = share * begins[-1]
         for index, clip in enumerate(scenes):
             begin, seconds = begins[index], clip.frames / fps
-            if begin + seconds <= at or clip.unit == hook:
+            if begin + seconds <= at or clip.unit in (hook, WELCOME):
                 continue
             taken = windows.setdefault(index, [])
             start = max(at - begin, HANDLE_EDGE, taken[-1][1] + length if taken else 0.0)
@@ -231,7 +254,8 @@ def _moves(scenes: Sequence[Clip], index: int, hook: str, intro: bool, outro: bo
         "enter_style": changes[index - 1] if enter else None,
         "exit": leave,
         "exit_style": changes[index] if leave else None,
-        "from_black": bool(intro and before is not None and before.unit == hook != clip.unit),
+        "from_black": bool(intro and before is not None and clip.unit != hook
+                           and before.unit in (hook, WELCOME)),
         "to_black": bool(into_logo or (after is None and outro)),
     }
 
@@ -242,14 +266,22 @@ def _brand_clip(scene: str, seconds: float, decl: Mapping[str, Any], fps: int) -
 
 
 def plan_video(episode: Mapping[str, Any], target: str, entry: Mapping[str, Any],
-               brand: Mapping[str, Any], fps: int = FPS) -> VideoPlan:
+               brand: Mapping[str, Any], fps: int = FPS, reel: bool = False) -> VideoPlan:
     """Everything a target's preview is made of: scenes with their chrome, the brand scenes of
-    a long video, and the audio to lay under them."""
-    scenes = plan_clips(episode, target, entry, fps)
+    a long video, and the audio to lay under them.
+
+    With `reel`, a Short is planned as its Instagram Reel cut: the same picture and sound, with
+    a prompt that asks for a Follow (`video.shorts_prompt.reel_ask`) in Instagram's marks.
+    """
+    long_video = target == LONG
+    if reel and long_video:
+        raise PlanError("long: only a Short has a Reel cut")
+    welcome = welcome_line(brand) if long_video else None
+    scenes = plan_clips(episode, target, entry, fps, welcome)
     video = brand.get("video") or {}
     handles = (brand.get("handles") or {}).get("confirmed") or {}
-    long_video = target == LONG
     units = list(dict.fromkeys(clip.unit for clip in scenes))
+    parts = [unit for unit in units if unit != WELCOME]  # what the top bar counts
     intro = video.get("intro") if long_video and len(units) > 1 else None
     outro = video.get("outro") if long_video else None
     intro_frames = round(intro["seconds"] * fps) if intro else 0
@@ -261,7 +293,7 @@ def plan_video(episode: Mapping[str, Any], target: str, entry: Mapping[str, Any]
     segments = {segment["id"]: segment for segment in episode["segments"]}
     shorts = {short["id"]: short for short in episode["shorts"]}
     timed = {segment["id"]: segment for segment in entry["segments"]}
-    spoken = {unit.id: unit.text for unit in select_units(episode, target)}
+    spoken = {unit.id: unit.text for unit in select_units(episode, target, welcome)}
     number = episode["id"].split("-", 1)[0]
     headline = ((episode.get("packaging") or {}).get("titles") or [""])[0]
     wanted = (video.get("handle") or {}) if long_video else {}
@@ -275,11 +307,16 @@ def plan_video(episode: Mapping[str, Any], target: str, entry: Mapping[str, Any]
     done_content = 0  # content frames before this clip
     for index, clip in enumerate(scenes):
         seconds = clip.frames / fps
+        if clip.unit == WELCOME:
+            # A brand scene: no top bar, no captions (the line is the scene), in and out of black.
+            clips.append(clip)
+            done_content += clip.frames
+            continue
         unit = segments.get(clip.unit) or shorts.get(clip.unit) or {}
         shown_before = done_content + (intro_frames if clip.unit != units[0] else 0)
         chrome: dict[str, Any] = {
-            "part": units.index(clip.unit) + 1,
-            "parts": len(units),
+            "part": parts.index(clip.unit) + 1,
+            "parts": len(parts),
             "title": unit.get("title") or unit.get("hook_on_screen") or "",
             "pill": f"EP {number} · {headline}" if headline else f"EP {number}",
             "pill_short": f"EP {number}",
@@ -301,8 +338,11 @@ def plan_video(episode: Mapping[str, Any], target: str, entry: Mapping[str, Any]
         if long_video:
             chrome["handle"] = windows.get(index, [])
         if prompt and index == len(scenes) - 1:
+            asks = video.get("shorts_prompt") or {}
             chrome["cta"] = [round(max(0.0, seconds - prompt), 3), round(seconds, 3)]
-            chrome["cta_ask"] = (video.get("shorts_prompt") or {}).get("ask", "Subscribe")
+            chrome["cta_ask"] = (asks.get("reel_ask", "Follow") if reel
+                                 else asks.get("ask", "Subscribe"))
+            chrome["cta_platform"] = "instagram" if reel else "youtube"
         clips.append(Clip(clip.unit, clip.spec, clip.frames, chrome))
         done_content += clip.frames
         if intro and clip.unit == units[0] and done_content == hook_frames:

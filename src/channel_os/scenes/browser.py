@@ -47,6 +47,20 @@ def _launch(play: Playwright) -> Browser:
 
 
 @contextmanager
+def open_page(html: Path, width: int, height: int) -> Iterator[Page]:
+    """A page of the given size showing `html`, in the same browser scenes are drawn in. The
+    upload kit draws its thumbnails and carousel slides this way."""
+    with sync_playwright() as play:
+        browser = _launch(play)
+        try:
+            page = browser.new_page(viewport={"width": width, "height": height})
+            page.goto(html.as_uri())
+            yield page
+        finally:
+            browser.close()
+
+
+@contextmanager
 def open_clip(clip: Mapping[str, Any], fmt: Format, quality: float = 1.0) -> Iterator[Page]:
     """The page with `clip` built on it, ready for `window.render(t)`.
 

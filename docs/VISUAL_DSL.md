@@ -95,6 +95,7 @@ The planner adds these from `config/brand.yaml`; an episode never describes them
 - captions, from the narration, with the segment's `emphasis` words coloured;
 - the progress bar;
 - on a long video: the logo intro after the first segment (the hook always comes first), the
+  welcome line said right after it (`video.welcome`, the owner's choice of 14 October 2026), the
   outro, and the Instagram handle sliding in twice;
 - on a Short: like, comment, share, subscribe over the last 3 seconds;
 - the transition from one scene to the next.
@@ -266,7 +267,8 @@ what arrives. Use it for retry storms, many producers, many clients.
 
 A short listing in an editor window. Write it for the screen: **at most 10 lines of at most 60
 characters**, original to the episode, and true to the sample under `samples/`. Keywords,
-strings, numbers and comments are coloured for `language: sql | go | java | js | python | text`.
+strings, numbers and comments are coloured for `language: sql | go | java | js | python | lua |
+text` (Lua for scripts that run inside Redis).
 
 ```yaml
 - layout: code
