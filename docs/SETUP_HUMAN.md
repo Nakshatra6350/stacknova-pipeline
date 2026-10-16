@@ -12,7 +12,7 @@ roadmap doc ("Setup guide" and "First video" tabs). Checklist so agents can tell
 - [x] GitHub Pages enabled on the pipeline repo (branch gh-pages): https://nakshatra6350.github.io/stacknova-pipeline/ (app homepage + privacy.html for the consent screen) — 16 Oct 2026
 - [ ] Telegram bot created; owner pressed Start
 - [x] Google Cloud project `stacknova-pipeline` (number 882687809280), YouTube Data API v3 + YouTube Analytics API enabled, consent screen "StackNova Publisher" **published to production** (unverified; no logo), Web client with OAuth Playground redirect, refresh token for the StackNova channel; `YT_CLIENT_ID`, `YT_CLIENT_SECRET`, `YT_REFRESH_TOKEN` set — 16 Oct 2026
-- [ ] YouTube API audit form submitted (answers in `docs/youtube_audit_answers.md`, written by Claude). Needs a 60–90 s screen recording of the app uploading, so it waits for a first upload script (M5).
+- [x] YouTube API audit form submitted — 16 Oct 2026 (answers in `docs/youtube_audit_answers.md`; demo recording on the owner's Google Drive; evidence: homepage, privacy policy, terms, OAuth and upload screenshots; default 10k quota). Waiting for Google's reply; until it passes, API uploads stay private. Any new use of the API not described in the form must be told to YouTube first.
 - [ ] Meta developer app, Instagram API with Instagram login, token + user id
 - [ ] All secrets from `docs/SECRETS.md` added (`CONTENT_REPO_TOKEN` added 9 October 2026; the rest come with M4-M6)
 - [x] Voice reference recorded → private repo `voice/reference.wav` (30–60 s, quiet room, 44.1 kHz)

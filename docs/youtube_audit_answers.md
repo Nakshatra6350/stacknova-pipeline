@@ -12,7 +12,7 @@ uploaded by the app.
 **Which channels will the client access?** Only my own channel, https://www.youtube.com/@StackNovaDev. No third-party users.
 
 **Describe your use case.** An internal publishing tool for my own educational channel. I produce
-technical videos (backend engineering). The tool uploads my finished videos and Shorts, sets
+technical videos (backend engineering, distributed systems and system design). The tool uploads my finished videos and Shorts, sets
 titles, descriptions, thumbnails, captions and localizations, schedules publication, and reads
 my channel's analytics for a weekly report. Every upload is reviewed and approved by me before
 it is made public.
