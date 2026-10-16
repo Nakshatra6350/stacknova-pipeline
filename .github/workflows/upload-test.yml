@@ -1,0 +1,46 @@
+name: upload-test
+
+# One private test upload to the channel, for the screen recording the YouTube API audit asks
+# for (docs/youtube_audit_answers.md). Started by hand only. The uploader cannot make anything
+# public (src/channel_os/publish/youtube.py). Every action is pinned to a commit and secrets reach
+# the uploader only through environment variables.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write # reads the test video from a draft Release; drafts need write access
+
+concurrency:
+  group: upload-test
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    name: upload
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+      - name: Install the publish dependencies
+        run: uv sync --locked --no-default-groups --group publish
+      - name: Fetch a test video (a finished Short of episode 005)
+        run: gh release download ep-005-rate-limiter --pattern preview.short-5.mp4 --dir "$RUNNER_TEMP"
+      - name: Upload it, private
+        env:
+          YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
+          YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
+          YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+        run: >-
+          uv run --no-sync python -m channel_os.publish.youtube
+          --file "$RUNNER_TEMP/preview.short-5.mp4"
+          --title "StackNova Publisher test upload"
+          --description "A private test upload by StackNova Publisher, for the YouTube API audit."

@@ -36,6 +36,10 @@ scenes = [
     "playwright==1.55.0",
     "numpy>=2.1",
 ]
+publish = [
+    "google-api-python-client>=2.201.0",
+    "google-auth>=2.62.0",
+]
 
 [tool.uv]
 default-groups = ["dev"]
@@ -82,9 +86,10 @@ files = ["src"]
 module = ["chatterbox.*", "torch", "perth"]
 ignore_missing_imports = true
 
-# Playwright, numpy and faster-whisper are treated as untyped whether or not their group is
-# installed, so `mypy src` gives the same result in every environment.
+# Playwright, numpy, faster-whisper and the Google API client are treated as untyped whether or
+# not their group is installed, so `mypy src` gives the same result in every environment.
 [[tool.mypy.overrides]]
-module = ["playwright", "playwright.*", "numpy", "numpy.*", "faster_whisper", "faster_whisper.*"]
+module = ["playwright", "playwright.*", "numpy", "numpy.*", "faster_whisper", "faster_whisper.*",
+          "google.oauth2.*", "googleapiclient", "googleapiclient.*"]
 follow_imports = "skip"
 ignore_missing_imports = true
