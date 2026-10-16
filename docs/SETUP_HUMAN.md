@@ -6,13 +6,13 @@ roadmap doc ("Setup guide" and "First video" tabs). Checklist so agents can tell
 - [x] Name chosen: **StackNova** → `config/brand.yaml`
 - [x] Handles confirmed (plain, else .dev style) → `config/brand.yaml: handles.confirmed`
 - [x] Logo, avatars and banner confirmed → `brand-assets/`, `config/brand.yaml: logo`
-- [ ] Brand Google account, YouTube channel, phone verification (custom thumbnails)
-- [ ] Instagram Creator account
+- [x] YouTube channel (on the owner's personal Google account), phone verification (custom thumbnails) — 16 Oct 2026; advanced features in review
+- [x] Instagram Creator account (category Education) — 16 Oct 2026
 - [x] GitHub: `stacknova-pipeline` (public), `stacknova-content` (private)
-- [ ] GitHub Pages enabled on the pipeline repo (branch gh-pages) — needed for M6
+- [x] GitHub Pages enabled on the pipeline repo (branch gh-pages): https://nakshatra6350.github.io/stacknova-pipeline/ (app homepage + privacy.html for the consent screen) — 16 Oct 2026
 - [ ] Telegram bot created; owner pressed Start
-- [ ] Google Cloud project, YouTube Data API v3 + YouTube Analytics API enabled, consent screen **published to production**, Web client with OAuth Playground redirect, refresh token
-- [ ] YouTube API audit form submitted (answers in `docs/youtube_audit_answers.md`, written by Claude)
+- [x] Google Cloud project `stacknova-pipeline` (number 882687809280), YouTube Data API v3 + YouTube Analytics API enabled, consent screen "StackNova Publisher" **published to production** (unverified; no logo), Web client with OAuth Playground redirect, refresh token for the StackNova channel; `YT_CLIENT_ID`, `YT_CLIENT_SECRET`, `YT_REFRESH_TOKEN` set — 16 Oct 2026
+- [ ] YouTube API audit form submitted (answers in `docs/youtube_audit_answers.md`, written by Claude). Needs a 60–90 s screen recording of the app uploading, so it waits for a first upload script (M5).
 - [ ] Meta developer app, Instagram API with Instagram login, token + user id
 - [ ] All secrets from `docs/SECRETS.md` added (`CONTENT_REPO_TOKEN` added 9 October 2026; the rest come with M4-M6)
 - [x] Voice reference recorded → private repo `voice/reference.wav` (30–60 s, quiet room, 44.1 kHz)

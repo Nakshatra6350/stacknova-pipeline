@@ -84,6 +84,13 @@ def test_the_kit_is_also_written_as_data_for_a_posting_checklist(tmp_path: Path)
         "hi", "es", "pt", "id", "vi", "ar"}
 
 
+def test_no_instagram_post_carries_more_than_five_hashtags() -> None:
+    # Instagram's cap since 18 December 2025: five per post or Reel, comments included.
+    reach = yaml.safe_load((ROOT / "config/reach.yaml").read_text("utf-8"))
+    too_many = {pillar: tags for pillar, tags in reach["hashtag_sets"].items() if len(tags) > 5}
+    assert too_many == {}
+
+
 def test_the_command_reports_a_missing_narration(tmp_path: Path, capsys: Any) -> None:
     assert main(["--episode", EPISODE, "--out", str(tmp_path), "--root", str(ROOT)]) == 1
     assert "timing.json" in capsys.readouterr().err

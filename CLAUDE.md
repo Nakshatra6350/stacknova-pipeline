@@ -96,7 +96,8 @@ src/channel_os/
 scripts/           render-voice.sh and render-scenes.sh (the two jobs of render.yml),
                    install-skills.ps1, update-skills.ps1
 .github/workflows/ render.yml, notify.yml, watch-approvals.yml, publish.yml,
-                   refresh-tokens.yml, weekly-report.yml, ci.yml
+                   refresh-tokens.yml, weekly-report.yml, ci.yml, kit.yml,
+                   upload-test.yml (one private test upload, for the YouTube API audit)
 docs/              specs — the source of truth for behaviour
 ```
 
