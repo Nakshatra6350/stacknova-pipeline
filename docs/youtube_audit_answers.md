@@ -7,9 +7,9 @@ uploaded by the app.
 
 **Organisation / developer:** Individual creator (Nakshatra), operating the StackNova channel.
 
-**API client name / project number:** stacknova-pipeline / <project number from Cloud console>
+**API client name / project number:** stacknova-pipeline / 882687809280
 
-**Which channels will the client access?** Only my own channel, <channel URL>. No third-party users.
+**Which channels will the client access?** Only my own channel, https://www.youtube.com/@StackNovaDev. No third-party users.
 
 **Describe your use case.** An internal publishing tool for my own educational channel. I produce
 technical videos (backend engineering). The tool uploads my finished videos and Shorts, sets
@@ -27,4 +27,4 @@ channel, in the project's repository, to produce weekly reports. No data about o
 
 **Expected daily uploads:** 1–3 (two long videos per week and one or two Shorts per day).
 
-**Link to the source code (public):** <https://github.com/<owner>/stacknova-pipeline>
+**Link to the source code (public):** https://github.com/Nakshatra6350/stacknova-pipeline

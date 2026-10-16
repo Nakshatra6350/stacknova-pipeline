@@ -6,7 +6,7 @@ Set in the public pipeline repo → Settings → Secrets and variables → Actio
 |---|---|---|
 | `YT_CLIENT_ID` | publish, report | Google Cloud → Clients (Setup guide 6c) |
 | `YT_CLIENT_SECRET` | publish, report | same |
-| `YT_REFRESH_TOKEN` | publish, report | OAuth Playground (6d), scopes `youtube.upload youtube yt-analytics.readonly` |
+| `YT_REFRESH_TOKEN` | publish, report | OAuth Playground (6d), scopes `youtube.upload youtube youtube.force-ssl yt-analytics.readonly` (force-ssl is what captions.insert asks for) |
 | `IG_ACCESS_TOKEN` | publish, report, refresh | Meta app → Instagram → API setup with Instagram login (7.5) |
 | `IG_USER_ID` | publish, report | same screen |
 | `TELEGRAM_BOT_TOKEN` | notify, approvals, alerts | @BotFather (5.4) |
