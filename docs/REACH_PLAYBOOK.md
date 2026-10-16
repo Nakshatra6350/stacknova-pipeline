@@ -15,7 +15,7 @@ by `src/channel_os/reach/lint.py` before an episode can move to `ready_to_render
 | Short title | Problem-first ≤ 50 chars + `#Shorts` in description; no clickbait the video doesn't pay off. |
 | Description | Line 1–2: the problem + keyword (shows in search). Then chapters, related episodes in the series, sources. Phase 1: no store or affiliate links (`docs/PHASES.md`). |
 | Tags | 10–15: exact keyword, 3–4 long-tail variants (vidIQ), pillar, language. |
-| Hashtags (IG) | 5–8 specific ones from `config/reach.yaml: hashtag_sets[pillar]`. Never 30 generic. |
+| Hashtags (IG) | At most 5, specific, from `config/reach.yaml: hashtag_sets[pillar]`: Instagram caps a post or Reel at five since 18 Dec 2025 (comments count too). Never generic walls. |
 
 ## 2. Hooks and retention
 

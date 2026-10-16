@@ -19,8 +19,8 @@ asr_fixups:                                   # ASR spelling → script spelling
   "post gres": Postgres
   "m v c c": MVCC
   "j v m": JVM
-hashtag_sets:
-  money-systems: ["#systemdesign", "#backenddeveloper", "#fintech", "#softwareengineering", "#payments", "#idempotency"]
+hashtag_sets:                                 # at most 5 each: Instagram's cap per post since 18 Dec 2025
+  money-systems: ["#systemdesign", "#backenddeveloper", "#fintech", "#payments", "#idempotency"]
   distributed-systems: ["#distributedsystems", "#systemdesign", "#backenddeveloper", "#softwareengineering", "#microservices"]
   database-internals: ["#database", "#postgresql", "#backenddeveloper", "#systemdesign", "#sql"]
   jvm-java: ["#java", "#jvm", "#backenddeveloper", "#javadeveloper", "#softwareengineering"]
