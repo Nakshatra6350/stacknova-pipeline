@@ -10,20 +10,30 @@
   h1 { font-size: 30px; margin: 0 0 8px; }
   a { color: #b7a6ff; }
   p { color: #cfc8ee; }
+  .yt { display: inline-block; margin: 8px 0 4px; padding: 6px 12px; border-radius: 8px; background: #ffffff; color: #0f0f0f; font-weight: 700; }
+  .yt b { color: #ff0000; }
+  nav { margin-top: 28px; display: flex; gap: 18px; flex-wrap: wrap; }
 </style>
 </head>
 <body>
 <main>
   <h1>StackNova Publisher</h1>
+  <p class="yt">Uses <b>YouTube</b> API Services</p>
   <p>StackNova Publisher is the personal publishing tool behind the StackNova YouTube channel
   (<a href="https://www.youtube.com/@StackNovaDev">@StackNovaDev</a>), an educational channel
   about backend engineering, distributed systems and system design.</p>
-  <p>It uploads the channel owner's own videos and Shorts, sets their titles, descriptions,
-  thumbnails, captions and schedules, and reads the channel's own analytics for a weekly report.
-  Every upload is reviewed and approved by the owner before it is made public. It is used only by
-  the channel owner; no one else signs in.</p>
+  <p>It uses YouTube API Services to upload the channel owner's own videos and Shorts, set their
+  titles, descriptions, thumbnails, captions and schedules, and read the channel's own analytics
+  for a weekly report. Every upload is reviewed and approved by the owner before it is made public.
+  It is used only by the channel owner; no one else signs in.</p>
+  <p>By using StackNova Publisher you agree to be bound by the
+  <a href="https://www.youtube.com/t/terms">YouTube Terms of Service</a>.</p>
   <p>Source code: <a href="https://github.com/Nakshatra6350/stacknova-pipeline">github.com/Nakshatra6350/stacknova-pipeline</a></p>
-  <p><a href="privacy.html">Privacy policy</a></p>
+  <nav>
+    <a href="privacy.html">Privacy policy</a>
+    <a href="terms.html">Terms of service</a>
+    <a href="https://policies.google.com/privacy">Google Privacy Policy</a>
+  </nav>
 </main>
 </body>
 </html>
