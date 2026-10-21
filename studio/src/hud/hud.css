@@ -1,0 +1,56 @@
+/* The frame of a Short: a title band on top, the 3D window in the middle, a caption band below it.
+   Nothing written ever sits on top of the picture. Calm colours; no glare. */
+@font-face { font-family: "Inter Display"; font-weight: 800; src: url("../../../assets/fonts/InterDisplay-ExtraBold.ttf"); }
+@font-face { font-family: "Inter"; font-weight: 500; src: url("../../../assets/fonts/Inter-Medium.ttf"); }
+@font-face { font-family: "Inter"; font-weight: 700; src: url("../../../assets/fonts/Inter-Bold.ttf"); }
+@font-face { font-family: "JetBrains Mono"; font-weight: 400; src: url("../../../assets/fonts/JetBrainsMono-Regular.ttf"); }
+@font-face { font-family: "JetBrains Mono"; font-weight: 700; src: url("../../../assets/fonts/JetBrainsMono-Bold.ttf"); }
+
+:root { --navy: #070c18; --line: rgba(95, 214, 245, 0.35); --text: #eef4fb; --dim: #8697b0; --cyan: #6fd8f3; --amber: #ffc36e; --red: #ff8090; }
+
+.frame { position: absolute; left: 0; top: 0; width: 1080px; height: 1920px; background: var(--navy); overflow: hidden; font-family: Inter, sans-serif; color: var(--text); }
+.frame .view { position: absolute; left: 0; top: 300px; width: 1080px; height: 1160px; }
+.frame .view canvas { display: block; }
+.frame .top { position: absolute; left: 0; top: 0; width: 1080px; height: 300px; background: linear-gradient(#060a14, #08101f); border-bottom: 2px solid var(--line); }
+.frame .top .row { position: absolute; left: 64px; right: 64px; top: 64px; display: flex; justify-content: space-between; align-items: baseline; }
+.frame .top .brand { font: 800 34px/1 "Inter Display", sans-serif; letter-spacing: 0.14em; color: var(--text); }
+.frame .top .brand b { color: var(--cyan); font-weight: 800; }
+.frame .top .ep { font: 700 24px/1 "JetBrains Mono", monospace; letter-spacing: 0.08em; color: var(--dim); }
+.frame .top .steps { position: absolute; left: 64px; right: 64px; top: 124px; display: flex; gap: 12px; }
+.frame .top .step { flex: 1; display: flex; flex-direction: column; gap: 10px; font: 700 20px/1 "JetBrains Mono", monospace; letter-spacing: 0.06em; color: rgba(140, 160, 190, 0.5); }
+.frame .top .step i { display: block; height: 6px; border-radius: 3px; background: rgba(120, 150, 190, 0.18); overflow: hidden; }
+.frame .top .step i b { display: block; height: 100%; background: var(--cyan); }
+.frame .top .step.on { color: #cfe8f4; }
+.frame .top .callout { position: absolute; left: 0; right: 0; top: 200px; text-align: center; font: 800 76px/1 "Inter Display", sans-serif; letter-spacing: -0.01em; color: var(--text); opacity: 0; }
+.frame .top .callout.amber { color: var(--amber); }
+.frame .top .callout.red { color: var(--red); }
+
+.frame .cap { position: absolute; left: 0; top: 1460px; width: 1080px; height: 260px; background: linear-gradient(#08101f, #060a14); border-top: 2px solid var(--line); }
+.frame .cap .who { position: absolute; left: 64px; top: 34px; font: 800 22px/1 "Inter Display", sans-serif; letter-spacing: 0.16em; padding: 9px 14px; border-radius: 10px; }
+.frame .cap .who.nova { background: #eef2f8; color: #0a1020; }
+.frame .cap .who.engineer { background: #0e1d30; color: var(--cyan); border: 2px solid rgba(95, 214, 245, 0.6); }
+.frame .cap .line { position: absolute; left: 64px; right: 64px; top: 92px; font: 800 54px/1.18 "Inter Display", sans-serif; color: rgba(238, 244, 251, 0.38); letter-spacing: -0.005em; }
+.frame .cap .line span.said { color: var(--text); }
+.frame .cap .line span.now { color: var(--cyan); }
+.frame .foot { position: absolute; left: 0; top: 1720px; width: 1080px; height: 200px; background: #060a14; }
+
+.frame .end { position: absolute; inset: 300px 0 auto 0; height: 1160px; display: flex; flex-direction: column; justify-content: flex-start; align-items: center; padding-top: 70px; opacity: 0; }
+.frame .end .kicker { font: 700 28px/1 "JetBrains Mono", monospace; letter-spacing: 0.2em; color: var(--cyan); background: rgba(6, 10, 20, 0.75); padding: 10px 16px; border-radius: 10px; }
+.frame .end .head { margin-top: 20px; font: 800 92px/1.02 "Inter Display", sans-serif; text-align: center; color: var(--text); background: rgba(6, 10, 20, 0.75); padding: 12px 26px; border-radius: 18px; }
+.frame .cap .follow { position: absolute; left: 64px; right: 64px; top: 70px; text-align: center; opacity: 0; }
+.frame .cap .follow span { display: inline-block; font: 800 50px/1 "Inter Display", sans-serif; color: #04121c; background: var(--cyan); padding: 26px 46px; border-radius: 18px; }
+.frame .dim { position: absolute; left: 0; top: 300px; width: 1080px; height: 1160px; background: #000; opacity: 0; pointer-events: none; }
+
+/* explore mode: full window, a small control panel */
+body.explore { margin: 0; background: #070c18; color: var(--text); font-family: Inter, sans-serif; overflow: hidden; }
+body.explore canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
+.panel { position: fixed; left: 16px; top: 16px; max-width: min(380px, calc(100vw - 32px)); background: rgba(7, 12, 24, 0.86); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; backdrop-filter: blur(6px); }
+.panel h1 { margin: 0 0 4px; font: 800 20px/1.2 "Inter Display", sans-serif; letter-spacing: 0.08em; }
+.panel h1 b { color: var(--cyan); }
+.panel p { margin: 0 0 10px; color: var(--dim); font-size: 13px; line-height: 1.45; }
+.panel .row { display: flex; gap: 8px; flex-wrap: wrap; }
+.panel input { flex: 1; min-width: 120px; background: #0b1426; color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font: 500 14px "JetBrains Mono", monospace; }
+.panel button { background: #10223a; color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font: 700 13px Inter, sans-serif; cursor: pointer; }
+.panel button:hover { border-color: var(--cyan); }
+.panel .say { margin-top: 10px; min-height: 2.6em; font: 500 14px/1.4 Inter, sans-serif; }
+.panel .say b { color: var(--cyan); }
