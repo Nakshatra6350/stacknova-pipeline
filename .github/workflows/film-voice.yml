@@ -4,6 +4,10 @@ name: film voice
 # whose lines changed, in the owner's cloned voice, and stores the WAVs only in the draft Release
 # look-v3-draft as film-<id>-voice-<digest>.zip. Publishes nothing. Re-runs are safe: a film whose
 # voice is already stored for the same lines is skipped.
+#
+# A long film would take hours in one job, so each film is split into chunks of lines (plan), the
+# chunks are spoken in parallel jobs (speak: each stores chunk-<id>-<digest>-<n>.zip in the draft
+# Release), and the last job puts each film's chunks back together and removes them (store).
 on:
   push:
     branches: [look-v3]
@@ -19,16 +23,51 @@ concurrency:
   group: film-voice
   cancel-in-progress: false
 
+env:
+  GH_TOKEN: ${{ github.token }}
+  GH_REPO: ${{ github.repository }}
+  HF_HUB_DISABLE_TELEMETRY: "1"
+  TQDM_DISABLE: "1"
+  PYTHONUNBUFFERED: "1"
+
 jobs:
-  voice:
+  plan:
     runs-on: ubuntu-24.04
-    timeout-minutes: 340
-    env:
-      GH_TOKEN: ${{ github.token }}
-      GH_REPO: ${{ github.repository }}
-      HF_HUB_DISABLE_TELEMETRY: "1"
-      TQDM_DISABLE: "1"
-      PYTHONUNBUFFERED: "1"
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      any: ${{ steps.plan.outputs.any }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+      - name: List the chunks to speak
+        id: plan
+        run: |
+          set -euo pipefail
+          uv sync --locked --no-default-groups
+          gh release view look-v3-draft >/dev/null 2>&1 || gh release create look-v3-draft \
+            --draft --title "Look v3 draft renders" \
+            --notes "Private storage for the look v3 drafts. This Release stays a draft."
+          gh release view look-v3-draft --json assets --jq '.assets[].name' > "$RUNNER_TEMP/stored.txt"
+          matrix="$(uv run --no-sync python studio/scripts/film_voice.py --plan "$RUNNER_TEMP/stored.txt")"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          if [ "$matrix" = "[]" ]; then echo "any=false" >> "$GITHUB_OUTPUT"; else echo "any=true" >> "$GITHUB_OUTPUT"; fi
+          echo "$matrix"
+
+  speak:
+    needs: plan
+    if: needs.plan.outputs.any == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 12
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.matrix) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -61,20 +100,51 @@ jobs:
             -o "$RUNNER_TEMP/reference.wav" \
             "https://api.github.com/repos/${GITHUB_REPOSITORY_OWNER}/stacknova-content/contents/voice/reference.wav"
           test "$(head -c 4 "$RUNNER_TEMP/reference.wav")" = "RIFF"
-      - name: Speak the films whose lines changed, store each in the draft Release
+      - name: Speak ${{ matrix.film }} chunk ${{ matrix.chunk }}
+        env:
+          FILM: ${{ matrix.film }}
+          CHUNK: ${{ matrix.chunk }}
+          IDS: ${{ matrix.ids }}
         run: |
           set -euo pipefail
-          gh release view look-v3-draft >/dev/null 2>&1 || gh release create look-v3-draft \
-            --draft --title "Look v3 draft renders" \
-            --notes "Private storage for the look v3 drafts. This Release stays a draft."
-          have="$(gh release view look-v3-draft --json assets --jq '.assets[].name')"
-          for film in studio/films/*/film.yaml; do
-            id="$(basename "$(dirname "$film")")"
-            name="film-$id-voice-$(uv run --no-sync python studio/scripts/film_voice.py --digest "$film").zip"
-            if grep -qxF "$name" <<<"$have"; then echo "$id: voice already stored ($name)"; continue; fi
-            echo "::group::$id"
-            uv run --no-sync python studio/scripts/film_voice.py "$film" "$RUNNER_TEMP/reference.wav" "$RUNNER_TEMP/$id"
-            (cd "$RUNNER_TEMP/$id" && zip -qr "$RUNNER_TEMP/$name" . -x 'cache/*')
+          film="studio/films/$FILM/film.yaml"
+          digest="$(uv run --no-sync python studio/scripts/film_voice.py --digest "$film")"
+          uv run --no-sync python studio/scripts/film_voice.py "$film" "$RUNNER_TEMP/reference.wav" "$RUNNER_TEMP/out" --only "$IDS"
+          (cd "$RUNNER_TEMP/out" && zip -qr "$RUNNER_TEMP/chunk-$FILM-$digest-$CHUNK.zip" . -x 'cache/*')
+          gh release upload look-v3-draft "$RUNNER_TEMP/chunk-$FILM-$digest-$CHUNK.zip" --clobber
+
+  store:
+    needs: [plan, speak]
+    if: needs.plan.outputs.any == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+      - name: Put each film's chunks together and store its voice
+        env:
+          MATRIX: ${{ needs.plan.outputs.matrix }}
+        run: |
+          set -euo pipefail
+          uv sync --locked --no-default-groups
+          for id in $(echo "$MATRIX" | jq -r '.[].film' | sort -u); do
+            film="studio/films/$id/film.yaml"
+            digest="$(uv run --no-sync python studio/scripts/film_voice.py --digest "$film")"
+            name="$(uv run --no-sync python studio/scripts/film_voice.py --name "$film")"
+            work="$RUNNER_TEMP/$id"
+            mkdir -p "$work/chunks" "$work/out"
+            gh release download look-v3-draft -p "chunk-$id-$digest-*.zip" -D "$work"
+            for zip in "$work"/chunk-*.zip; do
+              unzip -q "$zip" -d "$work/chunks/$(basename "$zip" .zip)"
+            done
+            uv run --no-sync python studio/scripts/film_voice.py --merge "$film" "$work/chunks" "$work/out"
+            (cd "$work/out" && zip -qr "$RUNNER_TEMP/$name" .)
             gh release upload look-v3-draft "$RUNNER_TEMP/$name" --clobber
-            echo "::endgroup::"
+            for zip in "$work"/chunk-*.zip; do
+              gh release delete-asset look-v3-draft "$(basename "$zip")" --yes
+            done
           done

@@ -19,6 +19,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import wave
 from pathlib import Path
 from typing import Any
@@ -207,6 +208,14 @@ def sounds() -> dict[str, np.ndarray]:
     }
 
 
+def brand_sound(name: str) -> np.ndarray:
+    """One of the channel's own sounds (src/channel_os/brand/sound.py), such as nod-up."""
+    from channel_os.brand.sound import write_sound
+
+    with tempfile.TemporaryDirectory() as work:
+        return read_audio(write_sound(name, Path(work) / f"{name}.wav"))
+
+
 def music(duration: float) -> np.ndarray:
     """A quiet minor pad with a soft pulse, 4 chords of 3.2 s each, looping."""
     chords = [
@@ -291,7 +300,9 @@ def main(film_id: str, voice_dir: Path) -> None:
     segs = {seg["id"]: seg for entry in timing.values() for seg in entry["segments"]}
     cursor = float(film.get("lead", LEAD))
     placed: list[dict[str, Any]] = []
+    segment = None
     for line in film["lines"]:
+        segment = line.get("segment", segment)
         seg = segs[line["id"]]
         audio = read_audio(voice_dir / seg["file"], NOVA_FILTER if line["who"] == "nova" else None)
         dur = len(audio) / SR
@@ -313,7 +324,7 @@ def main(film_id: str, voice_dir: Path) -> None:
                 ],
                 "env": envelope(audio),
                 "audio": audio,
-                "segment": line.get("segment"),
+                "segment": segment,
             }
         )
         cursor += dur + float(line.get("after", PAUSE))
@@ -327,9 +338,19 @@ def main(film_id: str, voice_dir: Path) -> None:
     for p in placed:
         add(mix, p["audio"], p["start"])
     fx = sounds()
+    long = film.get("format") == "long"
     for cue in film.get("sfx") or []:
-        add(mix, fx[cue["sound"]], clock(cue["at"]), float(cue.get("gain", 0.7)))
-    add(mix, fx["hit"], end, 0.8)
+        add(
+            mix,
+            fx[cue["sound"]] if cue["sound"] in fx else brand_sound(cue["sound"]),
+            clock(cue["at"]),
+            float(cue.get("gain", 0.7)),
+        )
+    # a Short ends on a hit; a long video on the channel's outro music (config/brand.yaml)
+    if long:
+        add(mix, brand_sound("lofi-nod"), end, 1.0)
+    else:
+        add(mix, fx["hit"], end, 0.8)
     add(mix, music(duration), 0, float(film.get("music", 0.55)))
     mix = mix[: int(duration * SR)]
     mix = mix / (float(np.max(np.abs(mix))) or 1.0) * 0.89
@@ -369,6 +390,11 @@ def main(film_id: str, voice_dir: Path) -> None:
         "fps": FPS,
         "lines": placed,
         "events": dict(sorted(clock.events.items(), key=lambda kv: kv[1])),
+        "chapters": [
+            {"segment": p["segment"], "start": p["start"]}
+            for n, p in enumerate(placed)
+            if p["segment"] and (n == 0 or placed[n - 1]["segment"] != p["segment"])
+        ],
         "film": spec,
     }
     dest = ROOT / "studio" / "public" / "films" / film_id

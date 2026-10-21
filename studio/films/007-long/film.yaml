@@ -256,3 +256,471 @@ lines:
   - id: n15
     who: nova
     say: "See you there!"
+
+tail: 12
+hook: "ONE REQUEST. CPU 100%."
+events:
+  flood: e1.request
+  welcome: w1
+  jump: e11.jump
+  collide: e12.collision
+  grow: e19.doubles
+  split: e22.splits
+  tree: e24.tree
+  story: e28
+  flood2: e32.giant
+  fixtree: e34.tree
+
+sfx:
+  - {at: flood, sound: tick, gain: 0.5}
+  - {at: e1.hundred, sound: alarm, gain: 0.4}
+  - {at: e1.hundred+0.3, sound: thud, gain: 0.7}
+  - {at: welcome-0.4, sound: nod-up, gain: 0.9}
+  - {at: n3.zero, sound: clank, gain: 0.5}
+  - {at: n3.one, sound: clank, gain: 0.5}
+  - {at: n3.two#2, sound: clank, gain: 0.5}
+  - {at: e6.works-0.2, sound: vision, gain: 0.7}
+  - {at: e10.zero, sound: pop, gain: 0.6}
+  - {at: jump-0.4, sound: whip, gain: 0.6}
+  - {at: jump, sound: ding, gain: 0.5}
+  - {at: collide, sound: thud, gain: 0.6}
+  - {at: e19.thirteenth, sound: alarm, gain: 0.35}
+  - {at: grow, sound: rise, gain: 0.8}
+  - {at: split, sound: whip, gain: 0.6}
+  - {at: tree, sound: arp, gain: 0.7}
+  - {at: e30.thousand, sound: pop, gain: 0.6}
+  - {at: flood2, sound: alarm, gain: 0.4}
+  - {at: flood2+0.4, sound: thud, gain: 0.7}
+  - {at: fixtree, sound: arp, gain: 0.7}
+  - {at: e35.never, sound: pop, gain: 0.5}
+  - {at: e42.mvcc, sound: ding, gain: 0.5}
+
+props:
+  cpu: {kind: gauge, text: "server CPU %", max: 100, limit: 80}
+  million: {kind: label, text: "1,000,000 lockers", sub: "a missing key opens them all: O(n)", tone: red}
+  w1:
+    kind: code
+    file: MiniMap.java
+    code: |
+      static int spread(Object key) {
+          int h = key.hashCode();
+          return h ^ (h >>> 16);   // top bits into bottom
+      }
+
+      public V get(Object key) {
+          int hash = spread(key);
+          Node<K, V> e = table[hash & (table.length - 1)];
+  k42: {kind: key, text: "user:42"}
+  bits42: {kind: bits, value: -147149897, low: 4, result: "0111 → bucket 7"}
+  w2:
+    kind: code
+    file: MiniMap.java
+    code: |
+      Node<K, V> e = table[hash & (table.length - 1)];
+      while (e != null) {
+          if (e.hash == hash && Objects.equals(e.key, key))
+              return e.value;
+          e = e.next;
+      }
+      return null;
+  load: {kind: gauge, text: "entries in 16 buckets", max: 16, limit: 12}
+  w3:
+    kind: code
+    file: MiniMap.java · resize()
+    code: |
+      table = newTable(oldCap * 2);
+      Node<K, V> next;
+      for (int j = 0; j < oldCap; j++) {
+          for (Node<K, V> e = old[j]; e != null; e = next) {
+              next = e.next;
+              int i = (e.hash & oldCap) == 0 ? j : j + oldCap;
+              e.next = table[i];
+              table[i] = e;
+          }
+      }
+  b64: {kind: label, text: "64+ buckets", sub: "a crowded bucket → red-black tree", tone: cyan}
+  logn: {kind: label, text: "O(log n)", sub: "a few hops, not the whole chain", tone: green}
+  poisson: {kind: label, text: "0.00000006", sub: "chance of 8 keys in one bucket (JDK notes)", tone: amber}
+  twice: {kind: label, text: "TreeNode ≈ 2 × Node", sub: "worth it only when something is wrong", tone: amber}
+  order: {kind: label, text: "hash → compareTo", sub: "then a fixed tie-break", tone: cyan}
+  ccc: {kind: label, text: "28C3 · December 2011", sub: "Klink & Wälde: hash collision attacks", tone: cyan}
+  w4:
+    kind: code
+    file: Collide.java
+    code: |
+      List<String> keys = new ArrayList<>(List.of(""));
+      for (int i = 0; i < pairs; i++) {
+          List<String> longer = new ArrayList<>();
+          for (String k : keys) {
+              longer.add(k + "Aa");   // "Aa".hashCode() == 2112
+              longer.add(k + "BB");   // "BB".hashCode() == 2112
+          }
+          keys = longer;
+      }
+  nsq: {kind: label, text: "O(n²)", sub: "twice the fields, four times the work", tone: red}
+  tomcat: {kind: label, text: "maxParameterCount", sub: "Tomcat's default: 10,000 parameters", tone: green}
+  probe: {kind: key, text: "ana@corp.dev"}
+  x8: {kind: mark, text: x}
+  rule1: {kind: label, text: "1 · immutable keys", sub: "never change what equals / hashCode use", tone: amber}
+  rule2: {kind: label, text: "2 · ConcurrentHashMap", sub: "when threads change it at once", tone: cyan}
+  rule3: {kind: label, text: "3 · LinkedHashMap", sub: "when you need insertion order", tone: cyan}
+  rule4:
+    kind: code
+    file: Java 19+
+    code: |
+      Map<String, User> users = HashMap.newHashMap(100);
+  node: {kind: node, key: "user:42", text: "alice", hash: "…0111"}
+  next: {kind: label, text: "MVCC", sub: "Saturday 31 October", tone: cyan, size: 1.4}
+
+beats:
+  # ---------------------------------------------------------------- s01 the 2011 flood (hook)
+  - at: -1
+    shot: {kind: look, at: "bucket:9", dist: 3.4, height: 0.7, angle: 8, fov: 36}
+    hud: {step: 0}
+    nova: {to: "front:11:1.2:1.6", dur: 0.01, face: panic, look: "top:9"}
+  - at: flood-0.4
+    world:
+      - {put: [AaAaAaAa, AaAaAaBB, AaAaBBAa, AaAaBBBB, AaBBAaAa, AaBBAaBB, AaBBBBAa, AaBBBBBB, BBAaAaAa, BBAaAaBB, BBAaBBAa, BBAaBBBB, BBBBAaAa, BBBBAaBB, BBBBBBAa, BBBBBBBB], bucket: 9, stagger: 0.14, dur: 0.35, tone: red}
+      - {bucket: 9, tone: alarm}
+    prop: {id: cpu, place: "front:6:1.0:2.35"}
+  - at: e1.hundred-0.6
+    prop: {id: cpu, state: {value: 100}, dur: 1.2}
+    world: {shake: 9}
+    hud: {callout: "CPU 100%", tone: red, for: 2.0}
+  - at: n1
+    shot: {kind: nova, side: -0.4}
+    nova: {face: surprised, look: speaker}
+  - at: e2
+    shot: {kind: engineer, side: 0.4}
+    engineer: {face: focus}
+  - at: e2.weapon-0.3
+    shot: {kind: look, at: "top:9", dist: 3.0, height: 0.4, angle: -6, fov: 36}
+    hud: {callout: "THE WEAPON: A HASH MAP", tone: amber, for: 2.0}
+  - at: n2
+    shot: {kind: two, side: -0.2}
+    nova: {to: nova.home, dur: 1.0, face: confused}
+  - at: e3
+    shot: {kind: engineer, side: -0.3}
+    engineer: {face: smirk}
+  - at: welcome-0.3
+    shot: {kind: wide, from: -14, to: 14, dist: 8.2}
+    hud: {brand: true, for: 9.5}
+    prop: {id: cpu, hide: true}
+    world:
+      - {remove: [AaAaAaAa, AaAaAaBB, AaAaBBAa, AaAaBBBB, AaBBAaAa, AaBBAaBB, AaBBBBAa, AaBBBBBB, BBAaAaAa, BBAaAaBB, BBAaBBAa, BBAaBBBB, BBBBAaAa, BBBBAaBB, BBBBBBAa, BBBBBBBB]}
+      - {bucket: 9, tone: idle}
+  # ---------------------------------------------------------------- s02 the naive model
+  - at: n3-0.3
+    shot: {kind: look, at: "bucket:1", dist: 2.6, height: 0.45, angle: 14}
+    hud: {step: 1}
+    nova: {to: "front:0:0.9:1.45", dur: 0.9, face: normal, look: "slot:0:1"}
+  - at: n3.zero
+    world: {bucket: 0, tone: searched}
+  - at: n3.one-0.4
+    nova: {to: "front:1:0.9:1.45", dur: 0.5, look: "slot:1:1"}
+  - at: n3.one
+    world: {bucket: 1, tone: searched}
+  - at: n3.two#2-0.4
+    nova: {to: "front:2:0.9:1.45", dur: 0.5, look: "slot:2:1", face: confused}
+  - at: n3.two#2
+    world: {bucket: 2, tone: searched}
+  - at: e4
+    shot: {kind: two, side: 0.3}
+    nova: {to: nova.home, dur: 1.0}
+    engineer: {face: calm}
+  - at: e5.million
+    shot: {kind: look, prop: million, dist: 1.8, height: 0.05}
+    prop: {id: million, place: [0, 2.0, -0.4]}
+  - at: n4
+    shot: {kind: nova, side: 0.4}
+    prop: {id: million, hide: true}
+    nova: {face: confused}
+    world: [{bucket: 0, tone: idle}, {bucket: 1, tone: idle}, {bucket: 2, tone: idle}]
+  - at: e6
+    shot: {kind: engineer, side: 0.4}
+    engineer: {face: smirk}
+  - at: e6.works
+    engineer: {vision: true}
+  - at: e6.jumps-0.2
+    shot: {kind: wide, from: 8, to: -6, dist: 7.6}
+  # ---------------------------------------------------------------- s03 from key to bucket (walkthrough 1)
+  - at: e7
+    shot: {kind: look, at: [-0.1, 1.62, 1.05], dist: 1.65, height: 0.04, fov: 34}
+    prop: {id: w1, place: [-0.62, 1.74, 1.0], type: true, dur: 1.6}
+    engineer: {face: calm, look: "prop:w1"}
+    until: e11
+  - at: e8.line
+    prop: {id: w1, state: {hl: 1}}
+  - at: e8a
+    engineer: {gesture: explain}
+    until: e8a>
+  - at: e9.line
+    prop: {id: w1, state: {hl: 2}}
+  - at: n5
+    shot: {kind: nova, side: -0.4}
+  - at: e10
+    shot: {kind: look, at: [-0.1, 1.62, 1.05], dist: 1.65, height: 0.04, fov: 34}
+    prop: {id: w1, state: {hl: 7}}
+  - at: e10.last-0.3
+    shot: {kind: look, prop: bits42, dist: 1.55, height: 0.04}
+    prop: [{id: w1, hide: true}, {id: bits42, place: "front:7:1.0:2.3"}]
+  - at: e10.last
+    prop: {id: bits42, state: {hl: 1}, dur: 0.4}
+  - at: e10.bucket
+    prop: {id: bits42, state: {result: 1}, dur: 0.4}
+    world: {bucket: 7, tone: active}
+  - at: e11-0.2
+    shot: {kind: look, at: "bucket:7", dist: 2.7, height: 0.5, angle: -10}
+    prop: [{id: bits42, hide: true}, {id: k42, place: "front:7:1.6:2.6"}]
+  - at: jump-0.5
+    prop: {id: k42, to: "top:7", dur: 0.45, arc: 0.1}
+  - at: jump
+    prop: {id: k42, hide: true}
+    world: {put: "user:42", bucket: 7, from: "top:7", dur: 0.3, tone: amber}
+    hud: {callout: "ONE JUMP · O(1)", tone: amber, for: 1.8}
+  # ---------------------------------------------------------------- s04 two keys, one bucket (walkthrough 2)
+  - at: n6
+    shot: {kind: nova, side: 0.4}
+    hud: {step: 2}
+    nova: {face: confused}
+  - at: collide-0.5
+    shot: {kind: look, at: "front:7:0.32:1.6", dist: 3.4, height: 0.3, angle: 6}
+    world:
+      - {put: "user:97", bucket: 7, dur: 0.4, tone: red}
+      - {shake: 7}
+  - at: e12.chain-0.3
+    world: {chain: 7, keys: ["user:42", "user:97"], hashes: ["…0111", "…0111"]}
+    hud: {callout: "COLLISION: A CHAIN", tone: amber, for: 1.6}
+  - at: e13
+    shot: {kind: look, at: [-0.1, 1.62, 1.05], dist: 1.65, height: 0.04, fov: 34}
+    prop: {id: w2, place: [-0.62, 1.74, 1.0], type: true, dur: 1.2}
+    world: {chain: 7, hide: true}
+    engineer: {look: "prop:w2"}
+    until: e17
+  - at: e13.line
+    prop: {id: w2, state: {hl: 0}}
+  - at: e13.line#2
+    prop: {id: w2, state: {hl: 1}}
+  - at: e14.line
+    prop: {id: w2, state: {hl: 2}}
+  - at: e15.equals
+    prop: {id: w2, state: {hl: 3}}
+  - at: e16.line
+    prop: {id: w2, state: {hl: 6}}
+  - at: n7
+    shot: {kind: two, side: -0.3}
+    prop: {id: w2, hide: true}
+    nova: {face: happy}
+  - at: e17
+    shot: {kind: engineer, side: 0.3}
+    engineer: {face: smirk}
+  # ---------------------------------------------------------------- s05 resize without rehashing (walkthrough 3)
+  - at: e18-0.3
+    shot: {kind: wide, from: -6, to: 6, dist: 7.4}
+    hud: {step: 3}
+    world:
+      - {put: [order:1010, order:1609, order:1021, order:1708], bucket: 7, stagger: 0.15, dur: 0.35}
+      - {put: "user:alice", bucket: 15}
+      - {put: "user:eli", bucket: 2}
+      - {put: "user:hana", bucket: 6}
+      - {put: "user:lena", bucket: 4}
+      - {put: "user:maya", bucket: 11}
+      - {put: "user:tom", bucket: 1}
+  - at: e18.load-0.3
+    shot: {kind: look, prop: load, dist: 1.7, height: 0.05}
+    prop: {id: load, place: [0, 2.0, -0.4], state: {value: 12}, dur: 1.4}
+    hud: {callout: "LOAD FACTOR 0.75", tone: amber, for: 2.0}
+  - at: e19.thirteenth-0.2
+    prop: {id: load, state: {value: 13}}
+    world: {put: "user:uma", bucket: 8}
+    hud: {callout: "13 > 12", tone: red, for: 1.4}
+  - at: grow-0.2
+    shot: {kind: wide, from: -10, to: 10, dist: 8.8}
+    prop: {id: load, hide: true}
+    world: {grow: 32}
+    hud: {callout: "16 → 32", tone: amber, for: 2.0}
+  - at: n8
+    shot: {kind: nova, side: -0.4}
+    nova: {face: confused, look: "top:23"}
+    until: n8>
+  - at: e20.resize-0.4
+    shot: {kind: look, at: [-0.1, 1.62, 1.05], dist: 1.65, height: 0.04, fov: 34}
+    prop: {id: w3, place: [-0.62, 1.74, 1.0], type: true, dur: 1.4}
+    engineer: {look: "prop:w3"}
+    until: e22.splits
+  - at: e21.line
+    prop: {id: w3, state: {hl: 2}}
+  - at: e21.line#2
+    prop: {id: w3, state: {hl: 3}}
+  - at: e21.line#3
+    prop: {id: w3, state: {hl: 5}}
+  - at: split-0.3
+    shot: {kind: look, at: "top:7", dist: 4.4, height: 0.7, angle: -14, fov: 42}
+    prop: {id: w3, hide: true}
+    world:
+      - {move: ["user:42", "user:97", order:1609, order:1708], bucket: 23, stagger: 0.16, dur: 0.9}
+      - {move: "user:alice", bucket: 31, dur: 0.9}
+      - {move: "user:hana", bucket: 22, dur: 0.9}
+      - {move: "user:lena", bucket: 20, dur: 0.9}
+      - {move: "user:maya", bucket: 27, dur: 0.9}
+      - {move: "user:tom", bucket: 17, dur: 0.9}
+      - {bucket: 23, tone: active}
+  - at: e23
+    shot: {kind: engineer, side: 0.4}
+    engineer: {face: calm}
+    hud: {callout: "NO REHASH", tone: green, for: 1.8}
+  # ---------------------------------------------------------------- s06 when a chain becomes a tree
+  - at: n9
+    shot: {kind: nova, side: 0.4}
+    hud: {step: 4}
+    nova: {face: surprised}
+  - at: e24-0.2
+    shot: {kind: look, at: "front:11:0.32:1.7", dist: 4.4, height: 0.3, angle: 6}
+    world: {chain: 11, keys: [order:2040, order:2062, order:2084, order:2161, order:2183, order:2260, order:2282, order:2381, order:2480],
+            hashes: ["…001011", "…001011", "…001011", "…001011", "…001011", "…001011", "…001011", "…001011", "…001011"]}
+  - at: tree-0.3
+    world: {chain: 11, tree: true}
+  - at: e25.sixty-0.2
+    prop: {id: b64, place: "front:11:1.0:2.6"}
+  - at: e26.hops-0.3
+    prop: [{id: b64, hide: true}, {id: logn, place: "front:11:1.0:2.6"}]
+  - at: n9a
+    shot: {kind: nova, side: -0.4}
+    prop: {id: logn, hide: true}
+    nova: {face: confused}
+  - at: e26a.chance-0.3
+    shot: {kind: look, prop: poisson, dist: 1.7, height: 0.05}
+    prop: {id: poisson, place: [0, 2.0, -0.4]}
+  - at: e26b.twice-0.3
+    prop: [{id: poisson, hide: true}, {id: twice, place: [0, 2.0, -0.4]}]
+  - at: n10
+    shot: {kind: two, side: 0.3}
+    prop: {id: twice, hide: true}
+    nova: {face: confused}
+  - at: e27
+    shot: {kind: look, at: "front:11:0.32:1.9", dist: 3.6, height: 0.35, angle: -8}
+    prop: {id: order, place: "front:11:1.0:2.6"}
+  - at: e27.six
+    prop: {id: order, hide: true}
+    hud: {callout: "≤ 6 NODES: A CHAIN AGAIN", tone: cyan, for: 2.0}
+  # ---------------------------------------------------------------- s07 the 2011 hash flood (walkthrough 4)
+  - at: story-0.2
+    shot: {kind: engineer, side: -0.3}
+    hud: {step: 5}
+    world: {chain: 11, hide: true}
+    engineer: {face: focus}
+  - at: e28.chaos-0.3
+    shot: {kind: look, prop: ccc, dist: 1.7, height: 0.05}
+    prop: {id: ccc, place: [0, 2.0, -0.4]}
+  - at: e29
+    shot: {kind: two, side: -0.2}
+    prop: {id: ccc, hide: true}
+  - at: e30.look-0.2
+    shot: {kind: look, at: [-0.1, 1.62, 1.05], dist: 1.65, height: 0.04, fov: 34}
+    prop: {id: w4, place: [-0.62, 1.74, 1.0], type: true, dur: 1.5}
+    engineer: {look: "prop:w4"}
+    until: e31>
+  - at: e30.thousand
+    prop: {id: w4, state: {hl: 4}}
+    hud: {callout: "\"Aa\" = \"BB\" = 2112", tone: amber, for: 2.2}
+  - at: e31.line
+    prop: {id: w4, state: {hl: 1}}
+  - at: e31.lines
+    prop: {id: w4, state: {hl: 4}}
+  - at: e31.fourteen
+    prop: {id: w4, state: {hl: 5}}
+    hud: {callout: "16,384 KEYS · 1 HASH", tone: red, for: 2.2}
+  - at: n11
+    shot: {kind: nova, side: 0.4}
+    prop: {id: w4, hide: true}
+    nova: {face: panic, gesture: panic}
+    until: n11>
+  - at: flood2-0.3
+    shot: {kind: look, at: "front:9:0.32:1.7", dist: 4.0, height: 0.4, angle: 6}
+    world:
+      - {put: ["AaAaAaAa#2", "AaAaAaBB#2", "AaAaBBAa#2", "AaAaBBBB#2", "AaBBAaAa#2", "AaBBAaBB#2", "AaBBBBAa#2", "AaBBBBBB#2", "BBAaAaAa#2", "BBAaAaBB#2", "BBAaBBAa#2", "BBAaBBBB#2"], bucket: 9, stagger: 0.1, dur: 0.3, tone: red}
+      - {bucket: 9, tone: alarm}
+      - {chain: 9, keys: [AaAaAaAa, AaAaAaBB, AaAaBBAa, AaAaBBBB, AaBBAaAa, AaBBAaBB, AaBBBBAa, AaBBBBBB, BBAaAaAa], hashes: ["-540425984", "-540425984", "-540425984", "-540425984", "-540425984", "-540425984", "-540425984", "-540425984", "-540425984"]}
+  - at: e32.twice-0.2
+    prop: {id: nsq, place: "front:9:1.0:2.6"}
+  - at: e32.hours-0.3
+    prop: [{id: nsq, hide: true}, {id: cpu, place: "front:9:1.0:2.6", state: {value: 100}}]
+  - at: e33
+    shot: {kind: engineer, side: 0.4}
+    prop: {id: cpu, hide: true}
+    engineer: {face: calm}
+  - at: e33.capped-0.2
+    shot: {kind: look, prop: tomcat, dist: 1.7, height: 0.05}
+    prop: {id: tomcat, place: [0, 2.0, -0.4]}
+  - at: e34-0.2
+    shot: {kind: look, at: "front:9:0.32:1.9", dist: 4.0, height: 0.4, angle: -6}
+    prop: {id: tomcat, hide: true}
+  - at: fixtree-0.3
+    world: [{chain: 9, tree: true}, {bucket: 9, tone: active}]
+    hud: {callout: "A FEW HOPS PER KEY", tone: green, for: 2.2}
+  # ---------------------------------------------------------------- s08 what HashMap costs you
+  - at: n12
+    shot: {kind: two, side: 0.3}
+    hud: {step: 6}
+    world: {chain: 9, hide: true}
+    nova: {face: happy}
+  - at: e35-0.2
+    shot: {kind: look, at: "bucket:3", dist: 2.6, height: 0.4, angle: 10}
+    world: {put: ana@mail.com, bucket: 3, tone: amber}
+    prop: {id: rule1, place: "front:3:1.0:2.35"}
+  - at: e35.never
+    world: [{relabel: ana@mail.com, text: ana@corp.dev}, {key: ana@mail.com, tone: red}]
+  - at: e35.new-0.6
+    shot: {kind: look, at: "bucket:8", dist: 2.6, height: 0.5, angle: -6}
+    prop: [{id: rule1, hide: true}, {id: probe, place: "front:8:1.2:2.6"}]
+  - at: e35.new-0.4
+    prop: {id: probe, to: "top:8", dur: 0.4, arc: 0.1}
+  - at: e35.new+0.05
+    prop: [{id: probe, hide: true}, {id: x8, place: "front:8:0.5:1.75"}]
+  - at: e36
+    shot: {kind: look, prop: rule2, dist: 1.7, height: 0.05}
+    prop: [{id: x8, hide: true}, {id: rule2, place: [0, 2.0, -0.4]}]
+  - at: e37
+    prop: [{id: rule2, hide: true}, {id: rule3, place: [0, 2.0, -0.4]}]
+  - at: e38
+    shot: {kind: look, prop: rule4, dist: 1.6, height: 0.05}
+    prop: [{id: rule3, hide: true}, {id: rule4, place: [0, 2.0, -0.4], type: true, dur: 1.2}]
+  - at: n13
+    shot: {kind: nova, side: -0.4}
+    prop: {id: rule4, hide: true}
+    nova: {face: squint}
+  - at: e39
+    shot: {kind: look, prop: node, dist: 1.4, height: 0.04}
+    prop: {id: node, place: [0, 2.0, -0.4]}
+  # ---------------------------------------------------------------- s09 recap and next
+  - at: e40
+    shot: {kind: wide, from: -16, to: 16, dist: 8.4}
+    prop: {id: node, hide: true}
+    engineer: {face: calm, look: camera}
+    until: n14
+  - at: e40.recap
+    hud: {callout: "HASH → BUCKET", tone: amber, for: 1.6}
+  - at: e40.collisions
+    hud: {callout: "CHAIN · HASH, THEN EQUALS", tone: amber, for: 2.4}
+  - at: e41.doubles
+    hud: {callout: "0.75 → DOUBLE · SPLIT BY 1 BIT", tone: amber, for: 2.6}
+  - at: e41.tree
+    hud: {callout: "CROWDED + 64 BUCKETS → TREE", tone: green, for: 2.6}
+  - at: n14
+    shot: {kind: nova, side: 0.4}
+    nova: {face: happy}
+  - at: e42
+    shot: {kind: two, side: -0.2}
+    engineer: {face: smile}
+  - at: e42.postgres-0.2
+    shot: {kind: look, prop: next, dist: 1.9, height: 0.05}
+    prop: {id: next, place: [0, 2.0, -0.4]}
+  - at: n15
+    shot: {kind: two, side: 0.2, dist: 2.4}
+    prop: {id: next, hide: true}
+    nova: {face: celebrate, gesture: wave}
+    until: end+14
+  - at: end
+    shot: {kind: two, side: 0.3, dist: 2.6}
+    engineer: {face: smile, gesture: thumbsUp}
+    until: end+14

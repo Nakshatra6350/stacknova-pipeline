@@ -4,7 +4,7 @@
 //   render             for the video renderer: window.boot(timeline), then window.render(t)
 import { Stage } from './app/stage';
 import { loadCast } from './characters';
-import { FrameHud, VIEW, type Timeline } from './hud/hud';
+import { FrameHud, VIEW, VIEW_LONG, type Timeline } from './hud/hud';
 import { playFilm } from './film/player';
 import type { FilmTimeline } from './film/types';
 import { hashmapShort } from './story/hashmapShort';
@@ -29,9 +29,13 @@ async function frame(tl: Timeline): Promise<{ draw: (t: number) => void; stage: 
   await fontsReady();
   if ('film' in tl) {
     const film = (tl as FilmTimeline).film;
-    const hud = new FrameHud(host, film.title, film.episode, film.steps,
-      { end: film.end, cta: film.end?.cta ? cta(tl, film.end.cta) : undefined });
-    const stage = new Stage(hud.view, VIEW.width, VIEW.height);
+    const long = film.format === 'long';
+    const hud = new FrameHud(host, film.title, film.episode, film.steps, {
+      end: film.end, format: film.format,
+      cta: long ? 'Subscribe for two deep dives a week' : film.end?.cta ? cta(tl, film.end.cta) : undefined,
+    });
+    const view = long ? VIEW_LONG : VIEW;
+    const stage = new Stage(hud.view, view.width, view.height);
     return { draw: playFilm(stage, await loadCast(), hud, tl as FilmTimeline), stage };
   }
   const hud = new FrameHud(host, 'HASHMAP', 'EP 007 · PART 1', STEPS, { cta: cta(tl, 'part 2') });

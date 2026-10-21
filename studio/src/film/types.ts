@@ -47,7 +47,7 @@ export interface PropBeat {
   type?: boolean;      // code: type the lines out over `dur`
 }
 
-export interface HudBeat { step?: number; callout?: string; tone?: '' | 'amber' | 'red' | 'green'; for?: number }
+export interface HudBeat { step?: number; callout?: string; tone?: '' | 'amber' | 'red' | 'green'; for?: number; brand?: boolean }
 
 export type WorldOp = Record<string, unknown>;
 

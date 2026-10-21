@@ -54,3 +54,20 @@ body.explore canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; di
 .panel button:hover { border-color: var(--cyan); }
 .panel .say { margin-top: 10px; min-height: 2.6em; font: 500 14px/1.4 Inter, sans-serif; }
 .panel .say b { color: var(--cyan); }
+
+/* a long video: 1920 x 1080, a title band over the 3D window; no caption band */
+.frame.long { width: 1920px; height: 1080px; }
+.frame.long .top { width: 1920px; height: 150px; }
+.frame.long .top .brand { position: absolute; left: 56px; top: 40px; font: 800 34px/1 "Inter Display", sans-serif; letter-spacing: 0.14em; }
+.frame.long .top .brand .ep { margin-left: 24px; font: 700 24px/1 "JetBrains Mono", monospace; letter-spacing: 0.08em; color: var(--dim); }
+.frame.long .top .steps { left: 56px; right: auto; width: 860px; top: 96px; }
+.frame.long .top .callout { left: auto; right: 56px; top: 44px; width: 960px; text-align: right; font-size: 64px; transform-origin: right center; }
+.frame.long .view { top: 150px; width: 1920px; height: 930px; }
+.frame.long .brandcard { position: absolute; left: 0; top: 150px; width: 1920px; height: 930px; display: flex; flex-direction: column; justify-content: center; align-items: center; background: radial-gradient(ellipse at center, rgba(4, 8, 16, 0.82) 0%, rgba(4, 8, 16, 0.55) 45%, rgba(4, 8, 16, 0) 80%); opacity: 0; pointer-events: none; }
+.frame.long .brandcard .mark { font: 800 150px/1 "Inter Display", sans-serif; letter-spacing: 0.1em; color: var(--text); }
+.frame.long .brandcard .mark b { color: var(--cyan); font-weight: 800; }
+.frame.long .brandcard .tag { margin-top: 26px; font: 700 30px/1 "JetBrains Mono", monospace; letter-spacing: 0.22em; color: #b9d8e6; text-transform: uppercase; }
+.frame.long .end { top: 150px; width: 1920px; height: 930px; justify-content: center; align-items: flex-start; padding-left: 120px; box-sizing: border-box; background: linear-gradient(90deg, rgba(4, 8, 16, 0.92) 0%, rgba(4, 8, 16, 0.75) 45%, rgba(4, 8, 16, 0) 75%); }
+.frame.long .end .kicker { font-size: 30px; }
+.frame.long .end .head { font-size: 96px; text-align: left; line-height: 1.04; }
+.frame.long .end .follow { position: static; margin-top: 48px; opacity: 1; text-align: left; }

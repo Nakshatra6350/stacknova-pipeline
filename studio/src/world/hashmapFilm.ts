@@ -9,7 +9,7 @@ import { clamp, easeOut, lerp, pulse, smooth, smoother, span, V } from '../util/
 import type { FilmWorld } from '../film/world';
 import type { WorldOp } from '../film/types';
 
-interface Move { t: number; bucket: number; dur: number; from?: string }
+interface Move { t: number; bucket: number; dur: number; from?: string; seq: number }
 interface Slab { key: string; slab: EntrySlab; moves: Move[]; gone: number; labels: [number, string][]; tones: [number, SlabTone][] }
 interface Chain { bucket: number; keys: string[]; hashes: string[]; at: number; hide: number; tree: number; cards: Card<NodeState>[]; links: THREE.Mesh[] }
 
@@ -30,6 +30,7 @@ export class HashMapFilm implements FilmWorld {
   private scans: number[] = [];
   private shakes: [number, number][] = [];
   private chains: Chain[] = [];
+  private seq = 0; // the order moves were written in: breaks ties between keys put together
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
@@ -71,12 +72,12 @@ export class HashMapFilm implements FilmWorld {
     if (op.put !== undefined) {
       list(op.put as string).forEach((key, n) => {
         const s = this.slab(key);
-        s.moves.push({ t: at + n * stagger, bucket: Number(op.bucket), dur: Number(op.dur ?? 0.45), from: op.from as string | undefined });
+        s.moves.push({ t: at + n * stagger, bucket: Number(op.bucket), dur: Number(op.dur ?? 0.45), from: op.from as string | undefined, seq: this.seq++ });
         if (op.tone) s.tones.push([at, op.tone as SlabTone]);
       });
     }
     if (op.move !== undefined) {
-      list(op.move as string).forEach((key, n) => this.slab(key).moves.push({ t: at + n * stagger, bucket: Number(op.bucket), dur }));
+      list(op.move as string).forEach((key, n) => this.slab(key).moves.push({ t: at + n * stagger, bucket: Number(op.bucket), dur, seq: this.seq++ }));
     }
     if (op.remove !== undefined) for (const key of list(op.remove as string)) this.slab(key).gone = at;
     if (op.relabel !== undefined) this.slab(op.relabel as string).labels.push([at, String(op.text)]);
@@ -109,7 +110,7 @@ export class HashMapFilm implements FilmWorld {
   private slab(key: string): Slab {
     let s = this.slabs.get(key);
     if (!s) {
-      const slab = new EntrySlab(key);
+      const slab = new EntrySlab(key.split('#')[0]); // "AaAa#2": a second slab labelled AaAa
       slab.visible = false;
       this.scene.add(slab);
       s = { key, slab, moves: [], gone: NEVER, labels: [], tones: [] };
@@ -134,7 +135,7 @@ export class HashMapFilm implements FilmWorld {
     let below = 0;
     for (const o of this.slabs.values()) {
       if (o === s) continue;
-      const arrived = o.moves.filter((x) => x.bucket === m.bucket && x.t + x.dur < m.t + m.dur);
+      const arrived = o.moves.filter((x) => x.bucket === m.bucket && (x.t + x.dur < m.t + m.dur || (x.t + x.dur === m.t + m.dur && x.seq < m.seq)));
       if (arrived.length) below += this.presence(o, m.bucket, t);
     }
     return this.world.slot(m.bucket, below);
@@ -193,7 +194,7 @@ export class HashMapFilm implements FilmWorld {
       let tone: SlabTone = 'cyan';
       for (const [a, x] of s.tones) if (t >= a) tone = x;
       s.slab.tone(tone);
-      let label = s.key;
+      let label = s.key.split('#')[0];
       for (const [a, x] of s.labels) if (t >= a) label = x;
       s.slab.relabel(label);
     }

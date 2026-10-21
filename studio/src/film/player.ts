@@ -61,6 +61,7 @@ export function playFilm(stage: Stage, cast: Cast, hud: FrameHud, tl: FilmTimeli
   const shotBeats: Shot[] = [];
   const steps: number[] = [];
   const callouts: [number, number, string, string][] = [];
+  const brands: [number, number][] = [];
 
   for (const beat of beats) {
     const { at } = beat;
@@ -93,6 +94,7 @@ export function playFilm(stage: Stage, cast: Cast, hud: FrameHud, tl: FilmTimeli
     if (beat.shot) shotBeats.push({ a: at, b: NEVER, s: beat.shot });
     if (beat.hud?.step !== undefined) steps[beat.hud.step] = at;
     if (beat.hud?.callout) callouts.push([at, at + (beat.hud.for ?? 1.6), beat.hud.callout, beat.hud.tone ?? '']);
+    if (beat.hud?.brand) brands.push([at, at + (beat.hud.for ?? 6)]);
   }
   shotBeats.forEach((s, i) => { s.b = shotBeats[i + 1]?.a ?? NEVER; });
   const shots = expandAuto(shotBeats, tl.lines);
@@ -138,6 +140,7 @@ export function playFilm(stage: Stage, cast: Cast, hud: FrameHud, tl: FilmTimeli
   const facing = (p: Place | undefined): THREE.Vector3 => (typeof p === 'string' ? world.facing(p) : V(0, 0, 1));
 
   // ---------------------------------------------------------------- the camera
+  const wide = camera.aspect > 1.3;
   const speakerAt = (t: number): Line | undefined => tl.lines.find((l) => t >= l.start - 0.1 && t <= l.end + 0.1);
   const around = (dir: THREE.Vector3, degrees: number) => dir.clone().applyAxisAngle(V(0, 1, 0), deg(degrees));
   function frameShot(s: ShotSpec, k: number, t: number): Framing {
@@ -179,6 +182,12 @@ export function playFilm(stage: Stage, cast: Cast, hud: FrameHud, tl: FilmTimeli
     }
     const push = s.push ?? 0.07;
     f.pos = f.look.clone().add(f.pos.clone().sub(f.look).multiplyScalar(1 - push * smooth(k)));
+    // a wide frame puts a single character on a third, not in the middle
+    if (wide && (s.kind === 'engineer' || s.kind === 'nova')) {
+      const right = f.look.clone().sub(f.pos).cross(V(0, 1, 0)).normalize();
+      const third = Math.tan(deg(f.fov / 2)) * camera.aspect * f.pos.distanceTo(f.look) * 0.36;
+      f.look.addScaledVector(right, ((s.side ?? (s.kind === 'nova' ? -0.5 : 0.4)) >= 0 ? 1 : -1) * third);
+    }
     return f;
   }
 
@@ -275,6 +284,7 @@ export function playFilm(stage: Stage, cast: Cast, hud: FrameHud, tl: FilmTimeli
     else if (hook && t < firstLine + 1.4) hud.callout(hook, '', pulse(t, -1, firstLine + 1.4, 0.3), -1, t);
     else hud.callout(null, '', 0, 0, t);
     hud.end(span(t, end, end + 0.6));
+    hud.brand(Math.max(0, ...brands.map(([a, b]) => pulse(t, a, b, 0.5))));
   };
 
   /** Where a prop is at t: the last place it was put, carried on to each later place on an arc. */
