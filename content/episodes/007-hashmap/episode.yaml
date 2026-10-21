@@ -1,0 +1,379 @@
+# Episode 007 — how Java's HashMap works, from the first jump to the tree that stopped the 2011
+# hash flooding attack. The first long video in the new 3D look (owner's choice of 21 October
+# 2026): the engineer explains to Nova in the HashMap world. The picture is the film
+# studio/films/007-long (dialogue and beats); the segments below carry the same words, for the
+# chapters, the subtitles and the fact check. Out Tuesday 27 October 2026; four HashMap Shorts lead
+# into it (Friday 23 to Monday 26 October) and its flagship reel goes out the same day.
+id: 007-hashmap
+version: 1
+status: draft            # draft | ready_to_render | rendering | rendered | published
+pillar: jvm-java
+series: inside-x
+language: en
+film: studio/films/007-long
+target_versions:
+  java: "25"
+estimated_minutes: 9
+next:                           # shown on the end card of the long video
+  title: "How Postgres Never Blocks: MVCC"
+  teaser: "Readers and writers at the same time, without waiting for each other."
+
+keywords:
+  primary: java hashmap
+  secondary:
+    - how hashmap works internally
+    - hashmap internal working
+    - hashmap treeify
+    - hashmap resize
+    - hashcode and equals
+    - hash collision attack
+
+packaging:
+  titles:                       # ≤ 60 chars; top 2 go to YouTube A/B test
+    - "How Java HashMap Really Works (Buckets, Trees, 2011 Attack)"
+    - "Java HashMap Internals: Hashing, Resize and Treeify"
+    - "Java HashMap and the 2011 Attack That Changed It"
+    - "How Java HashMap Works Internally (Line by Line)"
+    - "Java HashMap: Why One Request Could Freeze a Server"
+  thumbnail_texts:              # 2–4 words, must not repeat the title
+    - "ONE BUCKET. 100% CPU"
+    - "16 → 32 → TREE"
+    - "O(1)… UNTIL IT ISN'T"
+  description: |
+    In December 2011, one crafted web request could keep a server's CPU at 100% for hours, and the
+    weapon was the hash map. Here is how Java's HashMap really works: hashCode and the bit mix, the
+    bucket index, collisions and equals, the 0.75 load factor and the resize that splits every
+    chain by one bit, red-black tree buckets, and the 2011 hash flooding attack they stopped. Four
+    walkthroughs of real Java code, line by line.
+
+    {chapters}
+
+    Previous: design a payment system — {previous_link}
+    Next: how Postgres never blocks (MVCC) — {next_link}
+
+    Sources:
+    {sources}
+  tags:
+    - java hashmap
+    - hashmap internal working
+    - how hashmap works
+    - hashmap in java
+    - hashcode and equals
+    - hashmap resize
+    - hashmap treeify
+    - red black tree
+    - hash collision
+    - hash flooding
+    - java 25
+    - java interview questions
+    - data structures
+    - backend engineering
+  pinned_comment: "Did you know a HashMap bucket can turn into a red-black tree? Which part surprised you most? 👇"
+
+segments:
+  - id: s01
+    title: One request, one CPU at 100%
+    narration: >-
+      December 2011. Two researchers show that one crafted web request can keep a server's CPU at
+      100% for hours. One request? What was inside it? Thousands of form fields. Java, PHP,
+      Python, Ruby: all of them were exposed. And the weapon was the hash map. The hash map? The
+      thing that's supposed to be O(1)? That's the promise they broke. By the end, you'll see
+      exactly how, and why it can't happen the same way today. Every digital frontier begins with
+      an idea. What brings it to life is the engineering beneath it. Welcome to StackNova —
+      exploring the architecture of tomorrow, one system at a time.
+  - id: s02
+    title: What most people picture
+    narration: >-
+      I always pictured a map as a row of lockers. To find user:42, I open locker 0, then 1, then
+      2. That's what most people picture. With ten keys, it's fine. With a million keys, a lookup
+      for a missing key opens a million lockers. That's O(n). So how does a real HashMap skip the
+      search? It never searches. It works out where the key must be, and jumps there.
+  - id: s03
+    title: From key to bucket
+    narration: >-
+      Let's see it in code. This is a small map I wrote that finds keys the same way Java's does.
+      Line 2 asks the key for its hashCode, a 32-bit number. Every Java object has one, and equal
+      objects must return the same number. A String builds its hashCode from its characters,
+      multiplying by 31 at every step. Line 3 mixes the top 16 bits into the bottom 16. A small
+      table only looks at the bottom bits, so without this mix, keys that differ only up high
+      would always collide. And then it picks a bucket? Line 8. The table's size is always a
+      power of two, like 16. hash & (length - 1) keeps only the last 4 bits. For user:42, that's
+      0111: bucket 7. No loop. No search. One jump. That's the O(1).
+  - id: s04
+    title: Two keys, one bucket
+    narration: >-
+      But 16 buckets and a million keys? They can't all get their own locker. They can't. Two
+      keys in one bucket is a collision, and it's normal. The bucket keeps them in a short chain.
+      Here's the lookup. Line one jumps to the bucket. Line two walks its chain, node by node.
+      Line three checks the stored hash first. Comparing two numbers is cheap, so most wrong keys
+      fail right there. Only when the hashes match does it call equals. That's the real
+      comparison, and it decides. Reach the end of the chain with no match, and line 7 returns
+      null. So a lookup is one jump, plus a walk down a short chain. Exactly. And Java works hard
+      to keep that chain short.
+  - id: s05
+    title: Resize without rehashing
+    narration: >-
+      It keeps chains short by growing the table. The rule is the load factor: 0.75. 16 buckets
+      × 0.75 is 12. Put a 13th entry, and the table doubles to 32. Does every key need a new
+      hash then? No. Each node remembers its hash. Here's the resize. Line 3 visits every old
+      bucket. Line 4 walks each chain. And line 6 tests one more bit of the stored hash: the bit
+      worth the old size, 16. 0, and the node stays at the same index. 1, and it moves to the
+      index plus 16. Bucket 7's chain splits between 7 and 23. No new hash codes, and each chain
+      splits into at most two. Power-of-two sizes are what make this so cheap.
+  - id: s06
+    title: When a chain becomes a tree
+    narration: >-
+      What if one bucket still fills up? 8 keys in one locker? Then Java changes the bucket
+      itself. Add a key to a bucket that already holds eight, and the chain becomes a red-black
+      tree. But only once the table has 64 buckets. A smaller table just doubles instead. A
+      balanced tree finds a key in a few hops, O(log n), instead of walking the whole chain. Why
+      8, though? With random hash codes and this load factor, the JDK's own notes put the chance
+      of eight keys in one bucket at about six in a hundred million. Most buckets hold zero or one
+      key. And tree nodes are about twice the size of normal ones. So a tree only pays off when
+      something is wrong: a weak hashCode, or an attack. How do you sort keys in a tree when
+      they're all in one bucket? By hash first. When hashes tie, by compareTo, if the keys are
+      Comparable, like Strings. And when a resize leaves a tree with 6 nodes or fewer, it turns
+      back into a chain.
+  - id: s07
+    title: The 2011 hash flood
+    narration: >-
+      Now, back to 2011. The two researchers presented the attack at the Chaos Communication
+      Congress in Germany. Web servers put every form field of a request into a hash map. Field
+      names are strings. And string hash codes are easy to collide on purpose. Look. "Aa" and
+      "BB" have the same hashCode: 2112. Glue pairs of them together, and every combination
+      collides too. Line 2 starts each round. Lines 5 and 6 add both pairs to every key so far.
+      14 rounds make 16,384 keys, all with one hash. So every field lands in the same bucket! One
+      giant chain. Each new field walks the whole chain before it's added. Twice the fields, four
+      times the work. That's how one request held a CPU for hours. The fix came in two parts.
+      Servers capped how many parameters one request may carry. Tomcat's default today is 10,000.
+      And Java 8 brought tree buckets. Strings are Comparable, so even one giant bucket costs a
+      few hops per key, not the whole chain.
+  - id: s08
+    title: What HashMap costs you
+    narration: >-
+      So HashMap is perfect now? It's great, with a few rules. One: never change a field that
+      equals or hashCode uses while the object is a key. The map filed it under the old hash, and
+      get looks under the new one. Two: it's not thread-safe. If threads change it at the same
+      time, you need outside locking, or use ConcurrentHashMap. Three: no order. Iteration order
+      can even change after a resize. If you need insertion order, use LinkedHashMap. And four:
+      new HashMap<>(100) is a capacity, not room for 100 entries. Since Java 19,
+      HashMap.newHashMap(100) sizes it for you. And memory? Every entry is a node object: a hash,
+      a key, a value and a pointer to the next node. For millions of tiny entries, that overhead
+      adds up.
+  - id: s09
+    title: Recap and what's next
+    narration: >-
+      Recap. The hash code picks a bucket in one jump. Collisions form a short chain, checked by
+      hash, then by equals. At three quarters full, the table doubles, and each chain splits by
+      one bit. A crowded bucket in a big table becomes a tree. And that tree is what stopped the
+      2011 flood. What's next? Saturday: how Postgres lets readers and writers work at the same
+      time without waiting for each other. It's called MVCC. See you there!
+
+# The Shorts and the flagship reel are films of their own (studio/films/<id>), released by hand
+# from studio/films/<id>/post.yaml: part 1 to 4 lead into the episode, the reel goes out with it.
+shorts:
+  - id: short-1
+    source: standalone
+    film: studio/films/007-p1
+    hook_on_screen: "WHERE IS user:42?"
+    script: >-
+      user:42… not in locker 0. Not in 1. Not in 2! Stop. A HashMap never searches. Then how
+      does it find anything? Let me show you what's underneath. Java turns the key into a number,
+      its hashCode, and mixes in the top bits. With 16 buckets, it keeps only the last four bits.
+      0111. Bucket 7. One jump. One jump? No searching at all? None. That's why a lookup is O(1),
+      on average. Uh oh. user:97 just landed in locker 7 too. That can't be legal! It's a
+      collision. The bucket keeps a short chain, and equals finds the right key. And if 8 keys
+      pile up in one bucket? Then Java grows the table, or turns the chain into a tree. That's
+      part two.
+    youtube_title: "HashMap Never Searches: How Java Finds Keys in O(1) #Shorts"
+    instagram_caption: |
+      HashMap never searches. 🔑 Java hashes the key, keeps the last bits, and jumps straight to
+      one bucket. Part 2: what happens when 8 keys pile up in one bucket 🌳
+    pillar_hashtags: jvm-java
+  - id: short-2
+    source: standalone
+    film: studio/films/007-p2
+    hook_on_screen: "8 KEYS. ONE BUCKET."
+    script: >-
+      Locker 7 is jammed! 8 orders, one bucket. Every lookup walks the whole chain! Watch what
+      happens when a ninth one lands. It joins the line? Java wants a tree here. But the table
+      has only 16 buckets, and trees need 64. So it doubles the table instead. 32 lockers! Does
+      every key need a new hash now? No. Each key checks one more bit of the hash it already has.
+      0, it stays in 7. 1, it moves to 23. The long chain splits in two! And once the table has
+      64 buckets, a crowded bucket becomes a red-black tree. Finding a key takes a few hops
+      instead of the whole chain. Trees inside lockers. Nice. Part 3: the key that vanished.
+    youtube_title: "When a HashMap Bucket Becomes a Tree (Java Resize) #Shorts"
+    instagram_caption: |
+      8 keys jam one bucket, a 9th arrives: Java doubles the table (16 → 32) and each key checks
+      one more bit to find its new bucket. At 64+ buckets, a crowded bucket becomes a tree. 🌳
+    pillar_hashtags: jvm-java
+  - id: short-3
+    source: standalone
+    film: studio/films/007-p3
+    hook_on_screen: "get() SAYS NULL"
+    script: >-
+      I put Ana in the map. Now get says null. The map lost her! It didn't. Look. She's still in
+      bucket 3. Then why can't get find her? After you put her in, you changed her email. And
+      email is part of her hashCode. New email, new hash, new bucket. get jumps straight to
+      bucket 8, finds nothing, and gives up. So she's stuck in locker 3 forever? get, containsKey
+      and remove all look in the wrong bucket. Only a full scan still sees her. That's a quiet
+      memory leak. How do I stop it? Never change a field that equals or hashCode uses while the
+      object is a key. Use immutable keys: a String, or a record of immutable values. Part 4: why
+      a HashMap of 100 isn't room for 100.
+    youtube_title: "Java HashMap: get() Says null, Key Is Still There #Shorts"
+    instagram_caption: |
+      get() returned null, but the entry is still in the map. 👻 Change a field hashCode() uses
+      after the put and HashMap looks in the wrong bucket. Use immutable keys.
+    pillar_hashtags: jvm-java
+  - id: short-4
+    source: standalone
+    film: studio/films/007-p4
+    hook_on_screen: "100 ISN'T ROOM FOR 100"
+    script: >-
+      I made a HashMap for 100 users. It still stopped to resize! Because that 100 is a capacity,
+      not how many entries fit. Isn't that the same thing? Java rounds it up to a power of two:
+      128 buckets. But it grows when the map is three quarters full. 75% of 128 is 96. So entry 97
+      doubles everything? Every entry moves to a new table of 256 buckets. Work you never planned
+      for. Since Java 19, ask for HashMap.newHashMap(100). It sizes the table so 100 really fit.
+      Why three quarters, though? Fuller tables mean longer chains. Emptier ones waste memory. The
+      full deep dive on HashMap is out Tuesday.
+    youtube_title: "new HashMap(100) Isn't Room for 100 Entries (Java) #Shorts"
+    instagram_caption: |
+      new HashMap<>(100) resizes at entry 97. 📦 Since Java 19, HashMap.newHashMap(100) sizes the
+      table so 100 entries fit.
+    pillar_hashtags: jvm-java
+  - id: short-5
+    source: standalone
+    film: studio/films/007-reel
+    hook_on_screen: "ONE REQUEST. CPU 100%."
+    script: >-
+      The server is at 100% CPU. And it's all from one request! December 2011. One request like
+      that could keep a CPU busy for hours. Java, PHP, Python, Ruby: all exposed. What's inside
+      it? Thousands of form fields. The server puts every field name into a hash map. And every
+      one of these names has the same hash code. How is that even possible? In Java, "Aa" and "BB"
+      both hash to 2112. Glue pairs together, and every combination collides too. 14 pairs make
+      16,384 keys, all with one hash. So they all land in one bucket! One giant chain. Each new
+      key walks the whole chain before it's added. Twice the keys, four times the work. And the
+      server just chokes? For hours. The fix came in two parts. Servers capped how many
+      parameters one request may carry. And Java 8 changed the bucket itself. A crowded bucket
+      becomes a red-black tree. Even when every key has the same hash? Strings are Comparable,
+      so the tree can still sort them. Each key takes a few hops, not the whole chain. A tree
+      stopped an attack! It capped the damage. How HashMap really works, from the first jump to
+      that tree, is in the full deep dive on our channel.
+    youtube_title: "The 2011 Attack That Froze Servers With One Request #Shorts"
+    instagram_caption: |
+      One web request, 100% CPU for hours. 🧨 Thousands of form fields, all with the same hash
+      code, in one HashMap bucket. Java 8's fix: turn a crowded bucket into a tree.
+    pillar_hashtags: jvm-java
+
+carousel:
+  slides:
+    - {headline: "How HashMap really works", body: "From one jump to the tree that stopped an attack"}
+    - {headline: "1. hashCode() → a number", body: "Equal objects must return the same hashCode"}
+    - {headline: "2. Mix the top bits in", body: "h ^ (h >>> 16): small tables only see the low bits"}
+    - {headline: "3. Pick a bucket", body: "hash & (16 - 1) keeps 4 bits: 0111 → bucket 7. O(1)"}
+    - {headline: "4. Collisions chain", body: "Check the stored hash first, then equals()"}
+    - {headline: "5. 75% full? Double", body: "One more bit splits each chain: stay in 7 or move to 23"}
+    - {headline: "6. Crowded bucket → tree", body: "Only at 64+ buckets: O(log n) instead of O(n)"}
+    - {headline: "7. Why trees exist", body: "2011: colliding keys froze servers. Java 8 capped the damage"}
+    - {headline: "Follow @stacknova.dev", body: "Full deep dive on YouTube: StackNova"}
+
+code_samples:
+  - lang: java
+    path: samples/java/hashmap/MiniMap.java
+    purpose: "A small hash map that finds keys like java.util.HashMap (spread, index, chain, one-bit resize split)"
+    shown_in: [s03, s04, s05]
+  - lang: java
+    path: samples/java/hashmap/Collide.java
+    purpose: "16,384 strings with one hashCode, built from Aa and BB, the raw material of hash flooding"
+    shown_in: [s07]
+  - lang: java
+    path: samples/java/hashmap/VanishingKey.java
+    purpose: "A key whose hashCode changes after put cannot be found, a record key stays findable, and newHashMap (Java 19+)"
+    shown_in: []
+
+sources:
+  - title: "Java SE 25 API — java.util.HashMap"
+    url: https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/HashMap.html
+  - title: "OpenJDK source — java.util.HashMap (implementation notes, constants, hash(), resize, treeifyBin)"
+    url: https://github.com/openjdk/jdk/blob/master/src/java.base/share/classes/java/util/HashMap.java
+  - title: "Java SE 25 API — Object.hashCode"
+    url: https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Object.html#hashCode()
+  - title: "Java SE 25 API — String.hashCode"
+    url: https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/String.html#hashCode()
+  - title: "JEP 180: Handle Frequent HashMap Collisions with Balanced Trees (Java 8)"
+    url: https://openjdk.org/jeps/180
+  - title: "oCERT-2011-003 — multiple implementations denial-of-service via hash algorithm collision"
+    url: https://ocert.org/advisories/ocert-2011-003
+  - title: "28C3 — Effective Denial of Service attacks against web application platforms (Klink, Wälde)"
+    url: https://fahrplan.events.ccc.de/congress/2011/Fahrplan/events/4680.en.html
+  - title: "Apache Tomcat 7 — HTTP connector, maxParameterCount"
+    url: https://tomcat.apache.org/tomcat-7.0-doc/config/http.html
+  - title: "Java SE 25 API — java.util.concurrent.ConcurrentHashMap"
+    url: https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/ConcurrentHashMap.html
+  - title: "Java SE 25 API — java.util.LinkedHashMap"
+    url: https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/LinkedHashMap.html
+
+fact_check:
+  - claim: "oCERT-2011-003 (released 28 December 2011): crafted HTTP requests could drive CPU to 100% for up to several hours; Java, PHP, Python and Ruby were among the affected; the risk comes from servers that do not limit POST parameters"
+    source: https://ocert.org/advisories/ocert-2011-003
+  - claim: "Alexander Klink and Julian Wälde presented the attack at 28C3 (the Chaos Communication Congress, December 2011)"
+    source: https://fahrplan.events.ccc.de/congress/2011/Fahrplan/events/4680.en.html
+  - claim: "HashMap gives constant-time get and put when the hash function spreads keys well; it makes no guarantee about order, which may change over time"
+    source: https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/HashMap.html
+  - claim: "Equal objects must return the same hashCode"
+    source: https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Object.html#hashCode()
+  - claim: "String.hashCode is s[0]*31^(n-1) + ... + s[n-1]: built from the characters with 31 as the multiplier"
+    source: https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/String.html#hashCode()
+  - claim: "hash(key) is h ^ (h >>> 16); with power-of-two masking, hashes that differ only above the mask would always collide"
+    source: https://github.com/openjdk/jdk/blob/master/src/java.base/share/classes/java/util/HashMap.java
+  - claim: "The default capacity is 16 and the default load factor 0.75: the 13th put (size > 12) doubles a 16-bucket table to 32"
+    source: https://github.com/openjdk/jdk/blob/master/src/java.base/share/classes/java/util/HashMap.java
+  - claim: "On a resize each node keeps its stored hash: (hash & oldCap) == 0 stays at j, otherwise moves to j + oldCap"
+    source: https://github.com/openjdk/jdk/blob/master/src/java.base/share/classes/java/util/HashMap.java
+  - claim: "Adding to a bucket with at least 8 nodes (TREEIFY_THRESHOLD) makes it a tree, but a table under 64 buckets (MIN_TREEIFY_CAPACITY) is resized instead; a split bin of 6 or fewer (UNTREEIFY_THRESHOLD) becomes a list again"
+    source: https://github.com/openjdk/jdk/blob/master/src/java.base/share/classes/java/util/HashMap.java
+  - claim: "Under random hashCodes at load factor 0.75, the chance of a bin of 8 is 0.00000006; TreeNodes are about twice the size of regular nodes"
+    source: https://github.com/openjdk/jdk/blob/master/src/java.base/share/classes/java/util/HashMap.java
+  - claim: "Tree bins order keys by hash, then by compareTo when keys are Comparable"
+    source: https://github.com/openjdk/jdk/blob/master/src/java.base/share/classes/java/util/HashMap.java
+  - claim: "JEP 180 (Java 8) turns heavily colliding buckets into balanced trees, improving worst-case behaviour for Comparable keys"
+    source: https://openjdk.org/jeps/180
+  - claim: "\"Aa\".hashCode() == \"BB\".hashCode() == 2112; joining pairs gives 2^n strings with one hashCode (14 pairs: 16,384 keys)"
+    source: "derived from code sample samples/java/hashmap/Collide.java"
+  - claim: "user:42 spreads to -147149897, whose last 4 bits are 0111: bucket 7 of 16; user:97 also lands in bucket 7"
+    source: "derived from code sample samples/java/hashmap/MiniMap.java"
+  - claim: "Tomcat's maxParameterCount defaults to 10,000"
+    source: https://tomcat.apache.org/tomcat-7.0-doc/config/http.html
+  - claim: "HashMap is not synchronized: concurrent structural changes need outside synchronization; ConcurrentHashMap is the concurrent map"
+    source: https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/HashMap.html
+  - claim: "LinkedHashMap keeps insertion order"
+    source: https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/LinkedHashMap.html
+  - claim: "new HashMap<>(100) rounds the capacity up to 128 and resizes after 96 entries; HashMap.newHashMap(int), since Java 19, sizes a map so the expected mappings fit without a resize"
+    source: https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/HashMap.html
+  - claim: "Each HashMap node holds a hash, a key, a value and a next pointer"
+    source: https://github.com/openjdk/jdk/blob/master/src/java.base/share/classes/java/util/HashMap.java
+
+story_ref: public-writeup-28c3-hash-flooding   # public write-ups retold in our own words (owner's choice, 14 Oct 2026)
+
+localizations:
+  hi:
+    title: "Java HashMap अंदर से कैसे काम करता है (Buckets, Trees, 2011 Attack)"
+    description: "2011 में एक request किसी server का CPU घंटों 100% पर रख सकती थी, और हथियार था hash map। Java के HashMap की पूरी कहानी: hashCode, bucket index, collisions और equals, 0.75 load factor और resize, red-black tree buckets, और वह attack जिसे इन्होंने रोका — Java कोड के साथ।"
+  es:
+    title: "Cómo funciona de verdad el HashMap de Java (buckets, árboles, 2011)"
+    description: "En 2011, una sola petición web podía mantener la CPU de un servidor al 100% durante horas, y el arma era el hash map. Cómo funciona el HashMap de Java: hashCode, el índice del bucket, colisiones y equals, el load factor 0.75 y el resize, buckets en árbol rojo-negro, y el ataque que detuvieron. Con código Java."
+  pt:
+    title: "Como o HashMap do Java funciona de verdade (buckets, árvores, 2011)"
+    description: "Em 2011, uma única requisição web podia manter a CPU de um servidor em 100% por horas, e a arma era o hash map. Como o HashMap do Java funciona: hashCode, o índice do bucket, colisões e equals, o load factor 0.75 e o resize, buckets em árvore rubro-negra, e o ataque que eles pararam. Com código Java."
+  id:
+    title: "Cara Kerja HashMap Java Sebenarnya (Bucket, Tree, Serangan 2011)"
+    description: "Tahun 2011, satu request web bisa membuat CPU server 100% berjam-jam, dan senjatanya adalah hash map. Cara kerja HashMap Java: hashCode, indeks bucket, collision dan equals, load factor 0.75 dan resize, bucket red-black tree, dan serangan yang mereka hentikan. Dengan kode Java."
+  vi:
+    title: "HashMap trong Java thực sự hoạt động thế nào (bucket, tree, 2011)"
+    description: "Năm 2011, một request web có thể giữ CPU của server ở mức 100% hàng giờ, và vũ khí là hash map. HashMap của Java hoạt động ra sao: hashCode, chỉ số bucket, collision và equals, load factor 0.75 và resize, bucket dạng cây đỏ-đen, và cuộc tấn công chúng đã ngăn chặn. Kèm code Java."
+  ar:
+    title: "كيف يعمل HashMap في Java فعلًا (Buckets وTrees وهجوم 2011)"
+    description: "في 2011 كان طلب ويب واحد يُبقي معالج الخادم عند 100% لساعات، وكان السلاح هو hash map. كيف يعمل HashMap في Java: hashCode وفهرس الـ bucket والتصادمات وequals وload factor 0.75 والـ resize وbuckets الشجرة الحمراء-السوداء، والهجوم الذي أوقفته. مع كود Java."
+
+next_episode: 008-postgres-mvcc

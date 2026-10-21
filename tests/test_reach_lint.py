@@ -121,6 +121,12 @@ def test_a_standalone_short_needs_a_visual_before_rendering(episode: Data, reach
     assert found(lint_episode(episode, reach), "short-visual") == [("warning", "short-2")]
 
 
+def test_a_short_that_is_a_film_needs_no_flat_visual(episode: Data, reach: Data) -> None:
+    del episode["shorts"][1]["visual"]
+    episode["shorts"][1]["film"] = "studio/films/007-p2"
+    assert found(lint_episode(episode, reach), "short-visual") == []
+
+
 def test_a_shorts_visual_is_checked_against_its_script(episode: Data, reach: Data) -> None:
     episode["shorts"][1]["visual"]["steps"][0]["at"] = "never said"
     assert found(lint_episode(episode, reach), "step-anchor") == [

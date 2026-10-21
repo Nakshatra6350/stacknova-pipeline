@@ -76,10 +76,14 @@ def _emphasis_in_narration(episode: Episode, reach: Reach) -> Iterator[Finding]:
 
 
 def _visual_units(episode: Episode) -> Iterator[tuple[str, Any, str]]:
-    """(owner id, visual, spoken text) for every segment and every Short that has a visual."""
+    """(owner id, visual, spoken text) for every segment and every Short that has a visual.
+
+    A film episode's segments have none: the film's beat sheet draws the picture.
+    """
     narrations = {segment["id"]: segment["narration"] for segment in episode["segments"]}
     for segment in episode["segments"]:
-        yield segment["id"], segment["visual"], segment["narration"]
+        if "visual" in segment:
+            yield segment["id"], segment["visual"], segment["narration"]
     for short in episode["shorts"]:
         if "visual" not in short:
             continue
@@ -126,7 +130,7 @@ def _visual_stage(episode: Episode, reach: Reach) -> Iterator[Finding]:
 def _short_visual(episode: Episode, reach: Reach) -> Iterator[Finding]:
     level = _gate_level(episode)
     for short in episode["shorts"]:
-        if short["source"] == "standalone" and "visual" not in short:
+        if short["source"] == "standalone" and "visual" not in short and "film" not in short:
             yield Finding(
                 level,
                 "short-visual",

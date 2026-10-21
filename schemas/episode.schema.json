@@ -39,9 +39,12 @@
       ]
     }
   },
+  "if": {"not": {"required": ["film"]}},
+  "then": {"properties": {"segments": {"items": {"required": ["visual"]}}}},
   "properties": {
     "id": {"type": "string", "pattern": "^[0-9]{3}-[a-z0-9-]+$"},
     "theme": {"type": "string", "description": "name of a theme in config/themes.yaml; omit to use the rotation"},
+    "film": {"type": "string", "pattern": "^studio/films/[a-z0-9-]+$", "description": "the long video is a 3D film (look v3, owner's choice of 21 October 2026): its picture comes from the film's beat sheet, so segments carry the narration only"},
     "next": {
       "description": "The next episode, shown on the outro of the long video.",
       "type": "object",
@@ -80,7 +83,7 @@
       "minItems": 3,
       "items": {
         "type": "object",
-        "required": ["id", "title", "narration", "visual"],
+        "required": ["id", "title", "narration"],
         "properties": {
           "id": {"type": "string", "pattern": "^s[0-9]{2}$"},
           "title": {"type": "string", "maxLength": 60},
@@ -106,7 +109,8 @@
           "instagram_caption": {"type": "string", "maxLength": 2200},
           "pillar_hashtags": {"type": "string"},
           "theme": {"type": "string", "description": "theme for this Short; omit to use the rotation"},
-          "visual": {"$ref": "#/$defs/visual", "description": "required for a standalone Short before it can render; a cut Short reuses its segments' visuals"}
+          "visual": {"$ref": "#/$defs/visual", "description": "required for a standalone Short before it can render; a cut Short reuses its segments' visuals"},
+          "film": {"type": "string", "pattern": "^studio/films/[a-z0-9-]+$", "description": "a Short that is a 3D film: its picture comes from the film"}
         }
       }
     },

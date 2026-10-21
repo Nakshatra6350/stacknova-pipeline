@@ -114,3 +114,24 @@ def test_episode_001_validates_as_a_draft(
     out = capsys.readouterr().out
     assert "warning [story-placeholder] s09" in out
     assert " error [" not in out
+
+
+def test_a_film_episode_needs_no_flat_visuals(
+    tmp_path: Path, episode: Data, repo_root: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # a 3D film (studio/films/<id>) draws the picture; segments carry the narration only
+    episode["film"] = "studio/films/007-long"
+    for segment in episode["segments"]:
+        del segment["visual"]
+    for short in episode["shorts"]:
+        short.pop("visual", None)
+        short["film"] = "studio/films/007-p1"
+    assert run(repo_root, write_episode(tmp_path, episode)) == 0
+
+
+def test_without_a_film_every_segment_needs_a_visual(
+    tmp_path: Path, episode: Data, repo_root: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    del episode["segments"][0]["visual"]
+    assert run(repo_root, write_episode(tmp_path, episode)) == 1
+    assert "'visual' is a required property" in capsys.readouterr().out
