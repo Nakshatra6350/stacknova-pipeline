@@ -27,7 +27,7 @@ packaging:
   titles:                       # ≤ 60 chars; top 2 go to YouTube A/B test
     - "Retry Storms: How Retries Take Down Healthy Systems"
     - "Retry Storm Explained: Backoff, Jitter, Circuit Breakers"
-    - "Retry Storms, Animated (and the 4 Habits That Stop Them)"
+    - "Retry Storms (and the 4 Habits That Stop Them)"
     - "Retry Storm Fixes in Node.js, Line by Line"
     - "Retry Storms: Why Your Retries Are the Outage"
   thumbnail_texts:              # 2–4 words, must not repeat the title
@@ -666,7 +666,7 @@ carousel:
     - {headline: "Back off, with jitter", body: "Wait a random time between 0 and an exponential ceiling"}
     - {headline: "Budget your retries", body: "A token per retry, a tenth back per success"}
     - {headline: "Break the circuit", body: "Fail fast while it's down, then send one probe"}
-    - {headline: "Follow @stacknova.dev", body: "Animated deep dive on YouTube: StackNova"}
+    - {headline: "Follow @stacknova.dev", body: "Full deep dive on YouTube: StackNova"}
 
 code_samples:
   - lang: node

@@ -28,7 +28,7 @@ packaging:
   titles:                       # ≤ 60 chars; top 2 go to YouTube A/B test
     - "Design a Payment System (Senior System Design Interview)"
     - "Payment System Design: Ledger, Idempotency, Webhooks"
-    - "Payment System Design, Animated: Never Charge Twice"
+    - "Payment System Design: Never Charge Twice"
     - "How Payment Systems Really Work (System Design)"
     - "Payment System Design in Node.js, Line by Line"
   thumbnail_texts:              # 2–4 words, must not repeat the title
@@ -724,7 +724,7 @@ carousel:
     - {headline: "A state machine", body: "created → pending → authorized → captured, one guarded step at a time"}
     - {headline: "Timeout ≠ failed", body: "Keep it pending; retry with the same key"}
     - {headline: "Ledger + reconciliation", body: "Entries sum to zero · checked against the provider daily"}
-    - {headline: "Follow @stacknova.dev", body: "Animated deep dive on YouTube: StackNova"}
+    - {headline: "Follow @stacknova.dev", body: "Full deep dive on YouTube: StackNova"}
 
 code_samples:
   - lang: node

@@ -12,7 +12,7 @@ alone (owner, 15 Oct 2026, with the new welcome line); Go 1.27 is current.
 ```
 Backend, distributed systems and system design, explained from the inside.
 
-StackNova breaks down how real systems work: databases, queues, distributed systems, Java, Go, Node.js and system design interviews. Every video uses animated diagrams, working code and the failure modes you only meet in production.
+StackNova breaks down how real systems work: databases, queues, distributed systems, Java, Go, Node.js and system design interviews. Every video walks through the real mechanism with diagrams, working code and the failure modes you only meet in production.
 
 What you can count on:
 • Every claim backed by official docs, RFCs or source code, with links in the description
@@ -37,7 +37,7 @@ Instagram: @stacknova.dev
 
 ```
 Backend · Distributed systems · System design
-Explained from the inside, animated
+Explained from the inside
 Sourced. Current. No fluff.
 New deep dive Tue & Sat ↓
 ```

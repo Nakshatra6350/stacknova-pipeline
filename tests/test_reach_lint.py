@@ -1,8 +1,10 @@
 """One passing and one failing case per rule in channel_os.reach.lint."""
 
+from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 
 from channel_os.reach.lint import Finding, lint_episode
 
@@ -199,3 +201,19 @@ def test_narration_outside_the_word_range_is_a_warning(episode: Data, reach: Dat
     assert [(f.level, f.where, f.message) for f in findings] == [
         ("warning", "segments", "narration is 18 words, target is 1100-2200")
     ]
+
+
+def test_a_banned_word_in_packaging_or_a_short_is_an_error(episode: Data, reach: Data) -> None:
+    reach["quality_gates"]["banned_words"] = ["animat"]
+    episode["packaging"]["titles"][1] = "Idempotency, Animated"
+    episode["shorts"][0]["youtube_title"] = "Retries in animation #Shorts"
+    assert found(lint_episode(episode, reach), "banned-words") == [
+        ("error", "packaging.titles[1]"),
+        ("error", "short-1.youtube_title"),
+    ]
+
+
+def test_the_owner_bans_animated_in_the_reach_config() -> None:
+    reach = yaml.safe_load((Path(__file__).parent.parent / "config" / "reach.yaml")
+                           .read_text(encoding="utf-8"))
+    assert "animat" in reach["quality_gates"]["banned_words"]

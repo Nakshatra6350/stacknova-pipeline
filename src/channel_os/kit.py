@@ -125,12 +125,12 @@ def kit_data(episode: Mapping[str, Any], reach: Mapping[str, Any], brand: Mappin
         shorts.append({
             "id": sid, "video": f"preview.{sid}.mp4", "seconds": round(durations.get(sid, 0)),
             "subtitles": f"{sid}.en.srt", "title": short["youtube_title"],
-            "description": (f"{short['hook_on_screen']}\n\nThe full animated deep dive: "
+            "description": (f"{short['hook_on_screen']}\n\nThe full deep dive: "
                             f"{link(eid)}\n\n#Shorts " + " ".join(tags[:3]))})
         reels.append({
             "id": sid, "video": f"reel.{sid}.mp4",  # the Reel cut: it asks for a Follow
             "caption": (str(short["instagram_caption"]).rstrip()
-                        + "\n\nThe full animated deep dive is on YouTube: StackNova (link in bio)."
+                        + "\n\nThe full deep dive is on YouTube: StackNova (link in bio)."
                         f"\nFollow {instagram} for two deep dives a week.\n\n" + " ".join(tags))})
     slides = (episode.get("carousel") or {}).get("slides") or []
     carousel = None
@@ -139,7 +139,7 @@ def kit_data(episode: Mapping[str, Any], reach: Mapping[str, Any], brand: Mappin
         carousel = {
             "slides": [f"carousel-{n:02}.jpg" for n in range(1, len(slides) + 1)],
             "caption": (f"{first['headline']}: {first['body']}. Swipe through, then save it for "
-                        "your next system design interview.\n\nThe full animated deep dive is "
+                        "your next system design interview.\n\nThe full deep dive is "
                         f"on YouTube: StackNova (link in bio).\nFollow {instagram} for more.\n\n"
                         + " ".join(long_tags))}
     return {

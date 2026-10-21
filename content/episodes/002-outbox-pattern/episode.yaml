@@ -29,7 +29,7 @@ packaging:
     - "Outbox Pattern Explained: Never Lose an Event Again"
     - "Outbox Pattern: The Fix for the Dual-Write Bug"
     - "Outbox Pattern in Java, Line by Line"
-    - "Transactional Outbox Pattern, Animated"
+    - "Transactional Outbox Pattern, Step by Step"
   thumbnail_texts:              # 2–4 words, must not repeat the title
     - "EVENT LOST?"
     - "2 WRITES = 1 BUG"
@@ -778,7 +778,7 @@ carousel:
     - {headline: "Flip the order? Still 2 writes", body: "Now a crash sends an event for a payment that never happened"}
     - {headline: "The outbox: 1 transaction", body: "UPDATE payments + INSERT INTO outbox, then COMMIT"}
     - {headline: "A relay publishes, at least once", body: "So every consumer must be idempotent"}
-    - {headline: "Follow @stacknova.dev", body: "Animated deep dive on YouTube: StackNova"}
+    - {headline: "Follow @stacknova.dev", body: "Full deep dive on YouTube: StackNova"}
 
 code_samples:
   - lang: java

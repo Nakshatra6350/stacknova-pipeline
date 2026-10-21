@@ -229,6 +229,33 @@ def _word_count(episode: Episode, reach: Reach) -> Iterator[Finding]:
         )
 
 
+def _texts(value: Any, where: str) -> Iterator[tuple[str, str]]:
+    """Every string inside a value, with the path it sits at."""
+    if isinstance(value, str):
+        yield where, value
+    elif isinstance(value, Mapping):
+        for key, item in value.items():
+            yield from _texts(item, f"{where}.{key}")
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            yield from _texts(item, f"{where}[{index}]")
+
+
+def _banned_words(episode: Episode, reach: Reach) -> Iterator[Finding]:
+    """Words the owner never wants in packaging: titles, descriptions, captions, slides."""
+    banned = [_norm(word) for word in reach["quality_gates"].get("banned_words") or []]
+    places = [("packaging", episode["packaging"]), ("carousel", episode.get("carousel")),
+              ("localizations", episode.get("localizations"))]
+    places += [(short["id"], {key: short.get(key) for key in
+                              ("hook_on_screen", "youtube_title", "instagram_caption")})
+               for short in episode["shorts"]]
+    for name, value in places:
+        for where, text in _texts(value, name):
+            hits = [word for word in banned if word in _norm(text)]
+            if hits:
+                yield Finding("error", "banned-words", where, f'contains "{hits[0]}"')
+
+
 Rule = Callable[[Episode, Reach], Iterator[Finding]]
 
 RULES: tuple[Rule, ...] = (
@@ -244,6 +271,7 @@ RULES: tuple[Rule, ...] = (
     _hook_words,
     _keyword_position,
     _word_count,
+    _banned_words,
 )
 
 

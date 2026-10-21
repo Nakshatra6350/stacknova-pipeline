@@ -26,7 +26,7 @@
   mastery_source: 05-databases/postgres
   status: next
 - id: 005-raft
-  title: Raft consensus, animated step by step
+  title: Raft consensus, step by step
   pillar: distributed-systems
   keyword: {term: distributed systems explained, searches: 4350, competition: 18}
   mastery_source: 08-distributed-systems/06-consensus-raft.html

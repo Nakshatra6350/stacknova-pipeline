@@ -34,3 +34,6 @@ quality_gates:
   short_visual_change_max_gap_s: 4
   hook_max_seconds: 2
   min_ctr_before_swap: 0.04
+  # Never in a title, description, caption, hook or slide (owner, 21 October 2026). Matched
+  # case-insensitively as a part of a word, so "animat" also catches "animation".
+  banned_words: [animat]

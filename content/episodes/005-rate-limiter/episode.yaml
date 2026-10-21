@@ -28,7 +28,7 @@ packaging:
   titles:                       # ≤ 60 chars; top 2 go to YouTube A/B test
     - "Design a Rate Limiter (System Design Interview)"
     - "Rate Limiter System Design: Token Bucket vs Sliding Window"
-    - "Rate Limiter Design, Animated: Redis, Lua, 429"
+    - "Rate Limiter Design: Redis, Lua, 429"
     - "Rate Limiter in Java and Redis, Line by Line"
     - "Rate Limiter: The System Design Answer That Gets Hired"
   thumbnail_texts:              # 2–4 words, must not repeat the title
@@ -651,7 +651,7 @@ carousel:
     - {headline: "Pick an algorithm", body: "Fixed window · sliding window counter · token bucket"}
     - {headline: "Share it atomically", body: "One Lua script in Redis: read, refill, take, write"}
     - {headline: "Say no clearly", body: "429 Too Many Requests + Retry-After"}
-    - {headline: "Follow @stacknova.dev", body: "Animated deep dive on YouTube: StackNova"}
+    - {headline: "Follow @stacknova.dev", body: "Full deep dive on YouTube: StackNova"}
 
 code_samples:
   - lang: java

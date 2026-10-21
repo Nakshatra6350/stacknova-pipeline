@@ -28,7 +28,7 @@ packaging:
   titles:                       # ≤ 60 chars; top 2 go to YouTube A/B test
     - "What Is Apache Kafka? Topics, Partitions, Consumer Groups"
     - "Apache Kafka Explained: Where Duplicate Messages Come From"
-    - "Apache Kafka, Animated: How Messages Really Flow"
+    - "Apache Kafka: How Messages Really Flow"
     - "Apache Kafka Consumer Groups and Offsets, Explained"
     - "Apache Kafka Is Not a Queue (and Why That Matters)"
   thumbnail_texts:              # 2–4 words, must not repeat the title
@@ -37,7 +37,7 @@ packaging:
     - "THE LOG WINS"
   description: |
     Your outbox published each event once, and the ledger still applied one twice. Kafka didn't
-    break: it's a log, not a queue. Topics, partitions, offsets and consumer groups, animated,
+    break: it's a log, not a queue. Topics, partitions, offsets and consumer groups, step by step,
     with a producer and a consumer in Go, and the exact moment a duplicate is born.
 
     {chapters}
@@ -664,7 +664,7 @@ carousel:
     - {headline: "Partitions split the work", body: "Same key → same partition → same order"}
     - {headline: "Groups share partitions", body: "Each partition: one consumer per group, its own offset"}
     - {headline: "Duplicates are born here", body: "Crash between apply and commit → replay. Be idempotent."}
-    - {headline: "Follow @stacknova.dev", body: "Animated deep dive on YouTube: StackNova"}
+    - {headline: "Follow @stacknova.dev", body: "Full deep dive on YouTube: StackNova"}
 
 code_samples:
   - lang: go
@@ -723,7 +723,7 @@ story_ref: public-postmortem-slack-job-queue   # public engineering write-up (ow
 localizations:
   hi:
     title: "Apache Kafka क्या है? Topics, Partitions, Consumer Groups"
-    description: "Kafka एक queue नहीं, एक log है। Topics, partitions, offsets और consumer groups को animation के साथ समझिए, Go में producer और consumer के साथ — और जानिए duplicate message ठीक किस पल पैदा होता है।"
+    description: "Kafka एक queue नहीं, एक log है। Topics, partitions, offsets और consumer groups को step by step समझिए, Go में producer और consumer के साथ — और जानिए duplicate message ठीक किस पल पैदा होता है।"
   es:
     title: "¿Qué es Apache Kafka? Topics, particiones y grupos"
     description: "Kafka no es una cola: es un log. Topics, particiones, offsets y grupos de consumidores, animados, con un productor y un consumidor en Go, y el momento exacto en que nace un mensaje duplicado."
