@@ -1,4 +1,4 @@
-﻿// Materials and canvas helpers for the StackNova look: cel shading, ink outlines, calm glow.
+// Materials and canvas helpers for the StackNova look: cel shading, ink outlines, calm glow.
 import * as THREE from 'three';
 
 export const PALETTE = {

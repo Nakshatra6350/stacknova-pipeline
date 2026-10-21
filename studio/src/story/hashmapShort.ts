@@ -76,7 +76,10 @@ export function hashmapShort(stage: Stage, cast: Cast, hud: FrameHud, tl: Timeli
   const keyFlight = (t: number) => flight.getPoint(smoother(span(t, ev.seven - 0.9, ev.jump - 0.05)));
 
   // ------------------------------------------------------------------ the cast's moves
-  const E = V(0.45, 0, 1.3), NOVA_HOME = V(-0.25, 1.48, 1.35);
+  // framing follows the engineer's real head height (a VRoid model is not exactly 180 cm)
+  engineer.apply({ t: 0, position: V(), yaw: 0 }); engineer.root.updateMatrixWorld(true);
+  const HK = clamp(engineer.headWorld().y / 1.6, 0.8, 1.2);
+  const E = V(0.45, 0, 1.3), NOVA_HOME = V(-0.25, 1.48 * HK, 1.35);
   const WALK: [number, number] = [ev.open2 - 0.2, L.e1.start + 1.9], WALK_FROM = V(1.2, 0, -1.6);
   const engAt = (t: number) => WALK_FROM.clone().lerp(E, smoother(span(t, WALK[0], WALK[1])));
   const engHead = () => engineer.headWorld();
@@ -91,12 +94,12 @@ export function hashmapShort(stage: Stage, cast: Cast, hud: FrameHud, tl: Timeli
     const near7 = world.front(7, 0.75, 1.5).addScaledVector(side7, -0.45);
     if (t < L.e5.start + 0.3) return NOVA_HOME.clone().lerp(near7, smoother(span(t, ev.seven - 0.6, ev.jump + 0.2)));
     if (t < ev.drop + 0.4) return near7.clone().lerp(NOVA_HOME, smoother(span(t, L.e5.start + 0.3, L.e5.start + 1.6)));
-    const scared = V(0.0, 1.45, 1.95);
+    const scared = V(0.0, 1.45 * HK, 1.95);
     if (t < L.e6.start) return NOVA_HOME.clone().lerp(scared, smoother(span(t, ev.drop + 0.4, ev.drop + 1.0)))
       .add(V(Math.sin(t * 41) * 0.008 * pulse(t, L.n4.start, L.n4.end), 0, 0));
     const peek = world.front(7, 0.9, 1.95).addScaledVector(side7, -0.62);
     if (t < ev.end) return scared.clone().lerp(peek, smoother(span(t, L.e6.start, L.e6.start + 1.3)));
-    return peek.clone().lerp(V(-0.2, 1.45, 1.45), smoother(span(t, ev.end, ev.end + 0.9)));
+    return peek.clone().lerp(V(-0.2, 1.45 * HK, 1.45), smoother(span(t, ev.end, ev.end + 0.9)));
   }
 
   const mouthOf = (who: 'engineer' | 'nova', t: number) => {
@@ -180,7 +183,7 @@ export function hashmapShort(stage: Stage, cast: Cast, hud: FrameHud, tl: Timeli
       ['explain', L.n2.start, L.n2.end], ['wave', ev.end + 0.5, 99],
     ]);
     return {
-      t, position: p, yaw: yawTo(lookAt) * 0.7, lookAt, expression: expr, mouth: mouthOf('nova', t), blink: blinkAt(t, 1.71),
+      t, position: p, yaw: yawTo(lookAt) * (t < L.e1.start ? 1 : 0.7), lookAt, expression: expr, mouth: mouthOf('nova', t), blink: blinkAt(t, 1.71),
       gesture: g, hop: expr === 'sparkle' || expr === 'celebrate' ? Math.abs(Math.sin(t * 8)) * 0.04 : 0,
       tilt: expr === 'confused' ? 0.22 : 0,
     };
@@ -191,21 +194,21 @@ export function hashmapShort(stage: Stage, cast: Cast, hud: FrameHud, tl: Timeli
   const shots: Shot[] = [
     [0, 2.3, (k) => ({ pos: V(0.3, 2.6, 5.4).lerp(V(-1.1, 1.9, 3.1), smoother(k)), look: V(0, 1.0, -2.4).lerp(V(-2.5, 1.0, -1.4), smoother(k)), fov: 42 })],
     [2.3, 5.2, (_k, t) => { const n = novaPos(t), f = world.buckets[1].front, s = V(f.z, 0, -f.x);
-      return { pos: n.clone().addScaledVector(f, 0.95).addScaledVector(s, 1.25).add(V(0, 0.12, 0)), look: n.clone().addScaledVector(f, -0.3).add(V(0, -0.12, 0)), fov: 40 }; }],
+      return { pos: world.buckets[1].pos.clone().addScaledVector(f, -1.5).addScaledVector(s, 0.25).setY(1.3), look: n.clone().add(V(0, -0.08, 0)), fov: 40 }; }],
     [5.2, 8.55, (k, t) => { const w = engAt(t);
-      return { pos: V(0.95, 0.6, 5.0).lerp(V(0.8, 0.8, 4.3), smooth(k)), look: V(w.x * 0.85, 1.2, w.z), fov: 36 }; }],
-    [8.55, 11.3, (k) => ({ pos: V(0.12, 1.5, 4.0).lerp(V(0.12, 1.48, 3.65), smooth(k)), look: V(0.12, 1.36, 1.3), fov: 34 })],
-    [11.3, ev.vision, (k) => ({ pos: V(0.66, 1.64, 2.6).lerp(V(0.6, 1.63, 2.32), smooth(k)), look: V(0.45, 1.58, 1.3), fov: 30 })],
-    [ev.vision, L.e3.start + 0.2, (k) => ({ pos: V(0.6, 1.63, 2.32).lerp(V(-0.4, 2.3, 4.3), easeOut(k)), look: V(0.45, 1.58, 1.3).lerp(V(0, 1.3, -1.2), easeOut(k)), fov: lerp(30, 40, easeOut(k)) })],
+      return { pos: V(0.95, 0.6, 5.0).lerp(V(0.8, 0.8, 4.3), smooth(k)), look: V(w.x * 0.85, 1.2 * HK, w.z), fov: 36 }; }],
+    [8.55, 11.3, (k) => ({ pos: V(0.12, 1.5 * HK, 4.0).lerp(V(0.12, 1.48 * HK, 3.65), smooth(k)), look: V(0.12, 1.36 * HK, 1.3), fov: 34 })],
+    [11.3, ev.vision, (k) => ({ pos: V(0.66, 1.64 * HK, 2.6).lerp(V(0.6, 1.63 * HK, 2.32), smooth(k)), look: V(0.45, 1.58 * HK, 1.3), fov: 30 })],
+    [ev.vision, L.e3.start + 0.2, (k) => ({ pos: V(0.6, 1.63 * HK, 2.32).lerp(V(-0.4, 2.3, 4.3), easeOut(k)), look: V(0.45, 1.58 * HK, 1.3).lerp(V(0, 1.3, -1.2), easeOut(k)), fov: lerp(30, 40, easeOut(k)) })],
     [L.e3.start + 0.2, L.e4.start + 0.1, (k) => { const a = lerp(deg(24), deg(-10), smooth(k));
       return { pos: V(C.x + Math.sin(a) * 2.2, 1.62, C.z + Math.cos(a) * 2.2), look: C.clone().add(V(0, 0.26, 0)), fov: 40 }; }],
     [L.e4.start + 0.1, ev.seven - 0.95, (k) => ({ pos: V(0.1, 1.78, C.z + 2.4).lerp(V(0.05, 1.72, C.z + 2.05), smooth(k)), look: C.clone().add(V(0, lerp(0.42, 0.5, k), 0)), fov: 40 })],
     [ev.seven - 0.95, ev.jump + 0.45, (_k, t) => { const p = keyFlight(t), ahead = keyFlight(t + 0.25);
       const back = p.clone().sub(ahead); if (back.lengthSq() < 1e-6) back.set(0, 0, 1); back.normalize();
-      return { pos: p.clone().addScaledVector(back, 1.7).add(V(0.25, 0.35, 0)), look: ahead.clone().lerp(top7, 0.45), fov: 44 }; }],
+      return { pos: p.clone().addScaledVector(back, 1.8).add(V(0.25, 0.12, 0)).setY(Math.max(1.5, p.y + 0.1)), look: ahead.clone().lerp(top7, 0.45).setY(Math.max(1.3, ahead.y - 0.05)), fov: 40 }; }],
     [ev.jump + 0.45, L.e5.start, (k, t) => { const n = novaPos(t);
       return { pos: n.clone().add(V(0.75, 0.05, 1.35 - k * 0.15)), look: n.clone().lerp(world.slot(7, 1), 0.3), fov: 38 }; }],
-    [L.e5.start, ev.drop, (k) => ({ pos: V(1.15, 1.52, 3.7).lerp(V(0.98, 1.5, 3.35), smooth(k)), look: V(0.35, 1.35, 1.3), fov: 34 })],
+    [L.e5.start, ev.drop, (k) => ({ pos: V(1.15, 1.52 * HK, 3.7).lerp(V(0.98, 1.5 * HK, 3.35), smooth(k)), look: V(0.35, 1.35 * HK, 1.3), fov: 34 })],
     [ev.drop, ev.drop + 2.1, (k) => ({ pos: world.front(7, lerp(2.3, 2.0, smooth(k)), 1.25).addScaledVector(side7, 0.3), look: world.front(7, 0, 0.92), fov: 40 })],
     [ev.drop + 2.1, L.e6.start, (k, t) => { const n = novaPos(t);
       return { pos: n.clone().add(V(0.22, 0.06, 0.95 - k * 0.12)), look: n.clone().add(V(0, -0.03, 0)), fov: 34 }; }],
@@ -213,7 +216,7 @@ export function hashmapShort(stage: Stage, cast: Cast, hud: FrameHud, tl: Timeli
     [L.n5.start, L.e7.start + 0.4, (k) => ({ pos: world.front(7, lerp(2.7, 4.6, smooth(k)), lerp(2.12, 1.5, k)).addScaledVector(side7, 0.25), look: world.front(7, 0.3, lerp(2.06, 1.25, smooth(k))), fov: 42 })],
     [L.e7.start + 0.4, ev.end, (k) => { const c = world.front(7, 0.3, 1.85); const a = lerp(deg(-16), deg(14), smooth(k));
       return { pos: c.clone().addScaledVector(B7.front, 4.0 * Math.cos(a)).addScaledVector(side7, 4.0 * Math.sin(a)).add(V(0, 0.3, 0)), look: c, fov: 40 }; }],
-    [ev.end, 999, (k) => ({ pos: V(0.15, 1.5, 4.5).lerp(V(0.15, 1.46, 4.15), smooth(k)), look: V(0.15, 1.22, 1.3), fov: 36 })],
+    [ev.end, 999, (k) => ({ pos: V(0.24, 1.5 * HK, 4.6).lerp(V(0.24, 1.46 * HK, 4.25), smooth(k)), look: V(0.2, 1.22 * HK, 1.3), fov: 36 })],
   ];
 
   const STEPS: [number, number][] = [[0.55, ev.vision], [ev.vision, L.e4.start], [L.e4.start, ev.drop], [ev.drop, L.e7.start], [L.e7.start, ev.end]];
@@ -332,6 +335,5 @@ export function hashmapShort(stage: Stage, cast: Cast, hud: FrameHud, tl: Timeli
     const co = callouts.find(([, , a, b]) => t >= a && t <= b);
     hud.callout(co ? co[0] : null, co ? co[1] : '', co ? pulse(t, co[2], co[3], 0.2) : 0, co ? co[2] : 0, t);
     hud.end(span(t, ev.end, ev.end + 0.6));
-    void clamp;
   };
 }

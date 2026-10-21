@@ -1,9 +1,9 @@
-﻿// The HashMap world: 16 glass tubes (the buckets of a HashMap with the default capacity) in an arc,
+// The HashMap world: 16 glass tubes (the buckets of a HashMap with the default capacity) in an arc,
 // numbered, on dark pedestals; keys stack inside them as labelled slabs. A dark city with soft
 // lights stands far behind. System Vision brightens the structure a little; it never glares.
 import * as THREE from 'three';
 import { PALETTE, toon, glow, Card, canvasTex, roundRect, MONO } from '../util/look';
-import { clamp, deg, lerp, rng, V } from '../util/math';
+import { deg, lerp, rng, V } from '../util/math';
 
 export type BucketTone = 'idle' | 'active' | 'alarm' | 'searched';
 
@@ -171,8 +171,8 @@ export class HashMapWorld {
     b.tone = tone;
     const [r, g, bl] = RIM[tone];
     b.rims.color.setRGB(r, g, bl);
-    b.glass.color.setHex(tone === 'active' ? 0x8a6a30 : tone === 'alarm' ? 0x8a3040 : 0x1a3a5c);
-    b.glass.opacity = tone === 'idle' || tone === 'searched' ? 0.2 : 0.16;
+    b.glass.color.setHex(tone === 'alarm' ? 0x5a2a3c : 0x1a3a5c);
+    b.glass.opacity = 0.2;
     b.label.set({ tone });
   }
 
@@ -191,6 +191,5 @@ export class HashMapWorld {
       pos.setXYZ(i, this.moteBase[i * 3], y, this.moteBase[i * 3 + 2]);
     }
     pos.needsUpdate = true;
-    for (const b of this.buckets) b.glass.opacity = clamp(b.glass.opacity, 0.18, 0.34);
   }
 }

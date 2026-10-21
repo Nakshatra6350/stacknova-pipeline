@@ -59,7 +59,7 @@ def page_for(play, timeline):
     page.on("console", lambda msg: errors.append(msg.text) if msg.type == "error" else None)
     page.on("pageerror", lambda exc: errors.append(str(exc)))
     page.route(f"{BASE}/**", serve)
-    mode = "lab" if "cam" in timeline else "render"
+    mode = "render" if "lines" in timeline else "lab"
     page.goto(f"{BASE}/index.html?mode={mode}")
     page.wait_for_function("typeof window.boot === 'function'", timeout=60000)
     page.evaluate("tl => window.boot(tl)", timeline)

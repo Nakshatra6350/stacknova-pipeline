@@ -38,13 +38,24 @@ if (mode === 'lab') {
     const { HashMapWorld } = await import('./world/hashmapWorld');
     new HashMapWorld(stage.scene);
     const cast = await loadCast();
+    (window as unknown as { cast: unknown }).cast = cast;
     stage.scene.add(cast.engineer.root, cast.nova.root);
     const { V } = await import('./util/math');
+    // camHead: the camera relative to the engineer's head (and looking at it), for face close-ups
+    // whatever the model's height; gesture.target and look may be given as [x, y, z]
+    const vec = (a: unknown) => (Array.isArray(a) ? V(...(a as [number, number, number])) : undefined);
     draw = (t) => {
-      cast.engineer.apply({ t, position: V(...(lab.engineer?.pos ?? [0, 0, 0])), yaw: lab.engineer?.yaw ?? 0, ...lab.engineer, ...(lab.engineer?.look ? { lookAt: V(...lab.engineer.look) } : {}) });
-      cast.nova.apply({ t, position: V(...(lab.nova?.pos ?? [0.5, 1.4, 0])), yaw: lab.nova?.yaw ?? 0, ...lab.nova });
-      stage.camera.position.set(...(lab.cam as [number, number, number])); stage.camera.fov = lab.fov ?? 30; stage.camera.aspect = 1080 / 1920;
-      stage.camera.updateProjectionMatrix(); stage.camera.lookAt(V(...lab.look));
+      const e = lab.engineer ?? {};
+      const gesture = e.gesture ? { ...e.gesture, target: vec(e.gesture.target) } : undefined;
+      cast.engineer.apply({ t, ...e, position: vec(e.pos) ?? V(), yaw: e.yaw ?? 0, gesture, lookAt: vec(e.look) ?? null });
+      const n = lab.nova ?? {};
+      cast.nova.apply({ t, ...n, position: vec(n.pos) ?? V(0.5, 1.4, 0), yaw: n.yaw ?? 0, lookAt: vec(n.look) ?? null });
+      stage.scene.updateMatrixWorld(true);
+      const head = cast.engineer.headWorld();
+      const cam = lab.camHead ? head.clone().add(vec(lab.camHead)!) : vec(lab.cam)!;
+      const look = lab.camHead ? head : vec(lab.look)!;
+      stage.camera.position.copy(cam); stage.camera.fov = lab.fov ?? 30; stage.camera.aspect = 1080 / 1920;
+      stage.camera.updateProjectionMatrix(); stage.camera.lookAt(look);
       stage.render();
     };
     return true;

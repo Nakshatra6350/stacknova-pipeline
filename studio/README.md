@@ -51,10 +51,36 @@ src/
 Every movement is a pure function of time, so any frame can be drawn on its own; that is what
 lets the video be drawn in parallel parts.
 
-## Replacing the characters with production models
+## The engineer: a VRoid model (VRM)
 
-The engineer and Nova here are built from code: they move and talk, but they are a stylised
-prototype, not the painted look of the reference sheet. To use a real rigged model, export it as
+The engineer is meant to be a real rigged anime model made in VRoid Studio (steps for the owner:
+`docs/VROID_ENGINEER.md`). `src/characters/vrm.ts` loads it with GLTFLoader and the VRM plugin
+(`@pixiv/three-vrm`) and poses its humanoid bones from the story every frame: walking, breathing,
+arms reaching to point, explain, touch the glasses and present the key, head and eye turns,
+blinking, lip-sync from the voice, expressions, and the model's own hair physics (settled over a
+second whenever time jumps, so video parts match). If the model has no glasses or backpack, the
+studio adds them (`glasses`, `backpack`); the glasses are centred on the model's eye bones and set
+on the face surface. Camera framing follows the model's head height.
+
+Point the studio at the model with `public/local/characters.json` (git ignores that folder; the
+model is kept in the private content repository):
+
+```json
+{ "engineer": { "kind": "vrm", "url": "local/engineer.vrm", "glasses": true, "backpack": true },
+  "nova": { "kind": "procedural" } }
+```
+
+Check it against the reference sheet (six views: front, three-quarter, face, side, beside Nova,
+pointing at the HashMap), after `npm run build`:
+
+```bash
+python studio/scripts/validate_character.py "reference-sheet.webp" out/character-check.png
+```
+
+## Replacing the characters with other models
+
+The code-built engineer and Nova move and talk, but the engineer is only a stylised placeholder,
+not the painted look of the reference sheet. To use another rigged model, export it as
 `.glb` (for example a VRoid Studio character converted in Blender with the VRM add-on, or a model
 from a 3D artist), put it in `public/models/`, and describe it in `public/characters.json`:
 

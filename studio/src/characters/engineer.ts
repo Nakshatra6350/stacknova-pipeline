@@ -1,4 +1,4 @@
-﻿// The StackNova engineer, built in code to the owner's reference sheet (October 2026): a slim
+// The StackNova engineer, built in code to the owner's reference sheet (October 2026): a slim
 // young adult (about 180 cm), messy black hair with blue highlights, glasses, the black SN hoodie
 // with cyan details, cargo pants, sneakers, a backpack and a watch. Cel shading with ink lines;
 // the face is drawn on a canvas so it can blink, talk and change expression on any frame.

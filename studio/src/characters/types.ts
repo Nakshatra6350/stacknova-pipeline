@@ -63,11 +63,17 @@ export interface CharacterRig {
 
 /** How a character is drawn: built in code, or a rigged glTF model. */
 export interface CharacterConfig {
-  kind: 'procedural' | 'gltf';
+  kind: 'procedural' | 'gltf' | 'vrm';
   /** gltf: model URL, the name of its bones, its clips and its face morphs. */
   url?: string;
   scale?: number;
   bones?: Partial<Record<'hips' | 'spine' | 'chest' | 'neck' | 'head' | 'rightArm' | 'rightForeArm' | 'rightHand' | 'leftArm' | 'leftForeArm' | 'leftHand', string>>;
   clips?: Partial<Record<'idle' | 'walk' | Gesture, string>>;
   morphs?: Partial<Record<'blink' | 'mouth' | Expression, string>>;
+  /** vrm: add glasses / a backpack when the model has none, and tune the glasses' fit. */
+  glasses?: boolean;
+  glassesOffset?: [number, number, number];
+  glassesScale?: number;
+  backpack?: boolean;
+  rim?: number;
 }

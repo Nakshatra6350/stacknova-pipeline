@@ -34,9 +34,9 @@
 .frame .cap .line span.now { color: var(--cyan); }
 .frame .foot { position: absolute; left: 0; top: 1720px; width: 1080px; height: 200px; background: #060a14; }
 
-.frame .end { position: absolute; inset: 300px 0 auto 0; height: 1160px; display: flex; flex-direction: column; justify-content: flex-start; align-items: center; padding-top: 70px; opacity: 0; }
-.frame .end .kicker { font: 700 28px/1 "JetBrains Mono", monospace; letter-spacing: 0.2em; color: var(--cyan); background: rgba(6, 10, 20, 0.75); padding: 10px 16px; border-radius: 10px; }
-.frame .end .head { margin-top: 20px; font: 800 92px/1.02 "Inter Display", sans-serif; text-align: center; color: var(--text); background: rgba(6, 10, 20, 0.75); padding: 12px 26px; border-radius: 18px; }
+.frame .end { position: absolute; left: 0; top: 0; width: 1080px; height: 300px; display: flex; flex-direction: column; justify-content: center; align-items: center; background: linear-gradient(#060a14, #08101f); opacity: 0; }
+.frame .end .kicker { font: 700 26px/1 "JetBrains Mono", monospace; letter-spacing: 0.2em; color: var(--cyan); }
+.frame .end .head { margin-top: 16px; font: 800 70px/1.04 "Inter Display", sans-serif; text-align: center; color: var(--text); }
 .frame .cap .follow { position: absolute; left: 64px; right: 64px; top: 70px; text-align: center; opacity: 0; }
 .frame .cap .follow span { display: inline-block; font: 800 50px/1 "Inter Display", sans-serif; color: #04121c; background: var(--cyan); padding: 26px 46px; border-radius: 18px; }
 .frame .dim { position: absolute; left: 0; top: 300px; width: 1080px; height: 1160px; background: #000; opacity: 0; pointer-events: none; }

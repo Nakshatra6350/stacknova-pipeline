@@ -66,7 +66,6 @@ export class FrameHud {
   end(k: number): void {
     this.q('.end').style.opacity = String(k);
     this.q('.cap .follow').style.opacity = String(k);
-    this.q('.dim').style.opacity = String(k * 0.25);
     if (k > 0) { this.q('.cap .line').style.opacity = String(1 - k); this.q('.cap .who').style.opacity = String(1 - k); }
   }
 
