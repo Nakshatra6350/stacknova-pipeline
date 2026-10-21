@@ -1,0 +1,258 @@
+# Episode 007, the long video: how Java's HashMap works, told by the engineer and Nova in the
+# HashMap world (owner's choice of 21 October 2026: long videos in the new 3D look too). Out
+# Tuesday 27 October 2026. Packaging, sources and the fact check are in
+# content/episodes/007-hashmap/episode.yaml; the code walkthroughs show its samples/java/hashmap.
+#
+# `segment` marks where a chapter begins (the chapters of the video and of its subtitles).
+id: 007-long
+format: long
+world: hashmap
+title: HASHMAP
+episode: EP 007
+steps: [THE FLOOD, BUCKETS, CHAINS, GROWING, TREES, THE FIX, COSTS]
+end: {kicker: "NEXT · SATURDAY", head: "How Postgres never blocks:\nMVCC", cta: next}
+music: 0.32
+
+lines:
+  # s01 hook: the 2011 hash flood
+  - id: e1
+    who: engineer
+    segment: s01
+    say: "December 2011. Two researchers show that one crafted web request can keep a server's CPU at a hundred percent for hours."
+    show: "December 2011. Two researchers show that one crafted web request can keep a server's CPU at 100% for hours."
+  - id: n1
+    who: nova
+    say: "One request? What was inside it?"
+  - id: e2
+    who: engineer
+    say: "Thousands of form fields. Java, PHP, Python, Ruby: all of them were exposed. And the weapon was the hash map."
+  - id: n2
+    who: nova
+    say: "The hash map? The thing that's supposed to be O of one?"
+    show: "The hash map? The thing that's supposed to be O(1)?"
+  - id: e3
+    who: engineer
+    say: "That's the promise they broke. By the end, you'll see exactly how, and why it can't happen the same way today."
+  - id: w1
+    who: engineer
+    speed: 1.15
+    after: 0.6
+    say: "Every digital frontier begins with an idea. What brings it to life is the engineering beneath it. Welcome to StackNova, exploring the architecture of tomorrow, one system at a time."
+    show: "Every digital frontier begins with an idea. What brings it to life is the engineering beneath it. Welcome to StackNova — exploring the architecture of tomorrow, one system at a time."
+
+  # s02 the naive model: a map searches its lockers
+  - id: n3
+    who: nova
+    segment: s02
+    say: "I always pictured a map as a row of lockers. To find user forty-two, I open locker zero, then one, then two."
+    show: "I always pictured a map as a row of lockers. To find user:42, I open locker 0, then 1, then 2."
+  - id: e4
+    who: engineer
+    say: "That's what most people picture. With ten keys, it's fine."
+  - id: e5
+    who: engineer
+    say: "With a million keys, a lookup for a missing key opens a million lockers. That's O of n."
+    show: "With a million keys, a lookup for a missing key opens a million lockers. That's O(n)."
+  - id: n4
+    who: nova
+    say: "So how does a real HashMap skip the search?"
+  - id: e6
+    who: engineer
+    say: "It never searches. It works out where the key must be, and jumps there."
+
+  # s03 the real mechanism: from key to bucket (walkthrough 1)
+  - id: e7
+    who: engineer
+    segment: s03
+    say: "Let's see it in code. This is a small map I wrote that finds keys the same way Java's does."
+  - id: e8
+    who: engineer
+    say: "Line two asks the key for its hash code, a thirty-two bit number. Every Java object has one, and equal objects must return the same number."
+    show: "Line 2 asks the key for its hashCode, a 32-bit number. Every Java object has one, and equal objects must return the same number."
+  - id: e8a
+    who: engineer
+    say: "A string builds its hash code from its characters, multiplying by thirty-one at every step."
+    show: "A String builds its hashCode from its characters, multiplying by 31 at every step."
+  - id: e9
+    who: engineer
+    say: "Line three mixes the top sixteen bits into the bottom sixteen. A small table only looks at the bottom bits, so without this mix, keys that differ only up high would always collide."
+    show: "Line 3 mixes the top 16 bits into the bottom 16. A small table only looks at the bottom bits, so without this mix, keys that differ only up high would always collide."
+  - id: n5
+    who: nova
+    say: "And then it picks a bucket?"
+  - id: e10
+    who: engineer
+    say: "Line eight. The table's size is always a power of two, like sixteen. Hash and table length minus one keeps only the last four bits. For user forty-two, that's zero one one one: bucket seven."
+    show: "Line 8. The table's size is always a power of two, like 16. hash & (length - 1) keeps only the last 4 bits. For user:42, that's 0111: bucket 7."
+  - id: e11
+    who: engineer
+    say: "No loop. No search. One jump. That's the O of one."
+    show: "No loop. No search. One jump. That's the O(1)."
+
+  # s04 collisions: the chain and equals (walkthrough 2)
+  - id: n6
+    who: nova
+    segment: s04
+    say: "But sixteen buckets and a million keys? They can't all get their own locker."
+    show: "But 16 buckets and a million keys? They can't all get their own locker."
+  - id: e12
+    who: engineer
+    say: "They can't. Two keys in one bucket is a collision, and it's normal. The bucket keeps them in a short chain."
+  - id: e13
+    who: engineer
+    say: "Here's the lookup. Line one jumps to the bucket. Line two walks its chain, node by node."
+  - id: e14
+    who: engineer
+    say: "Line three checks the stored hash first. Comparing two numbers is cheap, so most wrong keys fail right there."
+  - id: e15
+    who: engineer
+    say: "Only when the hashes match does it call equals. That's the real comparison, and it decides."
+  - id: e16
+    who: engineer
+    say: "Reach the end of the chain with no match, and line seven returns null."
+    show: "Reach the end of the chain with no match, and line 7 returns null."
+  - id: n7
+    who: nova
+    say: "So a lookup is one jump, plus a walk down a short chain."
+  - id: e17
+    who: engineer
+    say: "Exactly. And Java works hard to keep that chain short."
+
+  # s05 growing: load factor, doubling, the one-bit split (walkthrough 3)
+  - id: e18
+    who: engineer
+    segment: s05
+    say: "It keeps chains short by growing the table. The rule is the load factor: zero point seven five."
+    show: "It keeps chains short by growing the table. The rule is the load factor: 0.75."
+  - id: e19
+    who: engineer
+    say: "Sixteen buckets times zero point seven five is twelve. Put a thirteenth entry, and the table doubles to thirty-two."
+    show: "16 buckets × 0.75 is 12. Put a 13th entry, and the table doubles to 32."
+  - id: n8
+    who: nova
+    say: "Does every key need a new hash then?"
+  - id: e20
+    who: engineer
+    say: "No. Each node remembers its hash. Here's the resize."
+  - id: e21
+    who: engineer
+    say: "Line three visits every old bucket. Line four walks each chain. And line six tests one more bit of the stored hash: the bit worth the old size, sixteen."
+    show: "Line 3 visits every old bucket. Line 4 walks each chain. And line 6 tests one more bit of the stored hash: the bit worth the old size, 16."
+  - id: e22
+    who: engineer
+    say: "Zero, and the node stays at the same index. One, and it moves to the index plus sixteen. Bucket seven's chain splits between seven and twenty-three."
+    show: "0, and the node stays at the same index. 1, and it moves to the index plus 16. Bucket 7's chain splits between 7 and 23."
+  - id: e23
+    who: engineer
+    say: "No new hash codes, and each chain splits into at most two. Power-of-two sizes are what make this so cheap."
+
+  # s06 trees: when a chain becomes a red-black tree
+  - id: n9
+    who: nova
+    segment: s06
+    say: "What if one bucket still fills up? Eight keys in one locker?"
+    show: "What if one bucket still fills up? 8 keys in one locker?"
+  - id: e24
+    who: engineer
+    say: "Then Java changes the bucket itself. Add a key to a bucket that already holds eight, and the chain becomes a red-black tree."
+  - id: e25
+    who: engineer
+    say: "But only once the table has sixty-four buckets. A smaller table just doubles instead."
+    show: "But only once the table has 64 buckets. A smaller table just doubles instead."
+  - id: e26
+    who: engineer
+    say: "A balanced tree finds a key in a few hops, O of log n, instead of walking the whole chain."
+    show: "A balanced tree finds a key in a few hops, O(log n), instead of walking the whole chain."
+  - id: n9a
+    who: nova
+    say: "Why eight, though?"
+    show: "Why 8, though?"
+  - id: e26a
+    who: engineer
+    say: "With random hash codes and this load factor, the JDK's own notes put the chance of eight keys in one bucket at about six in a hundred million. Most buckets hold zero or one key."
+  - id: e26b
+    who: engineer
+    say: "And tree nodes are about twice the size of normal ones. So a tree only pays off when something is wrong: a weak hash code, or an attack."
+    show: "And tree nodes are about twice the size of normal ones. So a tree only pays off when something is wrong: a weak hashCode, or an attack."
+  - id: n10
+    who: nova
+    say: "How do you sort keys in a tree when they're all in one bucket?"
+  - id: e27
+    who: engineer
+    say: "By hash first. When hashes tie, by compare to, if the keys are comparable, like strings. And when a resize leaves a tree with six nodes or fewer, it turns back into a chain."
+    show: "By hash first. When hashes tie, by compareTo, if the keys are Comparable, like Strings. And when a resize leaves a tree with 6 nodes or fewer, it turns back into a chain."
+
+  # s07 the production story: the 2011 hash flood (walkthrough 4)
+  - id: e28
+    who: engineer
+    segment: s07
+    say: "Now, back to 2011. The two researchers presented the attack at the Chaos Communication Congress in Germany."
+  - id: e29
+    who: engineer
+    say: "Web servers put every form field of a request into a hash map. Field names are strings. And string hash codes are easy to collide on purpose."
+  - id: e30
+    who: engineer
+    say: "Look. Big A small a, and big B big B, have the same hash code: two thousand one hundred and twelve. Glue pairs of them together, and every combination collides too."
+    show: "Look. \"Aa\" and \"BB\" have the same hashCode: 2112. Glue pairs of them together, and every combination collides too."
+  - id: e31
+    who: engineer
+    say: "Line two starts each round. Lines five and six add both pairs to every key so far. Fourteen rounds make sixteen thousand three hundred and eighty-four keys, all with one hash."
+    show: "Line 2 starts each round. Lines 5 and 6 add both pairs to every key so far. 14 rounds make 16,384 keys, all with one hash."
+  - id: n11
+    who: nova
+    say: "So every field lands in the same bucket!"
+  - id: e32
+    who: engineer
+    say: "One giant chain. Each new field walks the whole chain before it's added. Twice the fields, four times the work. That's how one request held a CPU for hours."
+  - id: e33
+    who: engineer
+    say: "The fix came in two parts. Servers capped how many parameters one request may carry. Tomcat's default today is ten thousand."
+    show: "The fix came in two parts. Servers capped how many parameters one request may carry. Tomcat's default today is 10,000."
+  - id: e34
+    who: engineer
+    say: "And Java 8 brought tree buckets. Strings are comparable, so even one giant bucket costs a few hops per key, not the whole chain."
+    show: "And Java 8 brought tree buckets. Strings are Comparable, so even one giant bucket costs a few hops per key, not the whole chain."
+
+  # s08 trade-offs: what HashMap costs you
+  - id: n12
+    who: nova
+    segment: s08
+    say: "So HashMap is perfect now?"
+  - id: e35
+    who: engineer
+    say: "It's great, with a few rules. One: never change a field that equals or hash code uses while the object is a key. The map filed it under the old hash, and get looks under the new one."
+    show: "It's great, with a few rules. One: never change a field that equals or hashCode uses while the object is a key. The map filed it under the old hash, and get looks under the new one."
+  - id: e36
+    who: engineer
+    say: "Two: it's not thread-safe. If threads change it at the same time, you need outside locking, or use ConcurrentHashMap."
+  - id: e37
+    who: engineer
+    say: "Three: no order. Iteration order can even change after a resize. If you need insertion order, use LinkedHashMap."
+  - id: e38
+    who: engineer
+    say: "And four: new HashMap of a hundred is a capacity, not room for a hundred entries. Since Java nineteen, HashMap dot new HashMap sizes it for you."
+    show: "And four: new HashMap<>(100) is a capacity, not room for 100 entries. Since Java 19, HashMap.newHashMap(100) sizes it for you."
+  - id: n13
+    who: nova
+    say: "And memory?"
+  - id: e39
+    who: engineer
+    say: "Every entry is a node object: a hash, a key, a value and a pointer to the next node. For millions of tiny entries, that overhead adds up."
+
+  # s09 recap and next
+  - id: e40
+    who: engineer
+    segment: s09
+    say: "Recap. The hash code picks a bucket in one jump. Collisions form a short chain, checked by hash, then by equals."
+  - id: e41
+    who: engineer
+    say: "At three quarters full, the table doubles, and each chain splits by one bit. A crowded bucket in a big table becomes a tree. And that tree is what stopped the 2011 flood."
+  - id: n14
+    who: nova
+    say: "What's next?"
+  - id: e42
+    who: engineer
+    say: "Saturday: how Postgres lets readers and writers work at the same time without waiting for each other. It's called MVCC."
+  - id: n15
+    who: nova
+    say: "See you there!"

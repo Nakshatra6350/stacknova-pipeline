@@ -1,0 +1,24 @@
+# What to paste when posting HashMap part 3 by hand.
+name: HashMap part 3
+title: "Java HashMap: get() Says null, Key Is Still There #Shorts"
+description: |
+  Change a field that hashCode() uses after you put the key, and HashMap looks in the wrong bucket forever. The entry is still there: a quiet memory leak.
+
+  Part 3 of 4. The full HashMap deep dive is out Tuesday 27 October.
+
+  #Shorts #java #javadeveloper #backenddeveloper #codinginterview
+caption: |
+  get() returned null. The entry is still in the map. 👻
+
+  1️⃣ HashMap stores each key's hash at the moment you put it.
+  2️⃣ Then you changed a field that hashCode() uses: her email.
+  3️⃣ New email, new hash, new bucket: get() jumps to bucket 8 and finds nothing.
+  4️⃣ The entry still sits in bucket 3. get, containsKey and remove all miss it. Only a full scan sees it: a quiet memory leak.
+
+  The fix: never change a field that equals() or hashCode() uses while the object is a key. Use immutable keys: a String, or a record of immutable values.
+
+  Part 4: why new HashMap<>(100) isn't room for 100
+  Save this before your next code review 📌
+  Have you ever hit this bug in production? 👇
+
+  #java #jvm #backenddeveloper #javadeveloper #softwareengineering

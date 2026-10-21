@@ -5,6 +5,8 @@
     python studio/scripts/render.py join AUDIO.wav OUT.mp4 PART.mp4 ...
 
 `part` draws frames FIRST..LAST-1 without sound; `join` puts the parts in order and adds the sound.
+`--variant short` (YouTube: "Subscribe for ...") or `--variant reel` (Instagram: "Follow for ...",
+the default) picks the end card's call to action. A long film (format: long) is drawn 1920 x 1080.
 
 studio/dist is served from memory under http://studio.test/ and opened with ?mode=render.
 On CI (no GPU) Chrome draws WebGL with SwiftShader. Needs Playwright (the `scenes` group).
@@ -23,7 +25,7 @@ from pathlib import Path
 DIST = Path(__file__).resolve().parents[1] / "dist"
 BASE = "http://studio.test"
 FPS = 30
-W, H = 1080, 1920
+VARIANT = "reel"
 SOFTWARE_GL = ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"]
 ENCODE = ["-c:v", "libx264", "-preset", "medium", "-crf", "17", "-pix_fmt", "yuv420p",
           "-color_range", "tv", "-colorspace", "bt709", "-color_primaries", "bt709",
@@ -52,9 +54,15 @@ def serve(route) -> None:
     route.fulfill(status=200, body=file.read_bytes(), headers={"content-type": kind})
 
 
+def size(timeline) -> tuple[int, int]:
+    return (1920, 1080) if timeline.get("film", {}).get("format") == "long" else (1080, 1920)
+
+
 def page_for(play, timeline):
     browser = launch(play)
-    page = browser.new_page(viewport={"width": W, "height": H})
+    width, height = size(timeline)
+    timeline = {**timeline, "variant": VARIANT}
+    page = browser.new_page(viewport={"width": width, "height": height})
     errors: list[str] = []
     page.on("console", lambda msg: errors.append(msg.text) if msg.type == "error" else None)
     page.on("pageerror", lambda exc: errors.append(str(exc)))
@@ -133,6 +141,10 @@ def join(audio: Path, out: Path, parts: list[Path]) -> None:
 
 
 if __name__ == "__main__":
+    for arg in list(sys.argv):
+        if arg.startswith("--variant="):
+            VARIANT = arg.split("=", 1)[1]
+            sys.argv.remove(arg)
     mode = sys.argv[1]
     if mode == "stills":
         stills(Path(sys.argv[2]), Path(sys.argv[3]), [float(x) for x in sys.argv[4:]])

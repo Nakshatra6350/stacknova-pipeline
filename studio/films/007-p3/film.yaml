@@ -53,3 +53,162 @@ lines:
     who: engineer
     say: "Part four: why a HashMap of a hundred isn't room for a hundred."
     show: "Part 4: why a HashMap of 100 isn't room for 100."
+
+hook: "get() SAYS NULL"
+events:
+  miss: e3.eight
+
+sfx:
+  - {at: 0.6, sound: whip, gain: 0.6}
+  - {at: 1.1, sound: thud, gain: 0.6}
+  - {at: n1.null, sound: alarm, gain: 0.4}
+  - {at: e1.look-0.2, sound: vision, gain: 0.8}
+  - {at: e2.changed, sound: pop, gain: 0.8}
+  - {at: miss-0.5, sound: whip, gain: 0.6}
+  - {at: miss, sound: thud, gain: 0.7}
+  - {at: e4.scan, sound: rise, gain: 0.8}
+  - {at: e4.leak, sound: alarm, gain: 0.35}
+  - {at: e5.record, sound: ding, gain: 0.5}
+
+props:
+  probe: {kind: key, text: "ana@corp.dev"}
+  x8: {kind: mark, text: x}
+  nul: {kind: label, text: "null", sub: "get(ana)", tone: red}
+  user:
+    kind: code
+    file: User.java
+    code: |
+      class User {
+        String email;            // can change
+        public int hashCode() {
+          return email.hashCode();
+        }
+      }
+  was: {kind: label, text: "mail.com → 3", sub: "her hash when she was put", tone: amber}
+  now: {kind: label, text: "corp.dev → 8", sub: "the hash get looks with", tone: red}
+  miss: {kind: label, text: "get · containsKey · remove", sub: "all look in bucket 8", tone: red, size: 0.6}
+  leak: {kind: label, text: "memory leak", sub: "only a full scan sees her", tone: red}
+  fix:
+    kind: code
+    file: User.java
+    code: |
+      record User(String email) {}   // fields are final
+      map.put(new User("ana@mail.com"), ana);
+  ok: {kind: mark, text: check}
+
+beats:
+  - at: -1
+    shot: {kind: look, at: "bucket:8", dist: 2.4, height: 0.4, angle: -8}
+    nova: {to: "front:8:1.3:1.5", dur: 0.01, face: confused, look: "top:8"}
+    hud: {step: 0}
+    world:
+      - {put: ana@mail.com, bucket: 3, tone: amber}
+      - {put: dev@mail.com, bucket: 3}
+      - {put: ben@corp.dev, bucket: 1}
+      - {put: dev@work.io, bucket: 5}
+      - {put: dev@corp.dev, bucket: 10}
+      - {put: omar@inbox.net, bucket: 12}
+      - {put: gus@work.io, bucket: 13}
+      - {relabel: ana@mail.com, text: ana@corp.dev}
+  # get looks in bucket 8 and finds nothing
+  - at: 0.2
+    prop: {id: probe, place: "front:8:1.2:2.6"}
+  - at: 0.55
+    prop: {id: probe, to: "top:8", dur: 0.55, arc: 0.1}
+  - at: 1.1
+    prop: [{id: probe, hide: true}, {id: x8, place: "front:8:0.5:1.75"}]
+    world: {bucket: 8, tone: alarm}
+  - at: n1.null-0.2
+    prop: {id: nul, place: "front:8:0.6:2.25"}
+    nova: {face: panic, gesture: panic}
+    until: n1>
+  # she's still in bucket 3
+  - at: e1-0.9
+    shot: {kind: engineer, side: 0.4}
+    engineer: {enter: true, face: calm}
+    nova: {to: nova.home, dur: 1.0, face: confused}
+    prop: [{id: x8, hide: true}, {id: nul, hide: true}]
+    world: {bucket: 8, tone: idle}
+  - at: e1.look
+    engineer: {vision: true}
+  - at: e1.still-0.2
+    shot: {kind: look, at: "bucket:3", dist: 2.3, height: 0.35, angle: 8}
+    world: {bucket: 3, tone: active}
+    hud: {step: 1, callout: "STILL HERE", tone: amber, for: 1.4}
+  - at: n2
+    shot: {kind: nova, side: -0.5}
+    nova: {face: confused}
+  # her email changed after the put, and email is in hashCode
+  - at: e2
+    shot: {kind: engineer, side: -0.3}
+    engineer: {gesture: explain, face: focus}
+    until: e2.changed
+  - at: e2.changed-0.4
+    shot: {kind: look, at: "slot:3:0", dist: 1.7, height: 0.25, angle: 5}
+    world: {relabel: ana@mail.com, text: ana@mail.com}
+  - at: e2.changed
+    world: [{relabel: ana@mail.com, text: ana@corp.dev}, {key: ana@mail.com, tone: red}]
+    hud: {step: 2}
+  - at: e2.email#2-0.2
+    shot: {kind: look, prop: user, dist: 1.75, height: 0.05}
+    prop: {id: user, place: "front:3:1.0:2.25", type: true, dur: 1.2}
+  - at: e2.hash
+    prop: {id: user, state: {hl: 3}}
+  # new hash, new bucket: get goes to 8 and gives up
+  - at: e3
+    shot: {kind: look, at: "front:5:1.0:2.25", dist: 2.6, height: 0.2}
+    prop: [{id: user, hide: true}, {id: was, place: "front:3:0.9:2.3"}]
+  - at: e3.hash
+    prop: {id: now, place: "front:8:0.9:2.3"}
+    hud: {callout: "3 → 8", tone: red, for: 1.4}
+  - at: miss-0.6
+    shot: {kind: look, at: "bucket:8", dist: 2.4, height: 0.5, angle: -6}
+    prop: [{id: was, hide: true}, {id: now, hide: true}, {id: probe, place: "front:8:1.2:2.6"}]
+  - at: miss-0.4
+    prop: {id: probe, to: "top:8", dur: 0.45, arc: 0.1}
+  - at: miss
+    prop: [{id: probe, hide: true}, {id: x8, place: "front:8:0.5:1.75"}]
+    world: {bucket: 8, tone: alarm}
+    hud: {step: 3}
+  - at: n3
+    shot: {kind: nova, side: 0.4}
+    nova: {to: "front:3:1.2:1.5", dur: 1.2, face: squint, look: "slot:3:0"}
+    prop: {id: x8, hide: true}
+  # only a full scan sees her: a quiet memory leak
+  - at: e4
+    shot: {kind: look, at: "front:6:1.0:2.25", dist: 2.8, height: 0.2}
+    prop: {id: miss, place: "front:6:0.9:2.3"}
+  - at: e4.scan-0.3
+    shot: {kind: wide, from: -6, to: 8, dist: 7.4}
+    prop: {id: miss, hide: true}
+    world: [{scan: true}, {bucket: 8, tone: idle}, {key: ana@mail.com, tone: green}]
+  - at: e4.leak-0.4
+    shot: {kind: look, at: "bucket:3", dist: 2.5, height: 0.4, angle: 10}
+    prop: {id: leak, place: "front:3:0.9:2.35"}
+    world: {key: ana@mail.com, tone: red}
+  - at: n4
+    shot: {kind: two, side: -0.3}
+    nova: {to: nova.home, dur: 1.0, face: confused}
+    prop: {id: leak, hide: true}
+  # never change what equals and hashCode use; immutable keys
+  - at: e5
+    shot: {kind: engineer, side: 0.4}
+    engineer: {face: focus, gesture: explain}
+    hud: {step: 4}
+    until: e5.immutable
+  - at: e5.immutable-0.3
+    shot: {kind: look, prop: fix, dist: 1.7, height: 0.05}
+    prop: {id: fix, place: "stage", type: true, dur: 1.4}
+    hud: {callout: "IMMUTABLE KEYS", tone: green, for: 1.8}
+  - at: e5.record
+    prop: [{id: fix, state: {hl: 0}}, {id: ok, place: [0.62, 1.95, 0.4]}]
+  - at: e6
+    shot: {kind: engineer, side: -0.3}
+    engineer: {face: smirk}
+    nova: {face: happy}
+    prop: [{id: fix, hide: true}, {id: ok, hide: true}]
+  - at: end
+    shot: {kind: two, side: 0.2, dist: 2.6}
+    nova: {face: celebrate, gesture: wave}
+    engineer: {face: smile, gesture: thumbsUp}
+    until: end+9

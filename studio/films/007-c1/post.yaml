@@ -1,0 +1,16 @@
+# What to paste when posting the HashMap carousel by hand (Saturday 24 October 2026).
+name: HashMap carousel
+caption: |
+  How does HashMap find a key without searching? 🔑 Swipe →
+
+  1️⃣ hashCode() turns the key into a number
+  2️⃣ h ^ (h >>> 16) mixes the top bits into the bottom
+  3️⃣ The last bits pick the bucket: with 16 buckets, 0111 → bucket 7
+  4️⃣ Two keys in one bucket? A short chain, and equals() finds the right one
+
+  That's why get() is O(1) on average.
+
+  Save this for your next Java interview 📌
+  Which step surprised you? 👇
+
+  #java #jvm #backenddeveloper #javadeveloper #softwareengineering

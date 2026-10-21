@@ -5,6 +5,8 @@
 import { Stage } from './app/stage';
 import { loadCast } from './characters';
 import { FrameHud, VIEW, type Timeline } from './hud/hud';
+import { playFilm } from './film/player';
+import type { FilmTimeline } from './film/types';
 import { hashmapShort } from './story/hashmapShort';
 import { startExplore } from './interactive/explore';
 
@@ -18,9 +20,21 @@ async function fontsReady(): Promise<void> {
   await document.fonts.ready;
 }
 
+/** The call to action on the end card: YouTube asks to subscribe, Instagram to follow. */
+function cta(tl: Timeline, what: string): string {
+  return `${(tl as FilmTimeline).variant === 'short' ? 'Subscribe' : 'Follow'} for ${what}`;
+}
+
 async function frame(tl: Timeline): Promise<{ draw: (t: number) => void; stage: Stage }> {
   await fontsReady();
-  const hud = new FrameHud(host, 'HASHMAP', 'EP 007 · PART 1', STEPS);
+  if ('film' in tl) {
+    const film = (tl as FilmTimeline).film;
+    const hud = new FrameHud(host, film.title, film.episode, film.steps,
+      { end: film.end, cta: film.end?.cta ? cta(tl, film.end.cta) : undefined });
+    const stage = new Stage(hud.view, VIEW.width, VIEW.height);
+    return { draw: playFilm(stage, await loadCast(), hud, tl as FilmTimeline), stage };
+  }
+  const hud = new FrameHud(host, 'HASHMAP', 'EP 007 · PART 1', STEPS, { cta: cta(tl, 'part 2') });
   const stage = new Stage(hud.view, VIEW.width, VIEW.height);
   const cast = await loadCast();
   return { draw: hashmapShort(stage, cast, hud, tl), stage };

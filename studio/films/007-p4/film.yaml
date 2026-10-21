@@ -54,3 +54,151 @@ lines:
   - id: e6
     who: engineer
     say: "Fuller tables mean longer chains. Emptier ones waste memory. The full deep dive on HashMap is out Tuesday."
+
+hook: "100 ISN'T ROOM FOR 100"
+events:
+  full: n3.ninety
+  moves: e4.moves
+
+sfx:
+  - {at: 0.4, sound: tick, gain: 0.5}
+  - {at: n1.resize, sound: alarm, gain: 0.45}
+  - {at: n1.resize, sound: thud, gain: 0.6}
+  - {at: e2.twenty, sound: pop, gain: 0.7}
+  - {at: e3.ninety, sound: ding, gain: 0.45}
+  - {at: full, sound: alarm, gain: 0.45}
+  - {at: moves, sound: rise, gain: 0.9}
+  - {at: e5.nineteen, sound: vision, gain: 0.6}
+  - {at: e5.really, sound: ding, gain: 0.5}
+
+props:
+  mk:
+    kind: code
+    file: Users.java
+    code: |
+      Map<String, User> users =
+          new HashMap<>(100);   // room for 100?
+  grid: {kind: grid, max: 128}
+  gauge: {kind: gauge, text: "load", max: 128, limit: 96}
+  fix:
+    kind: code
+    file: Users.java
+    code: |
+      // Java 19+: sized for 100 entries
+      Map<String, User> users =
+          HashMap.newHashMap(100);
+  gauge2: {kind: gauge, text: "load", max: 256, limit: 192}
+  ok: {kind: mark, text: check}
+
+beats:
+  - at: -1
+    shot: {kind: look, prop: mk, dist: 1.55, height: 0.05}
+    nova: {face: happy}
+    hud: {step: 0}
+    world:
+      - {put: "user:alice", bucket: 15}
+      - {put: "user:bob", bucket: 7}
+      - {put: "user:cara", bucket: 7}
+      - {put: "user:eli", bucket: 2}
+      - {put: "user:fay", bucket: 14}
+      - {put: "user:hana", bucket: 6}
+      - {put: "user:jade", bucket: 9}
+      - {put: "user:kai", bucket: 6}
+      - {put: "user:lena", bucket: 4}
+      - {put: "user:maya", bucket: 11}
+      - {put: "user:nia", bucket: 5}
+      - {put: "user:omar", bucket: 15}
+      - {put: "user:priya", bucket: 4}
+      - {put: "user:quinn", bucket: 5}
+      - {put: "user:ravi", bucket: 3}
+      - {put: "user:sara", bucket: 14}
+      - {put: "user:tom", bucket: 1}
+      - {put: "user:uma", bucket: 8}
+      - {put: "user:vik", bucket: 11}
+      - {put: "user:wen", bucket: 3}
+      - {put: "user:yuki", bucket: 12}
+      - {put: "user:ben", bucket: 13}
+      - {put: "user:kim", bucket: 2}
+  - at: 0.15
+    prop: {id: mk, place: [0, 2.05, -0.5], type: true, dur: 1.1}
+  # it still stopped to resize
+  - at: n1.resize-0.3
+    shot: {kind: wide, from: -4, to: 4, dist: 7.0}
+    prop: {id: mk, hide: true}
+    world: {shake: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]}
+    hud: {callout: "RESIZE?!", tone: red, for: 1.4}
+  - at: n1.resize
+    nova: {face: panic, gesture: panic}
+    until: n1>+0.3
+  - at: e1-0.4
+    shot: {kind: engineer, side: 0.4}
+    engineer: {face: smirk}
+  - at: e1.capacity
+    hud: {callout: "CAPACITY ≠ ENTRIES", tone: amber, for: 1.8}
+  - at: n2
+    shot: {kind: nova, side: -0.5}
+    nova: {face: confused}
+  # a power of two: 128 buckets, and it grows at three quarters full
+  - at: e2
+    shot: {kind: engineer, side: -0.3}
+    engineer: {gesture: explain, face: focus}
+    until: e2.power+0.2
+  - at: e2.power-0.3
+    shot: {kind: look, at: [0, 1.75, -0.8], dist: 2.45, height: 0.0, fov: 38}
+    prop: [{id: grid, place: [0, 2.05, -0.8]}, {id: gauge, place: [0, 1.27, -0.8]}]
+  - at: e2.twenty
+    hud: {step: 1, callout: "100 → 128", tone: amber, for: 1.6}
+  - at: e3.seventy-0.1
+    hud: {callout: "128 × 0.75 = 96", tone: amber, for: 2.4}
+    prop: [{id: gauge, state: {value: 96}, dur: 1.6}, {id: grid, state: {filled: 96}, dur: 1.6}]
+  - at: e3.ninety
+    hud: {step: 2}
+  - at: n3-0.1
+    nova: {face: surprised}
+  - at: full
+    hud: {step: 3, callout: "97 > 96", tone: red, for: 1.4}
+    prop: [{id: gauge, state: {value: 97}}, {id: grid, state: {filled: 97}}]
+  # every entry moves to a table of 256
+  - at: e4-0.1
+    engineer: {face: calm}
+  - at: moves-0.25
+    prop: [{id: gauge, hide: true}, {id: grid, state: {cells: 256, moved: 0}}]
+    hud: {callout: "128 → 256", tone: amber, for: 2.2}
+  - at: moves
+    prop: {id: grid, state: {moved: 1}, dur: 1.7}
+  # since Java 19: newHashMap(100)
+  - at: e5-0.2
+    shot: {kind: engineer, side: 0.4}
+    engineer: {vision: true, face: smirk}
+    prop: {id: grid, hide: true}
+    hud: {step: 4}
+  - at: e5.ask-0.2
+    shot: {kind: look, at: [0, 1.85, -0.6], dist: 2.2, height: 0.0}
+    prop: [{id: fix, place: [0, 2.15, -0.6], type: true, dur: 1.4}, {id: gauge2, place: [0, 1.4, -0.6]}]
+    hud: {callout: "JAVA 19+", tone: green, for: 1.6}
+  - at: e5.sizes
+    prop: {id: gauge2, state: {value: 100}, dur: 1.0}
+  - at: e5.really
+    prop: [{id: fix, state: {hl: 2}}, {id: ok, place: [0.75, 2.4, -0.55]}]
+  - at: n4
+    shot: {kind: nova, side: 0.4}
+    nova: {face: confused}
+    prop: [{id: fix, hide: true}, {id: gauge2, hide: true}, {id: ok, hide: true}]
+  # fuller tables: longer chains; emptier ones: wasted memory
+  - at: e6
+    shot: {kind: two, side: -0.3}
+    engineer: {face: calm, gesture: explain}
+    until: e6.deep
+  - at: e6.fuller
+    hud: {callout: "FULLER → LONGER CHAINS", tone: amber, for: 1.5}
+  - at: e6.emptier
+    hud: {callout: "EMPTIER → WASTED MEMORY", tone: amber, for: 1.5}
+  - at: e6.deep-0.3
+    shot: {kind: engineer, side: -0.3}
+    engineer: {face: smile}
+    hud: {callout: "DEEP DIVE · TUESDAY", tone: green, for: 2.2}
+  - at: end
+    shot: {kind: two, side: 0.2, dist: 2.6}
+    nova: {face: celebrate, gesture: wave}
+    engineer: {face: smile, gesture: thumbsUp}
+    until: end+9

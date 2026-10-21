@@ -54,3 +54,162 @@ lines:
     who: engineer
     say: "Part three: the key that vanished."
     show: "Part 3: the key that vanished."
+
+hook: "8 KEYS. ONE BUCKET."
+events:
+  ninth: e1.ninth
+  lands: e1.lands
+  doubles: e2.doubles
+  split: e3.twenty-0.2
+  tree: e4.red
+
+sfx:
+  - {at: 0.2, sound: clank, gain: 0.35}
+  - {at: 0.55, sound: clank, gain: 0.35}
+  - {at: 0.9, sound: clank, gain: 0.35}
+  - {at: n1.jammed, sound: alarm, gain: 0.45}
+  - {at: n1.every, sound: tick, gain: 0.6}
+  - {at: e1.watch-0.2, sound: vision, gain: 0.8}
+  - {at: lands-0.5, sound: whip, gain: 0.7}
+  - {at: lands, sound: thud, gain: 0.8}
+  - {at: doubles, sound: rise, gain: 0.9}
+  - {at: e3.zero, sound: pop, gain: 0.7}
+  - {at: e3.one#2, sound: pop, gain: 0.7}
+  - {at: split, sound: whip, gain: 0.6}
+  - {at: tree, sound: arp, gain: 0.8}
+  - {at: e4.hops, sound: ding, gain: 0.5}
+
+props:
+  key9: {kind: key, text: "order:1098"}
+  small: {kind: label, text: "16 < 64", sub: "too small for a tree", tone: amber}
+  grown: {kind: label, text: "16 → 32", sub: "the table doubles", tone: cyan, size: 1.8}
+  bitsA: {kind: bits, value: 720177095, low: 4, result: "bit 4 = 0 → stays in 7"}
+  bitsB: {kind: bits, value: 720202103, low: 4, result: "bit 4 = 1 → 7 + 16 = 23"}
+  big: {kind: label, text: "64+ buckets", sub: "a crowded bucket → red-black tree", tone: cyan}
+  logn: {kind: label, text: "O(log n)", sub: "a few hops, not the whole chain", tone: green}
+
+beats:
+  # Locker 7 is jammed: eight orders drop into one bucket, the chain they make rises out of it
+  - at: -1
+    shot: {kind: look, at: "bucket:7", dist: 2.5, height: 0.35, angle: 10}
+    nova: {to: "front:7:1.2:1.55", dur: 0.01, face: panic, look: "bucket:7"}
+    hud: {step: 0}
+    world:
+      - {put: order:3001, bucket: 4}
+      - {put: order:3004, bucket: 3}
+      - {put: order:3006, bucket: 1}
+      - {put: order:3007, bucket: 14}
+      - {put: order:3009, bucket: 12}
+      - {put: order:3020, bucket: 9}
+  - at: 0.1
+    world: {put: [order:1010, order:1609, order:1021, order:1708, order:1032, order:1719, order:1043, order:1807], bucket: 7, stagger: 0.11, tone: amber}
+  - at: n1
+    nova: {gesture: panic}
+    until: n1>
+  - at: n1.jammed
+    world: {bucket: 7, tone: alarm}
+  - at: n1.every-0.2
+    shot: {kind: look, at: "front:7:0.32:1.3", dist: 3.7, height: 0.3, angle: 8}
+    nova: {to: "front:9:1.4:1.7", dur: 0.7, look: "chain:7"}
+    world: {chain: 7, keys: [order:1010, order:1609, order:1021, order:1708, order:1032, order:1719, order:1043, order:1807],
+            hashes: ["…00111", "…10111", "…00111", "…10111", "…00111", "…10111", "…00111", "…10111"]}
+  # the engineer arrives; a ninth key lands in the same bucket
+  - at: e1-1.1
+    shot: {kind: engineer, side: 0.4}
+    engineer: {enter: true, face: smirk}
+    nova: {to: nova.home, dur: 1.0, face: confused}
+  - at: e1.watch
+    engineer: {vision: true}
+  - at: ninth
+    hud: {step: 1}
+    world: {chain: 7, hide: true}
+    prop: {id: key9, place: "front:7:1.6:2.7"}
+  - at: lands-0.6
+    shot: {kind: look, at: "bucket:7", dist: 2.7, height: 0.6, angle: -8}
+    prop: {id: key9, to: "top:7", dur: 0.55, arc: 0.1}
+  - at: lands
+    prop: {id: key9, hide: true}
+    world:
+      - {put: order:1098, bucket: 7, from: "top:7", dur: 0.3, tone: amber}
+      - {shake: 7}
+  - at: n2
+    nova: {face: confused}
+  # Java wants a tree, but 16 buckets is too small: the table doubles
+  - at: e2
+    shot: {kind: engineer, side: -0.3}
+    engineer: {gesture: explain, face: focus}
+    until: e2.doubles
+  - at: e2.sixteen-0.3
+    shot: {kind: look, prop: small, dist: 1.9, height: 0.1}
+    prop: {id: small, place: "front:7:0.9:2.3"}
+  - at: doubles-0.15
+    shot: {kind: wide, from: -12, to: 10, dist: 8.6}
+    prop: [{id: small, hide: true}, {id: grown, place: [0.1, 2.55, -0.9]}]
+    world: {grow: 32}
+    hud: {step: 2, callout: "16 → 32", tone: amber, for: 1.8}
+    engineer: {look: camera}
+    until: n3>
+  - at: n3
+    nova: {face: surprised, look: "top:20"}
+    until: n3>
+  - at: n3>
+    prop: {id: grown, hide: true}
+  # one more bit of the hash it already has: 0 stays in 7, 1 moves to 23
+  - at: e3
+    shot: {kind: engineer, side: 0.3}
+    engineer: {face: calm}
+    hud: {callout: "NO REHASH", tone: green, for: 1.3}
+  - at: e3.bit-0.3
+    shot: {kind: look, prop: bitsA, dist: 1.75, height: 0.05}
+    prop: {id: bitsA, place: "front:7:0.9:2.3"}
+  - at: e3.bit
+    prop: {id: bitsA, state: {hl: 1}, dur: 0.3}
+  - at: e3.zero
+    hud: {step: 3}
+    prop: {id: bitsA, state: {extra: 1, result: 1}, dur: 0.3}
+  - at: e3.stays
+    world: {bucket: 7, tone: active}
+  - at: e3.one#2-0.1
+    prop: [{id: bitsA, hide: true}, {id: bitsB, place: "front:7:0.9:2.3", state: {hl: 1, extra: 1, result: 1}}]
+  - at: split-0.3
+    shot: {kind: look, at: "top:7", dist: 4.4, height: 0.7, angle: -14, fov: 42}
+    prop: {id: bitsB, hide: true}
+    world:
+      - {move: [order:1609, order:1708, order:1719, order:1807], bucket: 23, stagger: 0.18, dur: 0.9}
+      - {bucket: 23, tone: active}
+  - at: split-0.3
+    engineer: {gesture: point, target: "top:23"}
+    until: split+1.6
+  - at: n4
+    nova: {face: sparkle, look: "top:23"}
+    until: n4>
+  # with 64 buckets or more, a crowded bucket becomes a red-black tree
+  - at: e4
+    shot: {kind: engineer, side: 0.4}
+    engineer: {gesture: explain, face: focus}
+    until: e4.crowded
+  - at: e4.sixty-0.2
+    shot: {kind: look, at: "front:11:0.32:1.7", dist: 4.4, height: 0.3, angle: 6}
+    prop: {id: big, place: "front:11:1.0:2.6"}
+    world: {chain: 11, keys: [order:2040, order:2062, order:2084, order:2161, order:2183, order:2260, order:2282, order:2381, order:2480],
+            hashes: ["…001011", "…001011", "…001011", "…001011", "…001011", "…001011", "…001011", "…001011", "…001011"]}
+  - at: tree-0.3
+    hud: {step: 4}
+    world: {chain: 11, tree: true}
+  - at: e4.hops-0.3
+    prop: [{id: big, hide: true}, {id: logn, place: "front:11:1.0:2.6"}]
+    hud: {callout: "O(log n)", tone: green, for: 1.6}
+  - at: n5
+    shot: {kind: two, side: 0.3}
+    nova: {face: happy}
+    engineer: {face: smile}
+  - at: e5
+    shot: {kind: engineer, side: -0.3}
+    engineer: {face: smirk}
+    prop: {id: logn, hide: true}
+    world: {chain: 11, hide: true}
+  - at: end
+    shot: {kind: two, side: 0.2, dist: 2.6}
+    nova: {face: celebrate, gesture: wave}
+    engineer: {face: smile, gesture: thumbsUp}
+    until: end+9

@@ -1,0 +1,25 @@
+# What to paste when posting HashMap part 2 by hand.
+name: HashMap part 2
+title: "When a HashMap Bucket Becomes a Tree (Java Resize) #Shorts"
+description: |
+  Eight keys jam one bucket. A ninth arrives. Java wants a tree, but the table is too small, so it doubles instead, and each key checks one more bit to find its new bucket.
+
+  Part 2 of 4. The full HashMap deep dive is out Tuesday 27 October.
+
+  #Shorts #java #javadeveloper #backenddeveloper #codinginterview
+caption: |
+  What happens when 8 keys jam one HashMap bucket? 🌳
+
+  1️⃣ A 9th key lands in a bucket that already holds 8.
+  2️⃣ Java wants to turn that chain into a tree, but trees need a table of at least 64 buckets.
+  3️⃣ With only 16, it doubles the table instead: 16 → 32.
+  4️⃣ No rehashing: each key checks one more bit of the hash it already stored. 0 stays in bucket 7, 1 moves to 7 + 16 = 23.
+  5️⃣ At 64+ buckets, a crowded bucket becomes a red-black tree: a few hops, O(log n), instead of the whole chain.
+
+  The part most people mix up: "a bucket becomes a tree at 8 keys" only happens once the table has 64 buckets or more.
+
+  Part 3: the key that vanished 👻
+  Save this for your next Java interview 📌
+  Did you know a resize never computes a new hash? 👇
+
+  #java #jvm #backenddeveloper #javadeveloper #softwareengineering

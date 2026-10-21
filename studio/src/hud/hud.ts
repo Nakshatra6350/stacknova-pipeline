@@ -9,6 +9,11 @@ export interface Timeline { duration: number; fps: number; lines: Line[]; events
 
 export const VIEW = { width: 1080, height: 1160 };
 
+/** The closing card's words and the call to action under it. */
+export interface HudOptions { end?: { kicker: string; head: string }; cta?: string }
+
+const html = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '<br>');
+
 export class FrameHud {
   readonly view: HTMLElement;
   private stepEls: HTMLElement[];
@@ -16,7 +21,9 @@ export class FrameHud {
   private capKey = '';
   private calloutKey = '';
 
-  constructor(host: HTMLElement, brand: string, episode: string, steps: string[]) {
+  constructor(host: HTMLElement, brand: string, episode: string, steps: string[], opts: HudOptions = {}) {
+    const end = opts.end ?? { kicker: 'PART 2', head: 'When a bucket\nbecomes a tree' };
+    const cta = opts.cta ?? 'Follow for part 2';
     host.innerHTML = `
       <div class="frame">
         <div class="top">
@@ -26,8 +33,8 @@ export class FrameHud {
         </div>
         <div class="view"></div>
         <div class="dim"></div>
-        <div class="end"><div class="kicker">PART 2</div><div class="head">When a bucket<br>becomes a tree</div></div>
-        <div class="cap"><div class="who"></div><div class="line"></div><div class="follow"><span>Follow for part 2</span></div></div>
+        <div class="end"><div class="kicker">${html(end.kicker)}</div><div class="head">${html(end.head)}</div></div>
+        <div class="cap"><div class="who"></div><div class="line"></div><div class="follow"><span>${html(cta)}</span></div></div>
         <div class="foot"></div>
       </div>`;
     this.q = <T extends HTMLElement>(s: string) => host.querySelector(s) as T;

@@ -30,7 +30,10 @@ def load_lines(film: Path) -> list[dict[str, str]]:
 
 
 def digest(film: Path) -> str:
-    spoken = [[line["id"], line["who"], line["say"]] for line in load_lines(film)]
+    spoken = [
+        [line["id"], line["who"], line["say"]] + ([line["speed"]] if "speed" in line else [])
+        for line in load_lines(film)
+    ]
     return hashlib.sha256(json.dumps([SPEAKERS, spoken]).encode()).hexdigest()[:10]
 
 
@@ -48,7 +51,11 @@ def speak(film: Path, reference: Path, out: Path) -> None:
     listener = WhisperListener()
     timing = {}
     for who, overrides in SPEAKERS.items():
-        units = [Unit(line["id"], line["say"]) for line in lines if line["who"] == who]
+        units = [
+            Unit(line["id"], line["say"], float(line.get("speed", 1.0)))
+            for line in lines
+            if line["who"] == who
+        ]
         if not units:
             continue
         settings = load_settings(ROOT / "config" / "voice.yaml", None, overrides)
@@ -56,8 +63,9 @@ def speak(film: Path, reference: Path, out: Path) -> None:
             prepared = Path(work) / "reference.wav"
             prepare_reference(reference, prepared, settings.reference)
             synthesizer = ChatterboxSynthesizer(settings, prepared)
-            timing[who] = narrate(units, who, synthesizer, settings, out, out / "cache", lexicon,
-                                  listener, print)
+            timing[who] = narrate(
+                units, who, synthesizer, settings, out, out / "cache", lexicon, listener, print
+            )
             del synthesizer
             gc.collect()
     (out / "timing.json").write_text(json.dumps(timing, indent=2), encoding="utf-8")

@@ -1,0 +1,72 @@
+# Episode 007's flagship reel (90-150 s, owner's plan of 21 October 2026), for release day,
+# Tuesday 27 October 2026: the 2011 hash flood, told in the HashMap world.
+#
+# Facts (sources in content/episodes/007-hashmap/episode.yaml):
+#   oCERT-2011-003 (28 December 2011): crafted HTTP requests can drive a CPU to 100% for up to
+#   several hours; Java, PHP, Python and Ruby among the affected; the risk comes from servers that
+#   do not limit the number of POST parameters. Presented at 28C3 by Alexander Klink and Julian
+#   Wälde ("Effective Denial of Service attacks against web application platforms")
+#   "Aa".hashCode() == "BB".hashCode() == 2112; joined pairs collide too (samples/java Collide)
+#   JEP 180, Java 8: crowded buckets become balanced trees; Comparable keys such as String help
+#   Tomcat's maxParameterCount defaults to 10,000
+id: 007-reel
+format: short
+world: hashmap
+title: HASHMAP
+episode: EP 007 · THE 2011 FLOOD
+steps: [ONE REQUEST, SAME HASH, ONE BUCKET, THE FIX]
+end: {kicker: "FULL DEEP DIVE", head: "HashMap,\nall of it", cta: more}
+
+lines:
+  - id: n1
+    who: nova
+    say: "The server is at a hundred percent CPU. And it's all from one request!"
+    show: "The server is at 100% CPU. And it's all from one request!"
+  - id: e1
+    who: engineer
+    say: "December 2011. One request like that could keep a CPU busy for hours. Java, PHP, Python, Ruby: all exposed."
+  - id: n2
+    who: nova
+    say: "What's inside it?"
+  - id: e2
+    who: engineer
+    say: "Thousands of form fields. The server puts every field name into a hash map. And every one of these names has the same hash code."
+  - id: n3
+    who: nova
+    say: "How is that even possible?"
+  - id: e3
+    who: engineer
+    say: "In Java, big A small a, and big B big B, both hash to two thousand one hundred and twelve. Glue pairs together, and every combination collides too."
+    show: "In Java, \"Aa\" and \"BB\" both hash to 2112. Glue pairs together, and every combination collides too."
+  - id: e4
+    who: engineer
+    say: "Fourteen pairs make sixteen thousand keys, all with one hash."
+    show: "14 pairs make 16,384 keys, all with one hash."
+  - id: n4
+    who: nova
+    say: "So they all land in one bucket!"
+  - id: e5
+    who: engineer
+    say: "One giant chain. Each new key walks the whole chain before it's added. Twice the keys, four times the work."
+  - id: n5
+    who: nova
+    say: "And the server just chokes?"
+  - id: e6
+    who: engineer
+    say: "For hours. The fix came in two parts. Servers capped how many parameters one request may carry."
+  - id: e7
+    who: engineer
+    say: "And Java 8 changed the bucket itself. A crowded bucket becomes a red-black tree."
+  - id: n6
+    who: nova
+    say: "Even when every key has the same hash?"
+  - id: e8
+    who: engineer
+    say: "Strings are comparable, so the tree can still sort them. Each key takes a few hops, not the whole chain."
+    show: "Strings are Comparable, so the tree can still sort them. Each key takes a few hops, not the whole chain."
+  - id: n7
+    who: nova
+    say: "A tree stopped an attack!"
+  - id: e9
+    who: engineer
+    say: "It capped the damage. How HashMap really works, from the first jump to that tree, is in the full deep dive on our channel."

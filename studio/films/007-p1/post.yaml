@@ -1,0 +1,25 @@
+# What to paste when posting HashMap part 1 by hand (the pilot, drawn by story/hashmapShort.ts).
+name: HashMap part 1
+title: "HashMap Never Searches: How Java Finds Keys in O(1) #Shorts"
+description: |
+  A HashMap never searches. Java hashes the key, keeps the last few bits, and jumps straight to one bucket.
+
+  Part 1 of 4. The full HashMap deep dive is out Tuesday 27 October.
+
+  #Shorts #java #javadeveloper #backenddeveloper #codinginterview
+caption: |
+  HashMap never searches. 🔑
+
+  What happens when you call map.get("user:42"):
+  1️⃣ Java turns the key into a number: "user:42".hashCode() = -147170163
+  2️⃣ It mixes the top 16 bits into the bottom: h ^ (h >>> 16)
+  3️⃣ With 16 buckets it keeps only the last 4 bits: 0111 → bucket 7
+  4️⃣ One jump, no searching. That's why get() is O(1) on average.
+
+  The part most people mix up: two keys can land in the same bucket. That's a collision: the bucket keeps a short chain, and equals() finds the right key.
+
+  Part 2: what happens when 8 keys pile up in one bucket 🌳
+  Save this for your next Java interview 📌
+  Were you ever asked how HashMap works in an interview? 👇
+
+  #java #jvm #backenddeveloper #javadeveloper #softwareengineering

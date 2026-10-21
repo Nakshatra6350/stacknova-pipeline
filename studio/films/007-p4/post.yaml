@@ -1,0 +1,24 @@
+# What to paste when posting HashMap part 4 by hand.
+name: HashMap part 4
+title: "new HashMap(100) Isn't Room for 100 Entries (Java) #Shorts"
+description: |
+  100 is a capacity, not a count. Java rounds it up to 128 buckets and resizes at 75% full, so entry 97 doubles the table. Since Java 19, HashMap.newHashMap(100) sizes it for 100 entries.
+
+  Part 4 of 4. The full HashMap deep dive is out Tuesday 27 October.
+
+  #Shorts #java #javadeveloper #backenddeveloper #codinginterview
+caption: |
+  new HashMap<>(100) is not room for 100 entries. 📦
+
+  1️⃣ 100 is a capacity. Java rounds it up to a power of two: 128 buckets.
+  2️⃣ The default load factor is 0.75, so the map resizes after 96 entries.
+  3️⃣ Entry 97 doubles the table to 256 buckets and moves every entry.
+  4️⃣ Since Java 19, HashMap.newHashMap(100) sizes the table so 100 entries fit without a resize.
+
+  Why 0.75? Fuller tables mean longer chains; emptier ones waste memory.
+
+  The full HashMap deep dive is out Tuesday on YouTube: StackNova (link in bio).
+  Save this for your next Java interview 📌
+  Did you know about newHashMap? 👇
+
+  #java #jvm #backenddeveloper #javadeveloper #softwareengineering

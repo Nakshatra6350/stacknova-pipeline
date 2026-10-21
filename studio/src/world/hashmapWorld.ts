@@ -60,7 +60,7 @@ export class HashMapWorld {
     this.scan.rotation.x = -Math.PI / 2; this.scan.position.set(0.4, 0.01, 1.3); this.scan.visible = false; this.group.add(this.scan);
 
     // the buckets
-    for (let i = 0; i < 16; i++) this.buckets.push(this.makeBucket(i));
+    for (let i = 0; i < 16; i++) this.buckets.push(this.makeBucket(i, this.radius, 0));
 
     // the city far behind, and soft out-of-focus lights
     this.city();
@@ -83,13 +83,19 @@ export class HashMapWorld {
     const fill = new THREE.DirectionalLight(0x7a6cff, 0.25); fill.position.set(-4, 1.2, 3); this.group.add(fill);
   }
 
-  private makeBucket(i: number): Bucket {
-    const a = deg(-70 + (i * 140) / 15);
+  /** Bucket i stands at the angle of bucket i % 16; the doubled table's buckets 16-31 stand on an
+   *  outer ring, raised, each right behind its partner (23 behind 7: one more bit of the hash). */
+  private makeBucket(i: number, radius: number, lift: number): Bucket {
+    const a = deg(-70 + ((i % 16) * 140) / 15);
     const group = new THREE.Group();
-    group.position.set(this.radius * Math.sin(a), 0, -this.radius * Math.cos(a));
-    group.lookAt(0, 0, 0);
+    group.position.set(radius * Math.sin(a), lift, -radius * Math.cos(a));
+    group.lookAt(0, lift, 0);
     this.group.add(group);
     const metal = toon(0x141c2e);
+    if (lift > 0) {
+      const column = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.26, lift, 32), metal);
+      column.position.y = -lift / 2; group.add(column);
+    }
     const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.29, 0.22, 40), metal);
     pedestal.position.y = 0.11; group.add(pedestal);
     const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.245, 0.245, 0.03, 40), toon(0x1c2740)); cap.position.y = 1.47; group.add(cap);
@@ -115,7 +121,7 @@ export class HashMapWorld {
     }, { tone: 'idle' });
     label.billboard = false;
     label.position.set(0, 1.68, 0); group.add(label);
-    return { group, pos: group.position.clone(), front: V().sub(group.position).normalize(), glass, rims, label, tone: 'idle' };
+    return { group, pos: group.position.clone(), front: V(0, lift, 0).sub(group.position).normalize(), glass, rims, label, tone: 'idle' };
   }
 
   private city(): void {
@@ -162,7 +168,26 @@ export class HashMapWorld {
 
   /** Where the k-th entry of bucket i sits inside its tube. */
   slot(i: number, k: number): THREE.Vector3 {
-    return this.buckets[i].pos.clone().setY(0.32 + k * 0.125);
+    const p = this.buckets[i].pos;
+    return p.clone().setY(p.y + 0.32 + k * 0.125);
+  }
+
+  /** The doubled table: buckets 16-31, hidden until `raise`. */
+  addOuter(): void {
+    if (this.buckets.length > 16) return;
+    for (let i = 16; i < 32; i++) {
+      const b = this.makeBucket(i, this.radius + 1.15, 0.5);
+      b.group.visible = false;
+      this.buckets.push(b);
+    }
+  }
+
+  /** How far bucket i has risen into view, 0..1 (only the outer buckets start hidden). */
+  raise(i: number, k: number): void {
+    const b = this.buckets[i];
+    b.group.visible = k > 0.001;
+    b.group.scale.set(1, Math.max(0.001, k), 1);
+    b.group.position.y = b.pos.y * k;
   }
 
   setTone(i: number, tone: BucketTone): void {

@@ -1,0 +1,20 @@
+# Carousel for Saturday 24 October 2026: how HashMap finds a key (part 1, in six slides).
+number: "007"
+slides:
+  - headline: HashMap never searches
+    body: How Java finds any key in one jump
+    still: {timeline: studio/public/story/hashmap-short.json, t: 13.6, y: 0.35}
+  - headline: 1. The key becomes a number
+    body: '"user:42".hashCode() = -147170163'
+    still: {timeline: studio/public/story/hashmap-short.json, t: 18.0, y: 0.25}
+  - headline: 2. The top bits are mixed in
+    body: "h ^ (h >>> 16) spreads the hash"
+    still: {timeline: studio/public/story/hashmap-short.json, t: 19.7, y: 0.25}
+  - headline: 3. The last bits pick the bucket
+    body: "16 buckets: 0111 → bucket 7. One jump, O(1)."
+    still: {timeline: studio/public/story/hashmap-short.json, t: 24.6, y: 0.3}
+  - headline: 4. Two keys, one bucket
+    body: A collision. The bucket keeps a short chain, and equals() finds the right key.
+    still: {timeline: studio/public/story/hashmap-short.json, t: 44.0, y: 0.4}
+  - headline: Follow for part 2
+    body: When a bucket becomes a tree
