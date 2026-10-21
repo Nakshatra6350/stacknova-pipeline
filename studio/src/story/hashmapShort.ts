@@ -107,6 +107,21 @@ export function hashmapShort(stage: Stage, cast: Cast, hud: FrameHud, tl: Timeli
     const l = tl.lines.find((x) => x.who === who && t >= x.start && t <= x.end);
     return l ? l.env[Math.min(l.env.length - 1, Math.floor((t - l.start) * 30))] ?? 0 : 0;
   };
+  const talkOf = (who: 'engineer' | 'nova', t: number) =>
+    Math.max(0, ...tl.lines.filter((l) => l.who === who).map((l) => pulse(t, l.start - 0.1, l.end + 0.15, 0.25)));
+  // a stressed syllable: the voice now (last 0.13 s) is louder than over the last 0.4 s
+  const stressOf = (who: 'engineer' | 'nova', t: number) => {
+    let now = 0, before = 0;
+    for (let i = 0; i < 4; i++) now += mouthOf(who, t - i / 30) / 4;
+    for (let i = 1; i <= 12; i++) before += mouthOf(who, t - i / 30) / 12;
+    return clamp((now - before) * 3);
+  };
+  /** The entry of a [start, value] list in effect at t, and the seconds since it began. */
+  const phase = <T>(list: [number, T][], t: number): [T, number] => {
+    let i = 0;
+    while (i + 1 < list.length && t >= list[i + 1][0]) i++;
+    return [list[i][1], t - list[i][0]];
+  };
   const gesture = (t: number, list: [Gesture, number, number, THREE.Vector3?][]): GestureState | undefined => {
     let best: GestureState | undefined;
     for (const [name, a, b, target] of list) {
@@ -128,11 +143,11 @@ export function hashmapShort(stage: Stage, cast: Cast, hud: FrameHud, tl: Timeli
     turn(-0.7, span(t, ev.drop + 2.1, ev.drop + 2.45));
     turn(Math.PI - 0.08, span(t, L.e6.start - 0.2, L.e6.start + 0.3));
     turn(0.05, span(t, ev.end - 0.1, ev.end + 0.5));
-    let expr: Expression = 'calm';
-    if (t < L.n2.start) expr = 'focus'; else if (t < ev.vision - 0.6) expr = 'smirk'; else if (t < L.e3.start) expr = 'focus';
-    else if (t < L.n3.start) expr = 'calm'; else if (t < ev.drop) expr = 'smile'; else if (t < ev.drop + 1.2) expr = 'surprised';
-    else if (t < L.e6.start) expr = 'smirk'; else if (t < L.n5.start) expr = 'calm'; else if (t < L.e7.start) expr = 'thinking';
-    else if (t < ev.end) expr = 'smirk'; else expr = 'smile';
+    const [expr, exprTime] = phase<Expression>([
+      [-99, 'focus'], [L.n2.start, 'smirk'], [ev.vision - 0.6, 'focus'], [L.e3.start, 'calm'], [L.n3.start, 'smirk'],
+      [ev.o1 - 0.3, 'smile'], [ev.drop + 0.95, 'surprised'], [ev.drop + 2.15, 'smirk'], [L.e6.start, 'calm'],
+      [L.n5.start, 'thinking'], [L.e7.start, 'smirk'], [ev.end, 'smile'],
+    ], t);
     let lookAt: THREE.Vector3 | null = nova.headWorld();
     if (t > L.e2.start - 0.3 && t < ev.vision + 0.6) lookAt = camera.position.clone();
     else if (t > L.e3.start - 0.3 && t < ev.jump + 0.4) lookAt = key1.position.clone();
@@ -141,20 +156,26 @@ export function hashmapShort(stage: Stage, cast: Cast, hud: FrameHud, tl: Timeli
     else if (t > L.e6.start - 0.2 && t < ev.end) lookAt = top7.clone().setY(1.6);
     else if (t >= ev.end) lookAt = camera.position.clone();
     const g = gesture(t, [
+      ['nod', said('e1', 'stop'), said('e1', 'stop') + 0.8],
+      ['shake', said('e1', 'never') - 0.05, said('e1', 'never') + 0.8],
       ['vision', ev.vision - 0.9, ev.vision + 0.5],
       ['present', L.e3.start - 0.3, L.e3.start + 1.2],
+      ['explain', L.e3.start + 1.2, ev.seven - 1.0],
       ['point', ev.seven - 1.0, ev.jump + 0.3, world.slot(7, 0)],
+      ['nod', ev.jump + 0.1, ev.jump + 1.1],
+      ['shake', said('e5', 'none') - 0.05, said('e5', 'none') + 0.8],
       ['explain', ev.o1 - 1.0, L.e5.end],
       ['point', L.e6.start + 0.3, said('e6', 'equals'), world.slot(7, 1)],
-      ['think', L.n5.start, L.e7.start + 0.4],
-      ['explain', L.e7.start + 0.4, ev.end - 0.2],
+      ['explain', said('e6', 'equals'), L.e6.end],
+      ['think', L.n5.start, L.e7.start + 0.25],
+      ['explain', L.e7.start + 0.25, ev.end - 0.2],
       ['thumbsUp', ev.end + 0.4, 99],
-      ['nod', L.n3.end - 0.1, L.n3.end + 1.1],
     ]);
     return {
       t, position: engAt(t), yaw, walk: walking ? 1 : 0, walkPhase: walkK * Math.PI * 2 * 2.6,
-      appear: walks ? 1 : smooth(span(t, WALK[0] + 0.3, WALK[0] + 1.5)),
-      gesture: g, lookAt, expression: expr, mouth: mouthOf('engineer', t) * 0.95, blink: blinkAt(t, 0.37),
+      appear: walks ? 1 : smooth(span(t, WALK[0] + 0.3, WALK[0] + 1.5)), camera: camera.position.clone(),
+      gesture: g, lookAt, expression: expr, expressionTime: exprTime,
+      mouth: mouthOf('engineer', t) * 0.95, talk: talkOf('engineer', t), emphasis: stressOf('engineer', t), blink: blinkAt(t, 0.37),
       vision: Math.max(span(t, ev.vision - 0.35, ev.vision) * (1 - span(t, ev.vision + 0.5, ev.vision + 1.6)), vision(t) * 0.15),
     };
   }
@@ -211,14 +232,18 @@ export function hashmapShort(stage: Stage, cast: Cast, hud: FrameHud, tl: Timeli
     [ev.jump + 0.45, L.e5.start, (k, t) => { const n = novaPos(t);
       return { pos: n.clone().add(V(0.75, 0.05, 1.35 - k * 0.15)), look: n.clone().lerp(world.slot(7, 1), 0.3), fov: 38 }; }],
     [L.e5.start, ev.drop, (k) => ({ pos: V(1.15, 1.52 * HK, 3.7).lerp(V(0.98, 1.5 * HK, 3.35), smooth(k)), look: V(0.35, 1.35 * HK, 1.3), fov: 34 })],
-    [ev.drop, ev.drop + 2.1, (k) => ({ pos: world.front(7, lerp(2.3, 2.0, smooth(k)), 1.25).addScaledVector(side7, 0.3), look: world.front(7, 0, 0.92), fov: 40 })],
-    [ev.drop + 2.1, L.e6.start, (k, t) => { const n = novaPos(t);
+    [ev.drop, ev.drop + 1.0, (k) => ({ pos: world.front(7, lerp(2.3, 2.0, smooth(k)), 1.25).addScaledVector(side7, 0.3), look: world.front(7, 0, 0.92), fov: 40 })],
+    // the engineer's reaction: a start ("!")
+    [ev.drop + 1.0, ev.drop + 2.2, (k) => ({ pos: V(0.8, 1.6 * HK, 3.05).lerp(V(0.74, 1.6 * HK, 2.9), easeOut(k)), look: V(0.42, 1.56 * HK, 1.3), fov: 30 })],
+    [ev.drop + 2.2, L.e6.start, (k, t) => { const n = novaPos(t);
       return { pos: n.clone().add(V(0.22, 0.06, 0.95 - k * 0.12)), look: n.clone().add(V(0, -0.03, 0)), fov: 34 }; }],
     [L.e6.start, L.n5.start, (k) => ({ pos: world.front(7, lerp(3.1, 2.7, smooth(k)), 2.12).addScaledVector(side7, 0.25), look: world.front(7, 0.3, 2.06), fov: 40 })],
-    [L.n5.start, L.e7.start + 0.4, (k) => ({ pos: world.front(7, lerp(2.7, 4.6, smooth(k)), lerp(2.12, 1.5, k)).addScaledVector(side7, 0.25), look: world.front(7, 0.3, lerp(2.06, 1.25, smooth(k))), fov: 42 })],
-    [L.e7.start + 0.4, ev.end, (k) => { const c = world.front(7, 0.3, 1.85); const a = lerp(deg(-16), deg(14), smooth(k));
+    [L.n5.start, L.n5.end - 0.2, (k) => ({ pos: world.front(7, lerp(2.7, 4.6, smooth(k)), lerp(2.12, 1.5, k)).addScaledVector(side7, 0.25), look: world.front(7, 0.3, lerp(2.06, 1.25, smooth(k))), fov: 42 })],
+    // the engineer thinks it over (a thought bubble), then answers
+    [L.n5.end - 0.2, L.e7.start + 0.6, (k) => ({ pos: V(0.56, 1.64 * HK, 3.05).lerp(V(0.54, 1.66 * HK, 2.9), smooth(k)), look: V(0.5, 1.66 * HK, 1.3), fov: 32 })],
+    [L.e7.start + 0.6, ev.end, (k) => { const c = world.front(7, 0.3, 1.85); const a = lerp(deg(-16), deg(14), smooth(k));
       return { pos: c.clone().addScaledVector(B7.front, 4.0 * Math.cos(a)).addScaledVector(side7, 4.0 * Math.sin(a)).add(V(0, 0.3, 0)), look: c, fov: 40 }; }],
-    [ev.end, 999, (k) => ({ pos: V(0.24, 1.5 * HK, 4.6).lerp(V(0.24, 1.46 * HK, 4.25), smooth(k)), look: V(0.2, 1.22 * HK, 1.3), fov: 36 })],
+    [ev.end, 999, (k) => ({ pos: V(0.2, 1.5 * HK, 3.75).lerp(V(0.22, 1.5 * HK, 3.3), smooth(k)), look: V(0.15, 1.32 * HK, 1.3), fov: 36 })],
   ];
 
   const STEPS: [number, number][] = [[0.55, ev.vision], [ev.vision, L.e4.start], [L.e4.start, ev.drop], [ev.drop, L.e7.start], [L.e7.start, ev.end]];

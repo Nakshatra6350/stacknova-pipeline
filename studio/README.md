@@ -58,16 +58,28 @@ Since 21 October 2026 the engineer is the owner's transparent illustration
 `src/characters/sprite.ts`. It is **a 2.5D illustration, not a rigged 3D model**. From the one
 picture the studio makes:
 
-- the head bend at the neck (a smooth deformation of a finely divided plane, no seams) to nod while
-  he talks and tilt toward what he looks at;
-- blinking and a talking mouth, drawn onto a 2x copy of the art at measured landmarks
-  (`ENGINEER_LANDMARKS`), with the warm halo of the cut-out removed from the hair edges;
+- body motion from a smooth deformation of a finely divided plane (no seams): he breathes, shifts
+  his weight from foot to foot, leans toward what he scans, shrugs, jolts upright when startled
+  and bounces when pleased; his head tilts toward what he looks at, dips on the stressed syllables
+  of his voice (`emphasis`, worked out from the voice by the story), nods and shakes; the tips of
+  his hair sway;
+- a face drawn onto a 2x copy of the art at measured landmarks (`ENGINEER_LANDMARKS`): blinking,
+  narrowed eyes (focus, thinking), smiling eyes, wide eyes (a start), happy closed eyes (^ ^) and a
+  wink; a talking mouth whose width changes with the vowels and turns up when he smiles; a closed
+  smile, a pressed line, a thinking pout, an "o" and a grin; blush; a glint of light sliding across
+  his glasses. The warm halo of the cut-out is removed from the hair edges;
+- anime marks beside his head: "!" with start lines and a sweat drop, a thought bubble with dots,
+  sparkles;
 - System Vision: the lenses fill with cyan light; "pointing" is a scan beam from his glasses, since
   his hands are in his pockets in the art;
 - a hologram materialise instead of the walk-in (`canWalk = false`), and cameras that keep at least
-  1.55 m from his head (`minShotDistance`) so the art stays sharp.
+  1.55 m from his head (`minShotDistance`) so the art stays sharp. The story passes the camera's
+  position (`camera`) so the picture faces the right camera on the first frame after a cut.
 
-What it cannot do: arm gestures, walking, turning, other angles. The art is a brand asset and is
+Which face, gesture and mark plays when is set per beat in `story/hashmapShort.ts` (expressions with
+`expressionTime`, gestures such as `nod`, `shake`, `think`, `thumbsUp`).
+
+What it cannot do: arm gestures (his hands stay in his pockets), walking, turning, other angles. The art is a brand asset and is
 not in this public repository: put it at `studio/public/local/engineer-2p5d.png` with
 `public/local/characters.json`:
 

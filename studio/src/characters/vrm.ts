@@ -279,6 +279,7 @@ export class VrmCharacter implements CharacterRig {
           this.reach('right', at(-0.25, 0.45, 0.1), pole(-0.8, -0.3, 0), gw); this.reach('left', at(0.25, 0.45, 0.1), pole(0.8, -0.3, 0), gw);
           this.fingers('right', [1.5, 1.5, 1.5, 1.5], 1.0); this.fingers('left', [1.5, 1.5, 1.5, 1.5], 1.0); break;
         case 'nod': rot('head', Math.max(0, Math.sin(gt * 7)) * 0.18 * gw * Math.max(0, 1 - gt / 1.2), 0, 0); break;
+        case 'shake': rot('head', 0, Math.sin(gt * 15) * 0.16 * gw * Math.max(0, 1 - gt / 0.85), 0); break;
         default: break;
       }
     }

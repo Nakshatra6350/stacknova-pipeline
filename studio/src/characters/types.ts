@@ -15,6 +15,7 @@ export type Gesture =
   | 'vision'     // touches the glasses: System Vision
   | 'present'    // offers something on an open palm
   | 'nod'        // acknowledges
+  | 'shake'      // shakes the head: no
   | 'wave'
   | 'celebrate'
   | 'thumbsUp'
@@ -42,8 +43,13 @@ export interface CharacterState {
   /** World point the head and eyes turn toward. */
   lookAt?: THREE.Vector3 | null;
   expression?: Expression;
+  /** Seconds since `expression` began (drives reactions such as a start). */
+  expressionTime?: number;
   /** 0..1 mouth opening (from the voice) and eyelids (1 closed). */
   mouth?: number;
+  /** 0..1 how much the character is speaking, and how stressed the syllable being said is (from the voice). */
+  talk?: number;
+  emphasis?: number;
   blink?: number;
   /** 0..1 System Vision: the glasses light up. */
   vision?: number;
@@ -52,6 +58,8 @@ export interface CharacterState {
   tilt?: number;
   /** 0..1 how much of the character has appeared (a 2.5D character materialises instead of walking in). */
   appear?: number;
+  /** World position of the camera for this frame (a 2.5D character turns to face it). */
+  camera?: THREE.Vector3;
 }
 
 export interface CharacterRig {
