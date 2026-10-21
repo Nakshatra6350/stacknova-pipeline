@@ -51,6 +51,34 @@ src/
 Every movement is a pure function of time, so any frame can be drawn on its own; that is what
 lets the video be drawn in parallel parts.
 
+## The engineer now: a 2.5D puppet from the owner's art
+
+Since 21 October 2026 the engineer is the owner's transparent illustration
+(`StackNova_Engineer_2p5D_Asset_Pack.zip`, `stacknova_engineer.png`, 508 x 1376), drawn by
+`src/characters/sprite.ts`. It is **a 2.5D illustration, not a rigged 3D model**. From the one
+picture the studio makes:
+
+- the head bend at the neck (a smooth deformation of a finely divided plane, no seams) to nod while
+  he talks and tilt toward what he looks at;
+- blinking and a talking mouth, drawn onto a 2x copy of the art at measured landmarks
+  (`ENGINEER_LANDMARKS`), with the warm halo of the cut-out removed from the hair edges;
+- System Vision: the lenses fill with cyan light; "pointing" is a scan beam from his glasses, since
+  his hands are in his pockets in the art;
+- a hologram materialise instead of the walk-in (`canWalk = false`), and cameras that keep at least
+  1.55 m from his head (`minShotDistance`) so the art stays sharp.
+
+What it cannot do: arm gestures, walking, turning, other angles. The art is a brand asset and is
+not in this public repository: put it at `studio/public/local/engineer-2p5d.png` with
+`public/local/characters.json`:
+
+```json
+{ "engineer": { "kind": "sprite", "url": "local/engineer-2p5d.png" }, "nova": { "kind": "procedural" } }
+```
+
+More poses of the same art (pointing, explaining, touching the glasses, faces with the mouth open
+and the eyes closed) would let the puppet switch poses per beat; a rigged model (below) would make
+him walk and turn.
+
 ## The engineer: a VRoid model (VRM)
 
 The engineer is meant to be a real rigged anime model made in VRoid Studio (steps for the owner:

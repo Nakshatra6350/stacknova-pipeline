@@ -81,7 +81,8 @@ export function hashmapShort(stage: Stage, cast: Cast, hud: FrameHud, tl: Timeli
   const HK = clamp(engineer.headWorld().y / 1.6, 0.8, 1.2);
   const E = V(0.45, 0, 1.3), NOVA_HOME = V(-0.25, 1.48 * HK, 1.35);
   const WALK: [number, number] = [ev.open2 - 0.2, L.e1.start + 1.9], WALK_FROM = V(1.2, 0, -1.6);
-  const engAt = (t: number) => WALK_FROM.clone().lerp(E, smoother(span(t, WALK[0], WALK[1])));
+  const walks = engineer.canWalk !== false;
+  const engAt = (t: number) => (walks ? WALK_FROM.clone().lerp(E, smoother(span(t, WALK[0], WALK[1]))) : E.clone());
   const engHead = () => engineer.headWorld();
 
   function novaPos(t: number): THREE.Vector3 {
@@ -118,7 +119,7 @@ export function hashmapShort(stage: Stage, cast: Cast, hud: FrameHud, tl: Timeli
 
   function engineerState(t: number): CharacterState {
     const walkK = span(t, WALK[0], WALK[1]);
-    const walking = walkK > 0 && walkK < 1;
+    const walking = walks && walkK > 0 && walkK < 1;
     let yaw = walking ? Math.atan2(E.x - WALK_FROM.x, E.z - WALK_FROM.z) : -0.05;
     const turn = (to: number, k: number) => { yaw = lerp(yaw, to, smooth(k)); };
     turn(Math.PI - 0.12, span(t, L.e3.start - 0.5, L.e3.start + 0.2));
@@ -152,6 +153,7 @@ export function hashmapShort(stage: Stage, cast: Cast, hud: FrameHud, tl: Timeli
     ]);
     return {
       t, position: engAt(t), yaw, walk: walking ? 1 : 0, walkPhase: walkK * Math.PI * 2 * 2.6,
+      appear: walks ? 1 : smooth(span(t, WALK[0] + 0.3, WALK[0] + 1.5)),
       gesture: g, lookAt, expression: expr, mouth: mouthOf('engineer', t) * 0.95, blink: blinkAt(t, 0.37),
       vision: Math.max(span(t, ev.vision - 0.35, ev.vision) * (1 - span(t, ev.vision + 0.5, ev.vision + 1.6)), vision(t) * 0.15),
     };
@@ -231,6 +233,11 @@ export function hashmapShort(stage: Stage, cast: Cast, hud: FrameHud, tl: Timeli
     const shot = shots.find(([a, b]) => t >= a && t < b) ?? shots[shots.length - 1];
     const c = shot[2](span(t, shot[0], Math.min(shot[1], tl.duration)), t);
     const shake = pulse(t, ev.drop + 0.45, ev.drop + 0.85, 0.05) * 0.02;
+    // keep a 2.5D engineer from being filmed closer than its art allows
+    const near = engineer.minShotDistance;
+    if (near && c.look.distanceTo(engineer.headWorld()) < 0.6 && c.pos.distanceTo(c.look) < near) {
+      c.pos = c.look.clone().add(c.pos.clone().sub(c.look).setLength(near));
+    }
     camera.position.copy(c.pos).add(hand(t)).add(V(Math.sin(t * 73) * shake, Math.sin(t * 61) * shake, 0));
     camera.fov = c.fov; camera.updateProjectionMatrix();
     camera.lookAt(c.look);

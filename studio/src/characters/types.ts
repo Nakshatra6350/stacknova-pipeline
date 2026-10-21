@@ -50,12 +50,18 @@ export interface CharacterState {
   /** Nova only: a small hop, or how much it tilts. */
   hop?: number;
   tilt?: number;
+  /** 0..1 how much of the character has appeared (a 2.5D character materialises instead of walking in). */
+  appear?: number;
 }
 
 export interface CharacterRig {
   readonly root: THREE.Object3D;
   /** Standing height in metres (Nova: its size). */
   readonly height: number;
+  /** False when the character cannot walk (a 2.5D illustration): the story makes it appear instead. */
+  readonly canWalk?: boolean;
+  /** Cameras keep at least this far from the character's head (a 2.5D illustration blurs closer). */
+  readonly minShotDistance?: number;
   apply(state: CharacterState): void;
   headWorld(out?: THREE.Vector3): THREE.Vector3;
   handWorld(side: 'L' | 'R', out?: THREE.Vector3): THREE.Vector3;
@@ -63,7 +69,7 @@ export interface CharacterRig {
 
 /** How a character is drawn: built in code, or a rigged glTF model. */
 export interface CharacterConfig {
-  kind: 'procedural' | 'gltf' | 'vrm';
+  kind: 'procedural' | 'gltf' | 'vrm' | 'sprite';
   /** gltf: model URL, the name of its bones, its clips and its face morphs. */
   url?: string;
   scale?: number;

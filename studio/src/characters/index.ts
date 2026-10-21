@@ -5,6 +5,7 @@ import { ProceduralEngineer } from './engineer';
 import { ProceduralNova } from './nova';
 import { GltfCharacter } from './gltf';
 import { VrmCharacter } from './vrm';
+import { SpriteCharacter } from './sprite';
 
 export interface Cast { engineer: CharacterRig; nova: CharacterRig }
 
@@ -28,6 +29,7 @@ export async function loadCast(): Promise<Cast> {
   const cfg = await readConfig();
   const make = async (c: CharacterConfig, height: number, fallback: () => CharacterRig): Promise<CharacterRig> => {
     if (c.kind === 'vrm' && c.url) return VrmCharacter.load({ ...c, url: c.url });
+    if (c.kind === 'sprite' && c.url) return SpriteCharacter.load(c.url, height);
     if (c.kind === 'gltf') return GltfCharacter.load(c, height);
     return fallback();
   };
