@@ -1,0 +1,26 @@
+<!doctype html>
+<!-- Look v3 draft: a 3D scene drawn with three.js, one frame per window.render(t) call. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  @font-face { font-family: "Inter Display"; font-weight: 800; src: url("/fonts/InterDisplay-ExtraBold.ttf"); }
+  @font-face { font-family: "Inter"; font-weight: 500; src: url("/fonts/Inter-Medium.ttf"); }
+  @font-face { font-family: "Inter"; font-weight: 700; src: url("/fonts/Inter-Bold.ttf"); }
+  @font-face { font-family: "JetBrains Mono"; font-weight: 400; src: url("/fonts/JetBrainsMono-Regular.ttf"); }
+  @font-face { font-family: "JetBrains Mono"; font-weight: 700; src: url("/fonts/JetBrainsMono-Bold.ttf"); }
+  html, body { margin: 0; width: 1080px; height: 1920px; overflow: hidden; background: #03040a; }
+  canvas#gl { position: absolute; inset: 0; width: 1080px; height: 1920px; }
+  #hud { position: absolute; inset: 0; pointer-events: none; font-family: Inter, sans-serif; color: #fff; }
+</style>
+<link rel="stylesheet" href="hud.css">
+<script type="importmap">
+  { "imports": { "three": "/vendor/three.module.js", "three/addons/": "/vendor/addons/" } }
+</script>
+</head>
+<body>
+<canvas id="gl" width="1080" height="1920"></canvas>
+<div id="hud"></div>
+<script type="module" src="main.js"></script>
+</body>
+</html>

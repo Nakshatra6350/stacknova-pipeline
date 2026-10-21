@@ -1,0 +1,82 @@
+name: look-v3 render (draft)
+
+# Throwaway spike for the look v3 draft (owner's request of 21 October 2026). Draws the 3D draft
+# in spikes/look-v3/scene frame by frame in six parallel parts, joins them with the sound kept in
+# the draft Release look-v3-draft, and stores the video there. Publishes nothing.
+on:
+  push:
+    branches: [look-v3]
+    paths:
+      - spikes/look-v3/scene/**
+      - spikes/look-v3/draft/timeline.json
+      - spikes/look-v3/render_draft.py
+      - .github/workflows/look-v3-render.yml
+
+permissions:
+  contents: write # reads and writes the draft Release that stores the draft renders
+
+concurrency:
+  group: look-v3-render
+  cancel-in-progress: true
+
+env:
+  FRAMES_PER_PART: "290"
+
+jobs:
+  part:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      matrix:
+        part: [0, 1, 2, 3, 4, 5]
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      PART: ${{ matrix.part }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg
+      - name: Install scene dependencies
+        run: uv sync --locked --no-default-groups --group scenes
+      - name: Draw this part
+        run: |
+          set -euo pipefail
+          first=$((PART * FRAMES_PER_PART)); last=$(((PART + 1) * FRAMES_PER_PART))
+          uv run --no-sync python spikes/look-v3/render_draft.py part \
+            spikes/look-v3/draft/timeline.json "$first" "$last" "$RUNNER_TEMP/part-$PART.mp4"
+      - name: Store the part in the draft Release
+        run: |
+          set -euo pipefail
+          gh release view look-v3-draft >/dev/null 2>&1 || gh release create look-v3-draft \
+            --draft --title "Look v3 draft renders" \
+            --notes "Private storage for the look v3 draft. This Release stays a draft."
+          gh release upload look-v3-draft "$RUNNER_TEMP/part-$PART.mp4" --clobber
+
+  join:
+    needs: part
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg
+      - name: Join the parts with the sound
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/r"
+          gh release download look-v3-draft --pattern 'part-*.mp4' --pattern 'look-v3-mix.wav' \
+            --dir "$RUNNER_TEMP/r" --clobber
+          python3 spikes/look-v3/render_draft.py join "$RUNNER_TEMP/r/look-v3-mix.wav" \
+            "$RUNNER_TEMP/look-v3-hashmap-draft.mp4" $(ls "$RUNNER_TEMP"/r/part-*.mp4 | sort -V)
+          gh release upload look-v3-draft "$RUNNER_TEMP/look-v3-hashmap-draft.mp4" --clobber

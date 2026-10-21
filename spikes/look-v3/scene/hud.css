@@ -1,0 +1,37 @@
+/* Look v3 draft HUD: progress bar, captions, big words. Drawn over the 3D canvas. */
+#hud .bar { position: absolute; left: 60px; right: 60px; top: 150px; display: flex; flex-direction: column; gap: 14px; }
+#hud .bar .title { font: 800 34px/1 "Inter Display", sans-serif; letter-spacing: 0.18em; color: #e9fbff;
+  text-shadow: 0 0 18px rgba(34,211,255,0.8); display: flex; justify-content: space-between; align-items: baseline; }
+#hud .bar .title small { font: 700 24px/1 "JetBrains Mono", monospace; letter-spacing: 0.08em; color: #7fe7ff; }
+#hud .bar .steps { display: flex; gap: 10px; }
+#hud .bar .step { flex: 1; display: flex; flex-direction: column; gap: 8px; font: 700 19px/1 "JetBrains Mono", monospace;
+  letter-spacing: 0.08em; color: rgba(160,200,230,0.45); }
+#hud .bar .step i { display: block; height: 7px; border-radius: 4px; background: rgba(120,180,220,0.18); overflow: hidden; }
+#hud .bar .step i b { display: block; height: 100%; background: linear-gradient(90deg, #22d3ff, #8ff0ff);
+  box-shadow: 0 0 14px #22d3ff; }
+#hud .bar .step.on { color: #bff4ff; }
+
+#hud .cap { position: absolute; left: 70px; right: 70px; top: 1250px; text-align: center; }
+#hud .cap .who { display: inline-block; font: 800 22px/1 "Inter Display", sans-serif; letter-spacing: 0.16em;
+  padding: 8px 14px; border-radius: 10px; margin-bottom: 14px; }
+#hud .cap .who.nova { background: #f3f6ff; color: #0a1020; box-shadow: 0 0 22px rgba(95,240,255,0.55); }
+#hud .cap .who.engineer { background: #0b1a2a; color: #7fe7ff; border: 2px solid #22d3ff; box-shadow: 0 0 22px rgba(34,211,255,0.45); }
+#hud .cap .line { font: 800 58px/1.16 "Inter Display", sans-serif; color: rgba(255,255,255,0.42);
+  text-shadow: 0 4px 22px rgba(0,0,0,0.95), 0 0 2px #000; letter-spacing: -0.01em; }
+#hud .cap .line span.said { color: #ffffff; }
+#hud .cap .line span.now { color: #5ff0ff; text-shadow: 0 0 22px rgba(34,211,255,0.9), 0 4px 22px rgba(0,0,0,0.95); }
+
+#hud .big { position: absolute; left: 0; right: 0; text-align: center; font: 800 150px/1 "Inter Display", sans-serif;
+  letter-spacing: -0.02em; color: #fff; text-shadow: 0 0 40px rgba(34,211,255,0.9), 0 8px 40px rgba(0,0,0,0.9); }
+#hud .big.red { text-shadow: 0 0 40px rgba(255,59,92,0.95), 0 8px 40px rgba(0,0,0,0.9); }
+#hud .flash { position: absolute; inset: 0; background: radial-gradient(circle at 50% 40%, rgba(160,245,255,0.95), rgba(34,211,255,0.35) 45%, rgba(0,0,0,0) 75%); }
+#hud .vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 45%, rgba(0,0,0,0) 55%, rgba(0,0,0,0.55) 100%); }
+#hud .end { position: absolute; left: 60px; right: 60px; top: 400px; text-align: center; }
+#hud .end .kicker { font: 700 30px/1 "JetBrains Mono", monospace; letter-spacing: 0.2em; color: #7fe7ff; }
+#hud .end .head { font: 800 108px/1.02 "Inter Display", sans-serif; color: #fff; margin-top: 22px;
+  text-shadow: 0 0 40px rgba(34,211,255,0.7), 0 8px 40px rgba(0,0,0,0.9); }
+#hud .end .follow { display: inline-block; margin-top: 44px; font: 800 44px/1 "Inter Display", sans-serif; color: #04121c;
+  background: linear-gradient(90deg, #5ff0ff, #22d3ff); padding: 22px 40px; border-radius: 18px; box-shadow: 0 0 40px rgba(34,211,255,0.7); }
+#hud .brand { position: absolute; left: 60px; bottom: 120px; display: flex; align-items: center; gap: 14px;
+  font: 800 34px/1 "Inter Display", sans-serif; color: #fff; opacity: 0.85; }
+#hud .brand img { width: 48px; height: 48px; border-radius: 12px; }
