@@ -1,0 +1,55 @@
+# HashMap, part 3 of 4: the key that vanished (a mutable key). A quick Short.
+#
+# Facts, Java 25 (java.util.HashMap):
+#   a node stores the key's hash when it is put (HashMap.Node.hash is final); get, containsKey and
+#   remove hash the key as it is now and look only in that bucket, comparing the stored hash first
+#   so a key whose hashCode changed after put is not found; iterating the map still reaches it
+#   class User { String email; hashCode() = email.hashCode() }:
+#   "ana@mail.com" -> bucket 3 of 16, "ana@corp.dev" -> bucket 8 of 16 (String.hashCode, spread)
+#   String is immutable; a record's fields are final, so a record of immutable values is a safe key
+id: 007-p3
+format: short
+world: hashmap
+title: HASHMAP
+episode: EP 007 · PART 3
+steps: ["LOST?", STILL THERE, NEW HASH, WRONG BUCKET, FIX]
+end: {kicker: PART 4, head: "100 isn't room\nfor 100", cta: part 4}
+
+lines:
+  - id: n1
+    who: nova
+    say: "I put Ana in the map. Now get says null. The map lost her!"
+  - id: e1
+    who: engineer
+    say: "It didn't. Look. She's still in bucket three."
+    show: "It didn't. Look. She's still in bucket 3."
+  - id: n2
+    who: nova
+    say: "Then why can't get find her?"
+  - id: e2
+    who: engineer
+    say: "After you put her in, you changed her email. And email is part of her hash code."
+    show: "After you put her in, you changed her email. And email is part of her hashCode."
+  - id: e3
+    who: engineer
+    say: "New email, new hash, new bucket. Get jumps straight to bucket eight, finds nothing, and gives up."
+    show: "New email, new hash, new bucket. get jumps straight to bucket 8, finds nothing, and gives up."
+  - id: n3
+    who: nova
+    say: "So she's stuck in locker three forever?"
+    show: "So she's stuck in locker 3 forever?"
+  - id: e4
+    who: engineer
+    say: "Get, contains key and remove all look in the wrong bucket. Only a full scan still sees her. That's a quiet memory leak."
+    show: "get, containsKey and remove all look in the wrong bucket. Only a full scan still sees her. That's a quiet memory leak."
+  - id: n4
+    who: nova
+    say: "How do I stop it?"
+  - id: e5
+    who: engineer
+    say: "Never change a field that equals or hash code uses while the object is a key. Use immutable keys: a string, or a record of immutable values."
+    show: "Never change a field that equals or hashCode uses while the object is a key. Use immutable keys: a String, or a record of immutable values."
+  - id: e6
+    who: engineer
+    say: "Part four: why a HashMap of a hundred isn't room for a hundred."
+    show: "Part 4: why a HashMap of 100 isn't room for 100."

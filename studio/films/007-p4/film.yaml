@@ -1,0 +1,56 @@
+# HashMap, part 4 of 4: 100 isn't room for 100 (capacity, load factor, newHashMap). A quick Short
+# that hands over to episode 007, out Tuesday 27 October 2026.
+#
+# Facts, Java 25 (java.util.HashMap):
+#   new HashMap<>(100): the capacity is rounded up to a power of two (tableSizeFor) = 128 buckets;
+#   the default load factor is 0.75, so the threshold is 96 and the 97th entry doubles the table to
+#   256, moving every entry
+#   HashMap.newHashMap(int numMappings), since Java 19: a map sized so numMappings fit without a
+#   resize at the default load factor
+#   the Javadoc: 0.75 "offers a good tradeoff between time and space costs"
+id: 007-p4
+format: short
+world: hashmap
+title: HASHMAP
+episode: EP 007 · PART 4
+steps: ["100?", "128", "96", RESIZE, FIX]
+end: {kicker: "DEEP DIVE · TUESDAY", head: "HashMap,\nall of it", cta: deep dive}
+
+lines:
+  - id: n1
+    who: nova
+    say: "I made a HashMap for a hundred users. It still stopped to resize!"
+    show: "I made a HashMap for 100 users. It still stopped to resize!"
+  - id: e1
+    who: engineer
+    say: "Because that hundred is a capacity, not how many entries fit."
+    show: "Because that 100 is a capacity, not how many entries fit."
+  - id: n2
+    who: nova
+    say: "Isn't that the same thing?"
+  - id: e2
+    who: engineer
+    say: "Java rounds it up to a power of two: a hundred and twenty-eight buckets. But it grows when the map is three quarters full."
+    show: "Java rounds it up to a power of two: 128 buckets. But it grows when the map is three quarters full."
+  - id: e3
+    who: engineer
+    say: "Seventy-five percent of a hundred and twenty-eight is ninety-six."
+    show: "75% of 128 is 96."
+  - id: n3
+    who: nova
+    say: "So entry ninety-seven doubles everything?"
+    show: "So entry 97 doubles everything?"
+  - id: e4
+    who: engineer
+    say: "Every entry moves to a new table of two hundred and fifty-six buckets. Work you never planned for."
+    show: "Every entry moves to a new table of 256 buckets. Work you never planned for."
+  - id: e5
+    who: engineer
+    say: "Since Java nineteen, ask for HashMap dot new HashMap, a hundred. It sizes the table so a hundred really fit."
+    show: "Since Java 19, ask for HashMap.newHashMap(100). It sizes the table so 100 really fit."
+  - id: n4
+    who: nova
+    say: "Why three quarters, though?"
+  - id: e6
+    who: engineer
+    say: "Fuller tables mean longer chains. Emptier ones waste memory. The full deep dive on HashMap is out Tuesday."

@@ -3,12 +3,10 @@ name: look-v3 render (draft)
 # Look v3 draft (owner's request of 21 October 2026). Builds the studio (studio/, three.js +
 # TypeScript + Vite), draws its HashMap Short frame by frame in six parallel parts, joins them with
 # the sound kept in the draft Release look-v3-draft, and stores the video there. Publishes nothing.
+# Manual only since 21 October 2026: the engineer is now the owner's 2.5D art, which is kept off
+# this public repository, so videos are drawn on the owner's PC (studio/scripts/render.py).
 on:
-  push:
-    branches: [look-v3]
-    paths:
-      - studio/**
-      - .github/workflows/look-v3-render.yml
+  workflow_dispatch:
 
 permissions:
   contents: write # reads and writes the draft Release that stores the draft renders

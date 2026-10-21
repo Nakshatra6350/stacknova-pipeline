@@ -1,0 +1,56 @@
+# HashMap, part 2 of 4: when a bucket becomes a tree. A quick Short (owner's plan of 21 October
+# 2026: four HashMap Shorts lead into episode 007, out Tuesday 27 October).
+#
+# Facts, Java 25 (java.util.HashMap, unchanged since Java 8):
+#   adding a key to a bucket that already holds 8 (TREEIFY_THRESHOLD) asks for a tree, but a table
+#   smaller than 64 buckets (MIN_TREEIFY_CAPACITY) is doubled instead (treeifyBin -> resize)
+#   on a resize every node keeps its cached hash: (hash & oldCap) == 0 stays at j, else moves to
+#   j + oldCap ("lo" and "hi" lists), so nothing is hashed again
+#   order:1010, order:1021, order:1032, order:1043 and order:1098 stay in bucket 7 of 32;
+#   order:1609, order:1708, order:1719, order:1807 move to bucket 23 (String.hashCode, spread)
+#   tree bins are red-black trees: a lookup there is O(log n)
+id: 007-p2
+format: short
+world: hashmap
+title: HASHMAP
+episode: EP 007 · PART 2
+steps: [JAMMED, NINTH KEY, DOUBLE, SPLIT, TREE]
+end: {kicker: PART 3, head: "The key that\nvanished", cta: part 3}
+
+lines:
+  - id: n1
+    who: nova
+    say: "Locker seven is jammed! Eight orders, one bucket. Every lookup walks the whole chain!"
+    show: "Locker 7 is jammed! 8 orders, one bucket. Every lookup walks the whole chain!"
+  - id: e1
+    who: engineer
+    say: "Watch what happens when a ninth one lands."
+  - id: n2
+    who: nova
+    say: "It joins the line?"
+  - id: e2
+    who: engineer
+    say: "Java wants a tree here. But the table has only sixteen buckets, and trees need sixty-four. So it doubles the table instead."
+    show: "Java wants a tree here. But the table has only 16 buckets, and trees need 64. So it doubles the table instead."
+  - id: n3
+    who: nova
+    say: "Thirty-two lockers! Does every key need a new hash now?"
+    show: "32 lockers! Does every key need a new hash now?"
+  - id: e3
+    who: engineer
+    say: "No. Each key checks one more bit of the hash it already has. Zero, it stays in seven. One, it moves to twenty-three."
+    show: "No. Each key checks one more bit of the hash it already has. 0, it stays in 7. 1, it moves to 23."
+  - id: n4
+    who: nova
+    say: "The long chain splits in two!"
+  - id: e4
+    who: engineer
+    say: "And once the table has sixty-four buckets, a crowded bucket becomes a red-black tree. Finding a key takes a few hops instead of the whole chain."
+    show: "And once the table has 64 buckets, a crowded bucket becomes a red-black tree. Finding a key takes a few hops instead of the whole chain."
+  - id: n5
+    who: nova
+    say: "Trees inside lockers. Nice."
+  - id: e5
+    who: engineer
+    say: "Part three: the key that vanished."
+    show: "Part 3: the key that vanished."
