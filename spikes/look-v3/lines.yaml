@@ -1,0 +1,58 @@
+# Look v3 draft: a HashMap quick Short, told by the engineer and Nova (owner's direction of
+# 21 October 2026). Throwaway spike: nothing here is published.
+#
+# who:  engineer (the channel's cloned voice) or nova (the same voice, more excited, then made
+#       robotic with ffmpeg on the owner's PC)
+# say:  what the voice model reads (spelled the way it is said)
+# show: the caption on screen, when it differs from `say`
+#
+# Facts, Java 25 (java.util.HashMap, unchanged since Java 8):
+#   hash(key) = (h = key.hashCode()) ^ (h >>> 16); bucket = (n - 1) & hash; default n = 16
+#   "user:42".hashCode() = -147170163, spread = -147149897, last four bits 0111, bucket 7
+#   "user:97" lands in bucket 7 too (same table of 16)
+#   a bucket's chain becomes a tree at 8 nodes (TREEIFY_THRESHOLD) only when the table has at
+#   least 64 buckets (MIN_TREEIFY_CAPACITY); a smaller table grows instead
+#   get/put are O(1) on average
+lines:
+  - id: n1
+    who: nova
+    say: "User forty-two... not in locker zero. Not in one. Not in two!"
+    show: "user:42… not in locker 0. Not in 1. Not in 2!"
+  - id: e1
+    who: engineer
+    say: "Stop. A HashMap never searches."
+  - id: n2
+    who: nova
+    say: "Then how does it find anything?"
+  - id: e2
+    who: engineer
+    say: "Let me show you what's underneath."
+  - id: e3
+    who: engineer
+    say: "Java turns the key into a number, its hash code, and mixes in the top bits."
+    show: "Java turns the key into a number, its hashCode, and mixes in the top bits."
+  - id: e4
+    who: engineer
+    say: "With sixteen buckets, it keeps only the last four bits. Zero, one, one, one. Bucket seven. One jump."
+    show: "With 16 buckets, it keeps only the last four bits. 0111. Bucket 7. One jump."
+  - id: n3
+    who: nova
+    say: "One jump? No searching at all?"
+  - id: e5
+    who: engineer
+    say: "None. That's why a lookup is O of one, on average."
+    show: "None. That's why a lookup is O(1), on average."
+  - id: n4
+    who: nova
+    say: "Uh oh. User ninety-seven just landed in locker seven too. That can't be legal!"
+    show: "Uh oh. user:97 just landed in locker 7 too. That can't be legal!"
+  - id: e6
+    who: engineer
+    say: "It's a collision. The bucket keeps a short chain, and equals finds the right key."
+  - id: n5
+    who: nova
+    say: "And if eight keys pile up in one bucket?"
+    show: "And if 8 keys pile up in one bucket?"
+  - id: e7
+    who: engineer
+    say: "Then Java grows the table, or turns the chain into a tree. That's part two."
