@@ -34,21 +34,23 @@ export class FrameHud {
     host.innerHTML = this.long ? `
       <div class="frame long">
         <div class="top">
-          <div class="brand">STACK<b>NOVA</b> · ${brand}<span class="ep">${episode}</span></div>
+          <div class="brand"><span class="mark"></span><span class="word">Stack<span class="grad">Nova</span></span><span class="topic">· ${brand}</span><span class="ep">${episode}</span></div>
           <div class="steps">${steps.map((s) => `<div class="step"><i><b></b></i>${s}</div>`).join('')}</div>
           <div class="callout"></div>
         </div>
         <div class="view"></div>
-        <div class="brandcard"><div class="mark">STACK<b>NOVA</b></div><div class="tag">exploring the architecture of tomorrow</div></div>
+        <div class="brandcard"><div class="emblem"></div><div class="word">Stack<span class="grad">Nova</span></div><div class="tag"><i></i>LIGHT UP YOUR WHOLE STACK<i></i></div></div>
+        <div class="watermark"></div>
         <div class="end"><div class="kicker">${html(end.kicker)}</div><div class="head">${html(end.head)}</div><div class="follow"><span>${html(cta)}</span></div></div>
       </div>` : `
       <div class="frame">
         <div class="top">
-          <div class="row"><div class="brand">STACK<b>NOVA</b> · ${brand}</div><div class="ep">${episode}</div></div>
+          <div class="row"><div class="brand"><span class="mark"></span><span class="word">Stack<span class="grad">Nova</span></span><span class="topic">· ${brand}</span></div><div class="ep">${episode}</div></div>
           <div class="steps">${steps.map((s) => `<div class="step"><i><b></b></i>${s}</div>`).join('')}</div>
           <div class="callout"></div>
         </div>
         <div class="view"></div>
+        <div class="watermark"></div>
         <div class="dim"></div>
         <div class="end"><div class="kicker">${html(end.kicker)}</div><div class="head">${html(end.head)}</div></div>
         <div class="cap"><div class="who"></div><div class="line"></div><div class="follow"><span>${html(cta)}</span></div></div>

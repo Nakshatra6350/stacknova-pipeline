@@ -6,7 +6,7 @@ slides:
     still: {timeline: studio/public/story/hashmap-short.json, t: 13.6, y: 0.35}
   - headline: 1. The key becomes a number
     body: '"user:42".hashCode() = -147170163'
-    still: {timeline: studio/public/story/hashmap-short.json, t: 18.0, y: 0.25}
+    still: {timeline: studio/public/story/hashmap-short.json, t: 18.3, y: 0.25}
   - headline: 2. The top bits are mixed in
     body: "h ^ (h >>> 16) spreads the hash"
     still: {timeline: studio/public/story/hashmap-short.json, t: 19.7, y: 0.25}

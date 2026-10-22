@@ -24,15 +24,22 @@ KINDS = {"short": "YouTube Short", "reel": "Instagram Reel", "carousel": "Instag
 def main(day: str, items: list[str]) -> None:
     folder = LAUNCH / day
     folder.mkdir(parents=True, exist_ok=True)
-    old = [p for p in folder.iterdir()]
+    # files this script wrote before are replaced; anything else is the earlier plan's, kept aside
+    ours = [
+        yaml.safe_load(p.read_text(encoding="utf-8"))["name"]
+        for p in (ROOT / "studio" / "films").glob("*/post.yaml")
+    ]
+    old = []
+    for p in folder.iterdir():
+        if p.name == "00 WHAT TO POST.txt" or any(name in p.name for name in ours):
+            shutil.rmtree(p) if p.is_dir() else p.unlink()
+        else:
+            old.append(p)
     if old:
         keep = LAUNCH / "z Old style, not posted" / day
         keep.mkdir(parents=True, exist_ok=True)
         for p in old:
-            if p.name == "00 WHAT TO POST.txt":
-                p.unlink()
-            else:
-                shutil.move(str(p), str(keep / p.name))
+            shutil.move(str(p), str(keep / p.name))
         print(f"moved {len(old)} earlier files to {keep}")
     text = [
         f"{day}: what to post. All times are India time (IST).",

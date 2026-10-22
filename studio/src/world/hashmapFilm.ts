@@ -2,7 +2,7 @@
 // moved between them, bucket colours, the table doubling, a chain that becomes a tree, System
 // Vision, a full scan). Every beat is registered once; update(t) then draws any moment on its own.
 import * as THREE from 'three';
-import { HashMapWorld, type BucketTone } from './hashmapWorld';
+import { HashMapWorld, type BucketTone, type WorldOptions } from './hashmapWorld';
 import { EntrySlab, nodeCard, type NodeState, type SlabTone } from '../props/cards';
 import type { Card } from '../util/look';
 import { clamp, easeOut, lerp, pulse, smooth, smoother, span, V } from '../util/math';
@@ -32,9 +32,12 @@ export class HashMapFilm implements FilmWorld {
   private chains: Chain[] = [];
   private seq = 0; // the order moves were written in: breaks ties between keys put together
 
-  constructor(scene: THREE.Scene) {
+  private slabWidth: number;
+
+  constructor(scene: THREE.Scene, opts: WorldOptions & { slab?: number } = {}) {
     this.scene = scene;
-    this.world = new HashMapWorld(scene);
+    this.world = new HashMapWorld(scene, opts);
+    this.slabWidth = opts.slab ?? 0.3;
   }
 
   // ---------------------------------------------------------------- places
@@ -110,7 +113,7 @@ export class HashMapFilm implements FilmWorld {
   private slab(key: string): Slab {
     let s = this.slabs.get(key);
     if (!s) {
-      const slab = new EntrySlab(key.split('#')[0]); // "AaAa#2": a second slab labelled AaAa
+      const slab = new EntrySlab(key.split('#')[0], this.slabWidth); // "AaAa#2": a second slab labelled AaAa
       slab.visible = false;
       this.scene.add(slab);
       s = { key, slab, moves: [], gone: NEVER, labels: [], tones: [] };

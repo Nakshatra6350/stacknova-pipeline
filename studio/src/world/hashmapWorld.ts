@@ -19,17 +19,30 @@ export interface Bucket {
 
 const RIM = { idle: [0.18, 0.62, 0.78], active: [1.0, 0.68, 0.28], alarm: [1.0, 0.33, 0.4], searched: [0.5, 0.55, 0.65] } as const;
 
+/** The same world can hold other tables: episode 008 uses five wide tubes as rows (id 1-5),
+ *  their slabs as row versions. Defaults: the HashMap's 16 buckets. */
+export interface WorldOptions {
+  count?: number;                  // tubes in the arc
+  arc?: number;                    // degrees the arc spans
+  radius?: number;                 // metres from the centre
+  tube?: number;                   // tube radius
+  label?: (i: number) => string;   // what each tube's sign says
+}
+
 export class HashMapWorld {
   readonly group = new THREE.Group();
   readonly buckets: Bucket[] = [];
-  readonly radius = 3.6;
+  readonly radius: number;
+  private opts: Required<WorldOptions>;
   private grid: THREE.GridHelper;
   private scan: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>;
   private motes: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
   private moteBase: Float32Array;
   private fog: THREE.FogExp2;
 
-  constructor(scene: THREE.Scene) {
+  constructor(scene: THREE.Scene, opts: WorldOptions = {}) {
+    this.opts = { count: 16, arc: 140, radius: 3.6, tube: 0.22, label: String, ...opts };
+    this.radius = this.opts.radius;
     scene.add(this.group);
     this.fog = new THREE.FogExp2(0x060b16, 0.04);
     scene.fog = this.fog;
@@ -60,7 +73,7 @@ export class HashMapWorld {
     this.scan.rotation.x = -Math.PI / 2; this.scan.position.set(0.4, 0.01, 1.3); this.scan.visible = false; this.group.add(this.scan);
 
     // the buckets
-    for (let i = 0; i < 16; i++) this.buckets.push(this.makeBucket(i, this.radius, 0));
+    for (let i = 0; i < this.opts.count; i++) this.buckets.push(this.makeBucket(i, this.radius, 0));
 
     // the city far behind, and soft out-of-focus lights
     this.city();
@@ -86,7 +99,8 @@ export class HashMapWorld {
   /** Bucket i stands at the angle of bucket i % 16; the doubled table's buckets 16-31 stand on an
    *  outer ring, raised, each right behind its partner (23 behind 7: one more bit of the hash). */
   private makeBucket(i: number, radius: number, lift: number): Bucket {
-    const a = deg(-70 + ((i % 16) * 140) / 15);
+    const { count, arc, tube: r } = this.opts;
+    const a = deg(-arc / 2 + ((i % count) * arc) / Math.max(1, count - 1));
     const group = new THREE.Group();
     group.position.set(radius * Math.sin(a), lift, -radius * Math.cos(a));
     group.lookAt(0, lift, 0);
@@ -96,28 +110,29 @@ export class HashMapWorld {
       const column = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.26, lift, 32), metal);
       column.position.y = -lift / 2; group.add(column);
     }
-    const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.29, 0.22, 40), metal);
+    const pedestal = new THREE.Mesh(new THREE.CylinderGeometry(r + 0.03, r + 0.07, 0.22, 40), metal);
     pedestal.position.y = 0.11; group.add(pedestal);
-    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.245, 0.245, 0.03, 40), toon(0x1c2740)); cap.position.y = 1.47; group.add(cap);
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(r + 0.025, r + 0.025, 0.03, 40), toon(0x1c2740)); cap.position.y = 1.47; group.add(cap);
     const glass = new THREE.MeshStandardMaterial({ color: 0x1a3a5c, roughness: 0.12, metalness: 0.15, transparent: true, opacity: 0.2, side: THREE.DoubleSide, depthWrite: false });
-    const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 1.22, 48, 1, true), glass);
+    const tube = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 1.22, 48, 1, true), glass);
     tube.position.y = 0.84; tube.renderOrder = 5; group.add(tube);
     const rims = new THREE.MeshBasicMaterial({ toneMapped: false });
     rims.color.setRGB(...RIM.idle);
     for (const y of [0.23, 1.45]) {
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(0.222, 0.007, 8, 64), rims);
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(r + 0.002, 0.007, 8, 64), rims);
       ring.rotation.x = Math.PI / 2; ring.position.y = y; group.add(ring);
     }
     for (const x of [-1, 1]) {
       const line = new THREE.Mesh(new THREE.BoxGeometry(0.004, 1.2, 0.004), rims);
-      line.position.set(x * 0.2, 0.84, 0.09); group.add(line);
+      line.position.set(x * (r - 0.02), 0.84, 0.09); group.add(line);
     }
-    const label = new Card<{ tone: BucketTone }>(0.36, 0.2, 500, (ctx, w, h, s) => {
+    const text = this.opts.label(i);
+    const label = new Card<{ tone: BucketTone }>(Math.max(0.36, 0.1 + text.length * 0.075), 0.2, 500, (ctx, w, h, s) => {
       const col = s.tone === 'active' ? '#ffc36e' : s.tone === 'alarm' ? '#ff7a88' : s.tone === 'searched' ? '#8792a8' : '#9fe3f7';
       ctx.fillStyle = 'rgba(6,12,24,0.85)'; roundRect(ctx, 6, 6, w - 12, h - 12, 16); ctx.fill();
       ctx.strokeStyle = col; ctx.lineWidth = 4; ctx.stroke();
       ctx.fillStyle = col; ctx.font = `700 64px ${MONO}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(String(i), w / 2, h / 2 + 3);
+      ctx.fillText(text, w / 2, h / 2 + 3);
     }, { tone: 'idle' });
     label.billboard = false;
     label.position.set(0, 1.68, 0); group.add(label);

@@ -90,7 +90,7 @@ const TONES: Record<string, string> = { cyan: INK.cyan, amber: INK.amber, red: I
 
 /** Big words in the world: "16 → 32", "O(log n)". */
 export function labelCard(text: string, sub = '', tone = 'white', size = 1): Card<{ tone: string }> {
-  const w = Math.max(0.5, (text.length * 0.052 + 0.16)) * size, h = (sub ? 0.27 : 0.19) * size;
+  const w = Math.max(0.5, (text.length * 0.06 + 0.22)) * size, h = (sub ? 0.27 : 0.19) * size;
   return new Card<{ tone: string }>(w, h, 900 / size, (ctx, cw, ch, s) => {
     const col = TONES[s.tone] ?? INK.text;
     panel(ctx, cw, ch, s.tone === 'white' ? 'rgba(95,214,245,0.55)' : col, 26);
@@ -190,25 +190,31 @@ export function bitsCard(value: number, low: number, result: string, title = 'ha
 }
 
 /** A slab inside a bucket, labelled with its key. */
-export type SlabTone = 'amber' | 'cyan' | 'red' | 'green';
+export type SlabTone = 'amber' | 'cyan' | 'red' | 'green' | 'dim' | 'dead';
+/** A slab inside a bucket, labelled with its key (or, in episode 008, a row version). `dim` is a
+ *  ghost (a version this snapshot cannot see), `dead` is struck through (waiting for VACUUM). */
 export class EntrySlab extends THREE.Group {
   readonly label: Card<{ tone: SlabTone; text: string }>;
   private body: THREE.Mesh<RoundedBoxGeometry, THREE.MeshToonMaterial>;
   private text: string;
   private shade: SlabTone = 'amber';
-  constructor(key: string) {
+  constructor(key: string, width = 0.3) {
     super();
     this.text = key;
-    this.body = new THREE.Mesh(new RoundedBoxGeometry(0.3, 0.09, 0.3, 2, 0.02), toon(0x1a2742));
+    this.body = new THREE.Mesh(new RoundedBoxGeometry(width, 0.09, 0.3, 2, 0.02), toon(0x1a2742, { transparent: true }));
     this.add(this.body);
-    this.label = new Card<{ tone: SlabTone; text: string }>(0.28, 0.07, 1000, (ctx, w, h, s) => {
-      const col = { amber: INK.amber, red: INK.red, cyan: INK.cyan, green: INK.green }[s.tone];
+    this.label = new Card<{ tone: SlabTone; text: string }>(width - 0.02, 0.07, 1000, (ctx, w, h, s) => {
+      const col = { amber: INK.amber, red: INK.red, cyan: INK.cyan, green: INK.green, dim: INK.dim, dead: INK.dim }[s.tone];
       ctx.fillStyle = 'rgba(7,13,26,0.9)'; roundRect(ctx, 3, 3, w - 6, h - 6, 12); ctx.fill();
       ctx.strokeStyle = col; ctx.lineWidth = 3; ctx.stroke();
       ctx.fillStyle = col; ctx.font = `700 40px ${MONO}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      const fit = Math.min(1, (w - 24) / ctx.measureText(s.text).width);
+      const width = ctx.measureText(s.text).width, fit = Math.min(1, (w - 24) / width);
       ctx.font = `700 ${Math.floor(40 * fit)}px ${MONO}`;
       ctx.fillText(s.text, w / 2, h / 2 + 2);
+      if (s.tone === 'dead') {
+        ctx.strokeStyle = INK.red; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.moveTo(w / 2 - width * fit / 2 - 6, h / 2); ctx.lineTo(w / 2 + width * fit / 2 + 6, h / 2); ctx.stroke();
+      }
     }, { tone: 'amber', text: key }, 24);
     this.label.billboard = false;
     this.label.position.set(0, 0, 0.152);
@@ -217,7 +223,11 @@ export class EntrySlab extends THREE.Group {
   tone(t: SlabTone): void {
     this.shade = t;
     this.label.set({ tone: t, text: this.text });
-    this.body.material.color.setHex(t === 'amber' ? 0x3a2c14 : t === 'red' ? 0x3a1620 : t === 'green' ? 0x143a2a : 0x1a2742);
+    const colour = { amber: 0x3a2c14, red: 0x3a1620, green: 0x143a2a, cyan: 0x1a2742, dim: 0x1a2742, dead: 0x1c1f28 }[t];
+    this.body.material.color.setHex(colour);
+    const ghost = t === 'dim' ? 0.22 : 1;
+    this.body.material.opacity = ghost;
+    this.label.material.opacity = t === 'dim' ? 0.3 : 1;
   }
   relabel(text: string): void { this.text = text; this.tone(this.shade); }
 }

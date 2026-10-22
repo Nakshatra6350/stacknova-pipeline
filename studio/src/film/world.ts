@@ -15,6 +15,8 @@ export interface FilmWorld {
 export function makeWorld(name: string, scene: THREE.Scene): FilmWorld {
   switch (name) {
     case 'hashmap': return new HashMapFilm(scene);
+    // episode 008: a table of five rows, each tube a row, each slab a row version
+    case 'mvcc': return new HashMapFilm(scene, { count: 5, arc: 64, radius: 3.4, tube: 0.34, slab: 0.56, label: (i) => `id ${i + 1}` });
     default: throw new Error(`no world called ${name}`);
   }
 }

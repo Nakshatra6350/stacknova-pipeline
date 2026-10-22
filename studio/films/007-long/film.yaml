@@ -445,9 +445,10 @@ beats:
     shot: {kind: wide, from: 8, to: -6, dist: 7.6}
   # ---------------------------------------------------------------- s03 from key to bucket (walkthrough 1)
   - at: e7
-    shot: {kind: look, at: [-0.1, 1.62, 1.05], dist: 1.65, height: 0.04, fov: 34}
-    prop: {id: w1, place: [-0.62, 1.74, 1.0], type: true, dur: 1.6}
+    shot: {kind: look, at: [-0.24, 1.62, 1.05], dist: 1.75, height: 0.04, fov: 34}
+    prop: {id: w1, place: [-0.66, 1.74, 1.0], type: true, dur: 1.6}
     engineer: {face: calm, look: "prop:w1"}
+    nova: {to: [1.15, 1.5, 1.55], dur: 0.7, look: "engineer.head"}
     until: e11
   - at: e8.line
     prop: {id: w1, state: {hl: 1}}
@@ -459,7 +460,7 @@ beats:
   - at: n5
     shot: {kind: nova, side: -0.4}
   - at: e10
-    shot: {kind: look, at: [-0.1, 1.62, 1.05], dist: 1.65, height: 0.04, fov: 34}
+    shot: {kind: look, at: [-0.24, 1.62, 1.05], dist: 1.75, height: 0.04, fov: 34}
     prop: {id: w1, state: {hl: 7}}
   - at: e10.last-0.3
     shot: {kind: look, prop: bits42, dist: 1.55, height: 0.04}
@@ -470,6 +471,7 @@ beats:
     prop: {id: bits42, state: {result: 1}, dur: 0.4}
     world: {bucket: 7, tone: active}
   - at: e11-0.2
+    nova: {to: nova.home, dur: 0.8}
     shot: {kind: look, at: "bucket:7", dist: 2.7, height: 0.5, angle: -10}
     prop: [{id: bits42, hide: true}, {id: k42, place: "front:7:1.6:2.6"}]
   - at: jump-0.5
@@ -492,10 +494,11 @@ beats:
     world: {chain: 7, keys: ["user:42", "user:97"], hashes: ["…0111", "…0111"]}
     hud: {callout: "COLLISION: A CHAIN", tone: amber, for: 1.6}
   - at: e13
-    shot: {kind: look, at: [-0.1, 1.62, 1.05], dist: 1.65, height: 0.04, fov: 34}
-    prop: {id: w2, place: [-0.62, 1.74, 1.0], type: true, dur: 1.2}
+    shot: {kind: look, at: [-0.24, 1.62, 1.05], dist: 1.75, height: 0.04, fov: 34}
+    prop: {id: w2, place: [-0.66, 1.74, 1.0], type: true, dur: 1.2}
     world: {chain: 7, hide: true}
     engineer: {look: "prop:w2"}
+    nova: {to: [1.15, 1.5, 1.55], dur: 0.7, look: "engineer.head"}
     until: e17
   - at: e13.line
     prop: {id: w2, state: {hl: 0}}
@@ -510,7 +513,7 @@ beats:
   - at: n7
     shot: {kind: two, side: -0.3}
     prop: {id: w2, hide: true}
-    nova: {face: happy}
+    nova: {face: happy, to: nova.home, dur: 0.8}
   - at: e17
     shot: {kind: engineer, side: 0.3}
     engineer: {face: smirk}
@@ -544,9 +547,10 @@ beats:
     nova: {face: confused, look: "top:23"}
     until: n8>
   - at: e20.resize-0.4
-    shot: {kind: look, at: [-0.1, 1.62, 1.05], dist: 1.65, height: 0.04, fov: 34}
-    prop: {id: w3, place: [-0.62, 1.74, 1.0], type: true, dur: 1.4}
+    shot: {kind: look, at: [-0.24, 1.62, 1.05], dist: 1.75, height: 0.04, fov: 34}
+    prop: {id: w3, place: [-0.66, 1.74, 1.0], type: true, dur: 1.4}
     engineer: {look: "prop:w3"}
+    nova: {to: [1.15, 1.5, 1.55], dur: 0.7, look: "engineer.head"}
     until: e22.splits
   - at: e21.line
     prop: {id: w3, state: {hl: 2}}
@@ -557,6 +561,7 @@ beats:
   - at: split-0.3
     shot: {kind: look, at: "top:7", dist: 4.4, height: 0.7, angle: -14, fov: 42}
     prop: {id: w3, hide: true}
+    nova: {to: nova.home, dur: 0.8}
     world:
       - {move: ["user:42", "user:97", order:1609, order:1708], bucket: 23, stagger: 0.16, dur: 0.9}
       - {move: "user:alice", bucket: 31, dur: 0.9}
@@ -616,9 +621,10 @@ beats:
     shot: {kind: two, side: -0.2}
     prop: {id: ccc, hide: true}
   - at: e30.look-0.2
-    shot: {kind: look, at: [-0.1, 1.62, 1.05], dist: 1.65, height: 0.04, fov: 34}
-    prop: {id: w4, place: [-0.62, 1.74, 1.0], type: true, dur: 1.5}
+    shot: {kind: look, at: [-0.24, 1.62, 1.05], dist: 1.75, height: 0.04, fov: 34}
+    prop: {id: w4, place: [-0.66, 1.74, 1.0], type: true, dur: 1.5}
     engineer: {look: "prop:w4"}
+    nova: {to: [1.15, 1.5, 1.55], dur: 0.7, look: "engineer.head"}
     until: e31>
   - at: e30.thousand
     prop: {id: w4, state: {hl: 4}}
@@ -633,7 +639,7 @@ beats:
   - at: n11
     shot: {kind: nova, side: 0.4}
     prop: {id: w4, hide: true}
-    nova: {face: panic, gesture: panic}
+    nova: {face: panic, gesture: panic, to: nova.home, dur: 0.6}
     until: n11>
   - at: flood2-0.3
     shot: {kind: look, at: "front:9:0.32:1.7", dist: 4.0, height: 0.4, angle: 6}
@@ -665,9 +671,9 @@ beats:
     world: {chain: 9, hide: true}
     nova: {face: happy}
   - at: e35-0.2
-    shot: {kind: look, at: "bucket:3", dist: 2.6, height: 0.4, angle: 10}
+    shot: {kind: look, at: "front:3:0.55:1.45", dist: 2.7, height: 0.3, angle: 10}
     world: {put: ana@mail.com, bucket: 3, tone: amber}
-    prop: {id: rule1, place: "front:3:1.0:2.35"}
+    prop: {id: rule1, place: "front:3:1.0:2.12"}
   - at: e35.never
     world: [{relabel: ana@mail.com, text: ana@corp.dev}, {key: ana@mail.com, tone: red}]
   - at: e35.new-0.6

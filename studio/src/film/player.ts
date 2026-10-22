@@ -47,6 +47,7 @@ export function playFilm(stage: Stage, cast: Cast, hud: FrameHud, tl: FilmTimeli
   for (const [id, spec] of Object.entries(film.props ?? {})) {
     const card = makeProp(spec);
     card.visible = false;
+    card.renderOrder = 30; // a film's props are drawn over the world's cards and glass
     scene.add(card);
     props.set(id, { card, spec, shows: [], places: [], states: [], types: [], scale: [] });
   }
