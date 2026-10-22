@@ -90,7 +90,8 @@ const TONES: Record<string, string> = { cyan: INK.cyan, amber: INK.amber, red: I
 
 /** Big words in the world: "16 → 32", "O(log n)". */
 export function labelCard(text: string, sub = '', tone = 'white', size = 1): Card<{ tone: string }> {
-  const w = Math.max(0.5, (text.length * 0.06 + 0.22)) * size, h = (sub ? 0.27 : 0.19) * size;
+  // wide enough for the title and for the line under it (30 px mono is about 0.02 m a letter)
+  const w = Math.max(0.5, text.length * 0.06 + 0.22, sub.length * 0.02 + 0.12) * size, h = (sub ? 0.27 : 0.19) * size;
   return new Card<{ tone: string }>(w, h, 900 / size, (ctx, cw, ch, s) => {
     const col = TONES[s.tone] ?? INK.text;
     panel(ctx, cw, ch, s.tone === 'white' ? 'rgba(95,214,245,0.55)' : col, 26);

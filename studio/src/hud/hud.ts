@@ -100,7 +100,7 @@ export class FrameHud {
       this.calloutKey = text; el.textContent = text; el.className = `callout ${tone}`;
       // always one line: a callout wider than its box gets a smaller font, never a cut-off second line
       el.style.fontSize = '';
-      const fit = el.clientWidth / el.scrollWidth;
+      const fit = (el.clientWidth * 0.94) / el.scrollWidth; // and a little air at the frame's edges
       if (fit < 1) el.style.fontSize = `${Math.floor(parseFloat(getComputedStyle(el).fontSize) * fit)}px`;
     }
     el.style.opacity = String(k);

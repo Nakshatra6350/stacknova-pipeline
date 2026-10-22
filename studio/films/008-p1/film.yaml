@@ -66,7 +66,7 @@ props:
 
 beats:
   - at: -1
-    shot: {kind: look, at: "bucket:0", dist: 2.5, height: 0.45, angle: 12}
+    shot: {kind: look, at: "bucket:0", dist: 3.4, height: 0.5, angle: 22}
     hud: {step: 0}
     nova: {to: "front:1:1.1:1.55", dur: 0.01, face: normal, look: "slot:0:0"}
     world:
@@ -116,7 +116,7 @@ beats:
     engineer: {face: smirk}
   - at: e4.mvcc-0.2
     shot: {kind: look, prop: mvcc, dist: 1.7, height: 0.04}
-    prop: {id: mvcc, place: [0, 2.05, -0.5]}
+    prop: {id: mvcc, place: [0, 2.45, -0.5]}
   - at: n4
     shot: {kind: look, at: "bucket:0", dist: 2.4, height: 0.4, angle: 8}
     prop: [{id: mvcc, hide: true}, {id: done, place: "front:0:1.0:2.25"}]
