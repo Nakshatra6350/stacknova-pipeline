@@ -4,6 +4,7 @@
 name: HashMap part 1
 title: "How HashMap Works Internally in Java (It Never Searches)"
 related: "leave empty until the HashMap deep dive is out on Tuesday 27 October"
+tags: "how hashmap works internally in java, java hashmap internal working, hashmap in java, hashmap interview questions, hashcode in java, java interview questions"
 description: |
   How HashMap works internally in Java, in under a minute: get("user:42") hashes the key, mixes the top bits into the bottom, and jumps straight to one bucket. No searching, so get() is O(1) on average.
 

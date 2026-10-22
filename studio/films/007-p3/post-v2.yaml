@@ -2,6 +2,7 @@
 name: HashMap part 3
 title: "HashMap get() Returns null? Your hashCode Changed"
 related: "leave empty until the HashMap deep dive is out on Tuesday 27 October"
+tags: "hashcode and equals contract, hashcode and equals method in hashmap, hashmap get returns null, mutable key hashmap, java hashmap"
 description: |
   Why does HashMap get() return null for a key you just put? If a field used by hashCode() changes after you put the key, HashMap looks in the wrong bucket: get(), containsKey() and remove() all miss an entry that is still in the map. A quiet memory leak. The fix: immutable keys, like a String or a record.
 

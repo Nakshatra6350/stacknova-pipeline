@@ -2,6 +2,7 @@
 name: Postgres MVCC part 1
 title: "PostgreSQL MVCC Explained: Why Readers Never Wait"
 related: "leave empty (the MVCC deep dive is out Saturday 31 October)"
+tags: "postgresql mvcc, postgres mvcc, mvcc in dbms, postgresql transactions, database concurrency control"
 description: |
   PostgreSQL MVCC explained: an UPDATE doesn't change the row, it writes a new version. Until it commits, every other reader's snapshot still sees the old version, so readers never block writers and writers never block readers.
 

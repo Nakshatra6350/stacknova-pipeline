@@ -55,13 +55,34 @@ def cover(
         return shoot("cover", (1080, 1920), data, out)
 
 
+def film_view(timeline: Path, t: float, work: Path) -> Path:
+    """The 3D view of a long film at t (its 1920x930 window, without the title band)."""
+    frames = work / f"f{t}"
+    stills(timeline, frames, [t])
+    view = work / f"view-{t}.png"
+    frame = next(frames.glob("t*.jpg"))
+    subprocess.run([ffmpeg(), "-hide_banner", "-loglevel", "error", "-y",
+                    "-i", str(frame), "-vf", "crop=1920:930:0:150", str(view)], check=True)
+    return view
+
+
 def thumbs(spec_path: Path, out_dir: Path) -> list[Path]:
+    """A spec gives `words` and optional `stamp` per style letter, and for the object either a
+    `receipt`, or `panels` (a time of `panel_timeline` per letter) to show a frame of the film."""
     spec = yaml.safe_load(spec_path.read_text(encoding="utf-8"))
     out = []
-    for letter, kind in (("A", "thumbA"), ("B", "thumbB"), ("C", "thumbC")):
-        words = spec["words"].get(letter, spec["words"]["A"])
-        data = {**spec, "engineer": ENGINEER.as_uri(), "words": words}
-        out.append(shoot(kind, (1280, 720), data, out_dir / f"{letter}.jpg"))
+    with tempfile.TemporaryDirectory() as work:
+        for letter, kind in (("A", "thumbA"), ("B", "thumbB"), ("C", "thumbC")):
+            stamp = spec.get("stamp")
+            data = {**spec, "engineer": ENGINEER.as_uri(),
+                    "words": spec["words"].get(letter, spec["words"]["A"]),
+                    "stamp": stamp.get(letter) if isinstance(stamp, dict) else stamp}
+            if letter in (spec.get("panels") or {}):
+                panel = spec["panels"][letter]  # t, how far to zoom in, and on what
+                view = film_view(ROOT / spec["panel_timeline"], panel["t"], Path(work))
+                data.update(panel=view.as_uri(), zoom=panel.get("zoom", 1),
+                            focus=panel.get("focus"))
+            out.append(shoot(kind, (1280, 720), data, out_dir / f"{letter}.jpg"))
     return out
 
 

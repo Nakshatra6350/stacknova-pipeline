@@ -68,6 +68,12 @@
            letter-spacing: -0.04em; box-shadow: 0 0 0 10px rgba(255,255,255,0.9), 0 18px 50px rgba(2,0,8,0.5);
            transform: rotate(-12deg); }
 
+  /* or the object is a frame of the film itself, as a framed screen */
+  .panel { position: absolute; border-radius: 26px; background-size: cover; background-position: center;
+           border: 8px solid #FFFFFF; box-shadow: 0 30px 80px rgba(2,0,8,0.5); }
+  .thumbA .panel { left: 470px; top: 210px; width: 500px; height: 300px; transform: rotate(3deg); z-index: 3; }
+  .thumbB .panel { right: 50px; top: 120px; width: 660px; height: 400px; transform: rotate(-4deg); }
+
   /* A: the engineer and the receipt on a violet field */
   .thumbA { background: radial-gradient(90% 120% at 70% 40%, #9B83FF 0%, var(--violet) 38%, #3A1FB0 100%); }
   .thumbA .engineer { position: absolute; right: -90px; top: 6px; height: 1240px; z-index: 2;
@@ -134,14 +140,16 @@
       fit(c.querySelector('.title'), 84);
     } else {
       c.className = 'thumb ' + d.kind;
-      const r = receipt(d.receipt), stamp = `<div class="stamp">${esc(d.stamp)}</div>`;
+      const r = d.panel ? `<div class="panel" style="background-image:url('${d.panel}');background-size:${(d.zoom || 1) * 100}%;background-position:${d.focus || 'center'}"></div>`
+        : d.receipt ? receipt(d.receipt) : '';
+      const stamp = d.stamp ? `<div class="stamp" style="${String(d.stamp).length > 3 ? 'font-size:52px' : ''}">${esc(d.stamp)}</div>` : '';
       if (d.kind === 'thumbA') c.innerHTML = `${brand(d.emblem)}<h1 class="title">${esc(d.words)}</h1>${r}${stamp}<img class="engineer" src="${d.engineer}" alt="">`;
       if (d.kind === 'thumbB') c.innerHTML = `${brand(d.emblem)}<h1 class="title">${esc(d.words)}</h1>${r}${stamp}`;
       if (d.kind === 'thumbC') c.innerHTML = `${brand(d.emblem)}<h1 class="title">${esc(d.words)}</h1><div class="flow">${d.flow.map((s) =>
         s.box ? `<div class="box${s.bad ? ' bad' : ''}">${esc(s.box)}</div>` : `<div class="arrow${s.cut ? ' cut' : ''}"><small>${esc(s.note || '')}</small></div>`).join('')}</div>`;
     }
     await Promise.all([...document.images].map((im) => im.complete ? 0 : new Promise((ok) => { im.onload = im.onerror = ok; })));
-    if (d.view) await new Promise((ok) => { const im = new Image(); im.onload = im.onerror = ok; im.src = d.view; });
+    for (const src of [d.view, d.panel].filter(Boolean)) await new Promise((ok) => { const im = new Image(); im.onload = im.onerror = ok; im.src = src; });
   };
 </script>
 </body>

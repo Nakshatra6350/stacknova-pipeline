@@ -2,6 +2,7 @@
 name: HashMap part 4
 title: "HashMap Initial Capacity in Java: Why 100 Isn't Room for 100"
 related: "leave empty until the HashMap deep dive is out on Tuesday 27 October"
+tags: "hashmap initial capacity, hashmap load factor, hashmap resize, newhashmap java, java hashmap"
 description: |
   HashMap initial capacity in Java, explained: new HashMap<>(100) gives a capacity of 100, not room for 100 entries. Java rounds it up to 128 buckets and resizes at the 0.75 load factor, so entry 97 doubles the table. Since Java 19, HashMap.newHashMap(100) sizes it so 100 entries fit.
 

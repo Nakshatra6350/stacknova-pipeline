@@ -2,6 +2,7 @@
 name: HashMap part 2
 title: "HashMap Treeify in Java 8: When a Bucket Becomes a Tree"
 related: "leave empty until the HashMap deep dive is out on Tuesday 27 October"
+tags: "hashmap in java 8, hashmap treeify, hashmap resize, red black tree, hash collision in hashmap, java hashmap internal working"
 description: |
   In Java 8 and later, a HashMap bucket holding 8 colliding keys can turn into a red-black tree, but only once the table has 64 buckets. Before that, the ninth key doubles the table instead, and every key checks one more bit of the hash it already stored to find its new bucket. No rehashing.
 

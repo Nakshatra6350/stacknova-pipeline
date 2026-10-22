@@ -1,0 +1,18 @@
+# The HashMap deep dive's three thumbnails (Tuesday 27 October), one per style, for YouTube's
+# Test & compare: the winner by watch time becomes the style for later long videos.
+# Words follow the episode's thumbnail_texts, so they never repeat the title.
+words:
+  A: "1 bucket. 100% CPU"
+  B: "16 → 32 → tree"
+  C: "O(1)… until it isn't"
+stamp: {A: "100%"}
+panel_timeline: studio/public/films/007-long/timeline.json
+panels:
+  A: {t: 311.0, zoom: 2.0, focus: "44% 62%"}
+  B: {t: 219.0, zoom: 1.7, focus: "45% 38%"}
+flow:
+  - {box: hash}
+  - {note: ""}
+  - {box: bucket 7}
+  - {note: "16,384 keys", cut: true}
+  - {box: "O(n)", bad: true}

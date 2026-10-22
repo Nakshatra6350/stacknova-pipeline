@@ -58,6 +58,14 @@ def kit_v2(kit: str, post: dict[str, Any]) -> str:
     if post.get("lead"):
         at = lines.index("DESCRIPTION:") + 1
         lines[at] = " ".join(post["lead"].split())
+    if post.get("hashtags"):
+        # the description's last line was a bare keyword list; hashtags do that job visibly
+        tags = next(i for i, line in enumerate(lines) if line.startswith("TAGS ("))
+        last = max(i for i in range(tags) if lines[i].strip())
+        if lines[last].startswith("- ") or "http" in lines[last]:
+            lines[last + 1 : last + 1] = ["", post["hashtags"]]
+        else:
+            lines[last] = post["hashtags"]
     return "\n".join(lines)
 
 
@@ -138,6 +146,8 @@ def main(day: str, items: list[str]) -> None:
                     "RELATED VIDEO (field under the description): "
                     + post.get("related", "leave empty"),
                 ]
+                if post.get("tags"):
+                    text += ["", "TAGS (Show more > Tags, comma separated):", post["tags"]]
             else:
                 text += ["CAPTION:", post["caption"].strip()]
         text.append("")

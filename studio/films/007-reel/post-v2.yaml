@@ -2,6 +2,7 @@
 name: The 2011 hash flood
 title: "Hash Collision Attack: One Request Froze Servers (2011)"
 related: "the HashMap deep dive posted at 19:30 today"
+tags: "hash collision, hash collision in hashmap, hash flooding, hash dos attack, java 8 hashmap, java hashmap"
 description: |
   A hash collision attack: in December 2011, one web request with thousands of form fields that share one hashCode could keep a server's CPU at 100% for hours, because every field landed in the same HashMap bucket. The fix came in two parts: a cap on request parameters, and Java 8's tree buckets.
 

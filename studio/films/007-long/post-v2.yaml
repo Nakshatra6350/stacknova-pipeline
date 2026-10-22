@@ -12,3 +12,4 @@ lead: |
   the bucket index, hash collisions and equals(), the 0.75 load factor and the resize that splits
   every chain by one bit, and the 2011 hash collision attack that tree buckets stopped. Four
   walkthroughs of real Java code, line by line.
+hashtags: "#java #hashmap #javainterview"
