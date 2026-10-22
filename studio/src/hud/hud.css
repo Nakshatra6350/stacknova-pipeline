@@ -28,7 +28,7 @@
 .frame .top .step i { display: block; height: 6px; border-radius: 3px; background: rgba(120, 150, 190, 0.18); overflow: hidden; }
 .frame .top .step i b { display: block; height: 100%; background: var(--bar); }
 .frame .top .step.on { color: #cfe8f4; }
-.frame .top .callout { position: absolute; left: 0; right: 0; top: 200px; text-align: center; font: 800 76px/1 "Inter Display", sans-serif; letter-spacing: -0.01em; color: var(--text); opacity: 0; }
+.frame .top .callout { position: absolute; left: 0; right: 0; top: 200px; text-align: center; font: 800 76px/1 "Inter Display", sans-serif; letter-spacing: -0.01em; color: var(--text); opacity: 0; white-space: nowrap; overflow: hidden; }
 .frame .top .callout.amber { color: var(--amber); }
 .frame .top .callout.red { color: var(--red); }
 

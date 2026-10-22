@@ -18,7 +18,12 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 LAUNCH = Path.home() / "Desktop" / "StackNova Launch"
-KINDS = {"short": "YouTube Short", "reel": "Instagram Reel", "carousel": "Instagram carousel"}
+KINDS = {
+    "short": "YouTube Short",
+    "reel": "Instagram Reel",
+    "carousel": "Instagram carousel",
+    "long": "YouTube video",
+}
 
 
 def main(day: str, items: list[str]) -> None:
@@ -54,7 +59,14 @@ def main(day: str, items: list[str]) -> None:
         name = f"{number:02d} {time} {KINDS[kind]} {post['name']}"
         hh, mm = time.split("-")
         text += ["=" * 72, f"{number:02d}.  {hh}:{mm} IST   {KINDS[kind].upper()}"]
-        if kind == "carousel":
+        if kind == "long":
+            # the video, and beside it a folder with its subtitles, thumbnails and kit
+            shutil.copy2(ROOT / "out" / "release" / f"{film}.mp4", folder / f"{name}.mp4")
+            extras = folder / f"{name} - subtitles and thumbnails"
+            shutil.copytree(ROOT / "out" / "release" / film, extras)
+            kit = (extras / "kit.txt").read_text(encoding="utf-8-sig")
+            text += [f"FILE: {name}.mp4", f"FOLDER: {extras.name}", "", kit.strip()]
+        elif kind == "carousel":
             src = ROOT / "out" / "release" / film
             dest = folder / name
             shutil.copytree(src, dest)
@@ -80,8 +92,8 @@ def main(day: str, items: list[str]) -> None:
                     "DESCRIPTION:",
                     post["description"].strip(),
                     "",
-                    "RELATED VIDEO (field under the description): leave empty until the HashMap "
-                    "deep dive is out on Tuesday 27 October",
+                    "RELATED VIDEO (field under the description): "
+                    + post.get("related", "leave empty"),
                 ]
             else:
                 text += ["CAPTION:", post["caption"].strip()]

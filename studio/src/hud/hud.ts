@@ -96,7 +96,13 @@ export class FrameHud {
   callout(text: string | null, tone: '' | 'amber' | 'red', k: number, t0: number, t: number): void {
     const el = this.q('.top .callout');
     if (!text || k <= 0) { el.style.opacity = '0'; return; }
-    if (this.calloutKey !== text) { this.calloutKey = text; el.textContent = text; el.className = `callout ${tone}`; }
+    if (this.calloutKey !== text) {
+      this.calloutKey = text; el.textContent = text; el.className = `callout ${tone}`;
+      // always one line: a callout wider than its box gets a smaller font, never a cut-off second line
+      el.style.fontSize = '';
+      const fit = el.clientWidth / el.scrollWidth;
+      if (fit < 1) el.style.fontSize = `${Math.floor(parseFloat(getComputedStyle(el).fontSize) * fit)}px`;
+    }
     el.style.opacity = String(k);
     el.style.transform = `scale(${lerp(1.25, 1, backOut(span(t, t0, t0 + 0.3))).toFixed(3)})`;
   }

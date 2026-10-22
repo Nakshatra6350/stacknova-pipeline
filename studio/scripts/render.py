@@ -12,6 +12,7 @@ studio/dist is served from memory under http://studio.test/ and opened with ?mod
 On CI (no GPU) Chrome draws WebGL with SwiftShader. Needs Playwright (the `scenes` group).
 """
 
+import contextlib
 import json
 import mimetypes
 import os
@@ -30,6 +31,16 @@ SOFTWARE_GL = ["--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--igno
 ENCODE = ["-c:v", "libx264", "-preset", "medium", "-crf", "17", "-pix_fmt", "yuv420p",
           "-color_range", "tv", "-colorspace", "bt709", "-color_primaries", "bt709",
           "-color_trc", "bt709", "-r", str(FPS), "-video_track_timescale", "15360"]
+# When the PC runs short of memory the browser can drop the 3D view: the canvas turns white while
+# the captions go on, and nothing else says so. Every frame asks whether that has happened.
+WATCH_GL = ("() => document.querySelectorAll('canvas').forEach((c) =>"
+            " c.addEventListener('webglcontextlost', () => { window.glLost = true; }))")
+DRAW = "t => { window.render(t); return window.glLost === true; }"
+RETRIES = 3  # fresh browsers a part may start when one hangs or drops the view
+
+
+class LostView(RuntimeError):
+    """The browser dropped the 3D view; the frames from here on would be blank."""
 
 
 def launch(play):
@@ -66,11 +77,13 @@ def page_for(play, timeline):
     errors: list[str] = []
     page.on("console", lambda msg: errors.append(msg.text) if msg.type == "error" else None)
     page.on("pageerror", lambda exc: errors.append(str(exc)))
+    page.on("crash", lambda _: errors.append("the page crashed"))
     page.route(f"{BASE}/**", serve)
     mode = "render" if "lines" in timeline else "lab"
     page.goto(f"{BASE}/index.html?mode={mode}")
     page.wait_for_function("typeof window.boot === 'function'", timeout=60000)
     page.evaluate("tl => window.boot(tl)", timeline)
+    page.evaluate(WATCH_GL)
     if errors:
         raise RuntimeError("page errors: " + " | ".join(errors[:5]))
     return browser, page, errors
@@ -90,7 +103,8 @@ def stills(timeline_path: Path, out: Path, times: list[float]) -> None:
     with sync_playwright() as play:
         browser, page, errors = page_for(play, timeline)
         for t in times:
-            page.evaluate("t => window.render(t)", t)
+            if page.evaluate(DRAW, t):
+                raise LostView(f"the browser dropped the 3D view at {t} s")
             page.screenshot(path=str(out / f"t{t:06.2f}.jpg"), type="jpeg", quality=88)
         browser.close()
     if errors:
@@ -113,12 +127,31 @@ def part(timeline_path: Path, first: int, last: int, out: Path) -> None:
              "-vf", "scale=in_range=full:out_range=limited,format=yuv420p", *ENCODE, str(out)],
             stdin=subprocess.PIPE)
         assert encoder.stdin is not None
-        for index in range(first, last):
-            page.evaluate("t => window.render(t)", index / FPS)
-            encoder.stdin.write(page.screenshot(type="jpeg", quality=93))
+        # A frame depends only on its time, so when the browser hangs or drops the 3D view a
+        # fresh one can draw the same frame again and the part carries on.
+        index, retries = first, 0
+        while index < last:
+            try:
+                if page.evaluate(DRAW, index / FPS):
+                    raise LostView(f"the browser dropped the 3D view at frame {index}")
+                frame = page.screenshot(type="jpeg", quality=93)
+            except Exception as exc:
+                retries += 1
+                if retries > RETRIES:
+                    encoder.kill()
+                    encoder.wait()
+                    out.unlink(missing_ok=True)
+                    raise
+                print(f"frame {index}: {type(exc).__name__}, starting a fresh browser", flush=True)
+                with contextlib.suppress(Exception):  # the hung one may not close cleanly
+                    browser.close()
+                browser, page, errors = page_for(play, timeline)
+                continue
+            encoder.stdin.write(frame)
             if (index - first) % 60 == 0:
                 done, took = index - first + 1, time.time() - started
                 print(f"frame {index} ({done}/{last - first})  {took:.0f} s", flush=True)
+            index += 1
         encoder.stdin.close()
         encoder.wait()
         browser.close()

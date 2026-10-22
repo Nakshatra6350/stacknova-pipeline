@@ -38,6 +38,30 @@ LINGER = 0.5
 LINKS = {"006-payment-system": "https://youtu.be/t2-cmCu12hk"}
 
 
+def merge_short(out: list[Cue]) -> list[Cue]:
+    """A cue that cannot stay up for MIN_SECONDS before the next one starts (a short line like
+    "Forty days?!" answered at once) joins a neighbour, if the two still fit the track rules."""
+    out = list(out)
+    n = 0
+    while n < len(out):
+        room = (out[n + 1].start if n + 1 < len(out) else out[n].end + LINGER) - out[n].start
+        if room >= MIN_SECONDS:
+            n += 1
+            continue
+        for other in (n + 1, n - 1):
+            if not 0 <= other < len(out):
+                continue
+            a, b = sorted((n, other))
+            lines = wrap(" ".join([*out[a].lines, *out[b].lines]))
+            if lines is not None and out[b].end - out[a].start <= MAX_SECONDS:
+                out[a : b + 1] = [Cue(out[a].start, out[b].end, lines)]
+                n = max(a - 1, 0)
+                break
+        else:
+            n += 1
+    return out
+
+
 def cues(lines: list[dict[str, Any]]) -> list[Cue]:
     """Sentence-level cues of at most two lines of 42 characters and 1 to 7 seconds."""
     out: list[Cue] = []
@@ -56,6 +80,7 @@ def cues(lines: list[dict[str, Any]]) -> list[Cue]:
             if last or ends:
                 out.append(Cue(words[0]["s"], w["e"], wrap(" ".join(x["w"] for x in words)) or ()))
                 words = []
+    out = merge_short(out)
     # each cue lingers a little after its last word, never past the next one
     done: list[Cue] = []
     for n, cue in enumerate(out):
@@ -100,7 +125,7 @@ def main(film_id: str, episode_id: str, times: list[float]) -> None:
     with tempfile.TemporaryDirectory() as work:
         stills = Path(work)
         render.stills(timeline_path, stills, times)
-        frames = sorted(stills.iterdir())
+        frames = [stills / f"t{t:06.2f}.jpg" for t in times]  # T1 goes with the first text
         for letter, text, frame, layout in zip(
             "abc",
             episode["packaging"]["thumbnail_texts"],

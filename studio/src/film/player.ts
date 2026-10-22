@@ -218,9 +218,11 @@ export function playFilm(stage: Stage, cast: Cast, hud: FrameHud, tl: FilmTimeli
     }
     return best;
   };
-  const lookOf = (who: Who, t: number): THREE.Vector3 => {
+  const lookOf = (who: Who, t: number, toUs = false): THREE.Vector3 => {
     const set = looks[who].filter(([a, b]) => t >= a && t < b).at(-1);
-    const target = set?.[2];
+    // in their own close-up and on the end card a character faces us, not the bucket it was
+    // watching (turning to the next speaker would flash the back of the head before the cut)
+    const target = toUs ? 'camera' : set?.[2];
     if (target === 'speaker') {
       const s = speakerAt(t);
       return s && s.who !== who ? place(s.who === 'nova' ? 'nova' : 'engineer.head', t) : camera.position.clone();
@@ -262,7 +264,7 @@ export function playFilm(stage: Stage, cast: Cast, hud: FrameHud, tl: FilmTimeli
     engineer.apply(eState);
     const np = novaAt(t);
     const [nFace] = phase(faces.nova, t);
-    const nLook = lookOf('nova', t);
+    const nLook = lookOf('nova', t, shot?.s.kind === 'nova' || t >= end);
     nova.apply({
       t, position: np, yaw: Math.atan2(nLook.x - np.x, nLook.z - np.z) * 0.7, lookAt: nLook, expression: nFace,
       mouth: mouthOf('nova', t), blink: blinkAt(t, 1.71), gesture: gestureAt('nova', t),
