@@ -7,7 +7,7 @@ import type { Stage } from '../app/stage';
 import type { Cast } from '../characters';
 import type { CharacterState, Expression, Gesture, GestureState } from '../characters/types';
 import type { FrameHud, Line } from '../hud/hud';
-import { keyCard, codePanel, bitsCard, labelCard, gaugeCard, gridCard, markCard, nodeCard, type CodeState } from '../props/cards';
+import { keyCard, codePanel, bitsCard, labelCard, gaugeCard, gridCard, dialCard, markCard, nodeCard, type CodeState } from '../props/cards';
 import type { Card } from '../util/look';
 import { backOut, blinkAt, clamp, deg, lerp, pulse, smooth, smoother, span, wobble, V } from '../util/math';
 import { colour } from './code';
@@ -329,7 +329,7 @@ export function playFilm(stage: Stage, cast: Cast, hud: FrameHud, tl: FilmTimeli
       (state as unknown as CodeState).progress = Array.from({ length: rows }, (_, i) =>
         typing ? clamp(span(t, typing[0], typing[0] + typing[1]) * rows - i) : 1);
     }
-    if (track.spec.kind === 'gauge' || track.spec.kind === 'bits' || track.spec.kind === 'grid') for (const k of Object.keys(state)) if (typeof state[k] === 'number') state[k] = +(state[k] as number).toFixed(2);
+    if (track.spec.kind === 'gauge' || track.spec.kind === 'bits' || track.spec.kind === 'grid' || track.spec.kind === 'dial') for (const k of Object.keys(state)) if (typeof state[k] === 'number') state[k] = +(state[k] as number).toFixed(2);
     card.set(state);
   }
 }
@@ -344,6 +344,7 @@ function initialState(spec: PropSpec): Record<string, unknown> {
     case 'mark': return { kind: spec.text === 'check' ? 'check' : 'x' };
     case 'node': return { tone: spec.tone ?? 'cyan', last: true, ok: false };
     case 'grid': return { cells: spec.max ?? 128, filled: 0, moved: 1 };
+    case 'dial': return { now: 0.1, frozen: 0.05, warn: 0 };
   }
 }
 
@@ -357,6 +358,7 @@ function makeProp(spec: PropSpec): Card<any> {
     case 'mark': return markCard(spec.text === 'check' ? 'check' : 'x', spec.size ?? 1);
     case 'node': return nodeCard(spec.key ?? '', spec.text ?? '', spec.hash ?? '');
     case 'grid': return gridCard();
+    case 'dial': return dialCard();
   }
 }
 

@@ -45,3 +45,105 @@ lines:
     who: engineer
     say: "Then your table keeps growing. Part three: the idle transaction that stops the cleanup."
     show: "Then your table keeps growing. Part 3: the idle transaction that stops the cleanup."
+
+hook: "ONE ROW. TWO VERSIONS."
+events:
+  stamp: e2.max
+  moves: e3.moves
+  vacuum: e4.vacuum
+
+sfx:
+  - {at: 0.4, sound: tick, gain: 0.5}
+  - {at: e1.insert, sound: pop, gain: 0.6}
+  - {at: e1.delete, sound: pop, gain: 0.6}
+  - {at: stamp, sound: thud, gain: 0.5}
+  - {at: moves, sound: whip, gain: 0.6}
+  - {at: vacuum, sound: rise, gain: 0.8}
+
+props:
+  sql:
+    kind: code
+    file: psql
+    code: |
+      SELECT xmin, xmax, ctid, balance
+      FROM accounts WHERE id = 1;
+      --  xmin | xmax | ctid  | balance
+      --   105 |    0 | (0,2) |      70
+  ins: {kind: label, text: "INSERT + DELETE", sub: "what an UPDATE really does", tone: amber}
+
+beats:
+  - at: -1
+    shot: {kind: look, at: "bucket:0", dist: 2.4, height: 0.4, angle: 10}
+    hud: {step: 0}
+    nova: {to: "front:1:1.1:1.55", dur: 0.01, face: confused, look: "slot:0:0"}
+    world:
+      - {put: "$100 · xmin 100 · xmax 105#a1", bucket: 0, tone: cyan}
+      - {put: "$70 · xmin 105#a2", bucket: 0, tone: cyan}
+      - {put: "$250 · xmin 98#b1", bucket: 1, tone: cyan}
+      - {put: "$40 · xmin 99#c1", bucket: 2, tone: cyan}
+      - {put: "$900 · xmin 97#d1", bucket: 3, tone: cyan}
+      - {put: "$15 · xmin 101#e1", bucket: 4, tone: cyan}
+  - at: n1.two
+    world: {bucket: 0, tone: active}
+    hud: {callout: "1 ROW · 2 VERSIONS", tone: amber, for: 1.6}
+  - at: e1-0.9
+    shot: {kind: engineer, side: 0.4}
+    engineer: {enter: true, face: smirk}
+    nova: {to: nova.home, dur: 1.0}
+  - at: e1.insert-0.2
+    shot: {kind: look, prop: ins, dist: 1.6, height: 0.04}
+    prop: {id: ins, place: [0, 2.05, -0.5]}
+  # the old version gets an xmax, the new one an xmin
+  - at: e2
+    shot: {kind: look, at: "slot:0:0", dist: 1.7, height: 0.25, angle: 6}
+    prop: {id: ins, hide: true}
+    hud: {step: 1}
+  - at: stamp
+    world: {key: "$100 · xmin 100 · xmax 105#a1", tone: red}
+    hud: {callout: "xmax: WHO REPLACED IT", tone: red, for: 2.0}
+  - at: e2.min
+    world: {key: "$70 · xmin 105#a2", tone: amber}
+    hud: {step: 2, callout: "xmin: WHO WROTE IT", tone: amber, for: 2.0}
+  - at: n2
+    shot: {kind: nova, side: -0.4}
+    nova: {face: happy}
+  # the hidden columns
+  - at: e3
+    shot: {kind: look, prop: sql, dist: 1.55, height: 0.04}
+    prop: {id: sql, place: [0, 2.05, -0.5], type: true, dur: 1.4}
+    hud: {step: 3}
+  - at: e3.c
+    prop: {id: sql, state: {hl: 3}}
+  - at: moves-0.4
+    shot: {kind: look, at: "bucket:0", dist: 2.3, height: 0.4, angle: -8}
+    prop: {id: sql, hide: true}
+    world:
+      - {relabel: "$70 · xmin 105#a2", text: "$70 · xmin 105 · xmax 106"}
+      - {key: "$70 · xmin 105#a2", tone: red}
+      - {put: "$60 · xmin 106#a3", bucket: 0, from: "top:0", dur: 0.45, tone: amber}
+    hud: {callout: "NEW ctid", tone: amber, for: 1.4}
+  - at: n3
+    shot: {kind: nova, side: 0.4}
+    nova: {face: squint}
+    world: [{key: "$100 · xmin 100 · xmax 105#a1", tone: dead}, {key: "$70 · xmin 105#a2", tone: dead}]
+  # dead, until no one can see it; then VACUUM
+  - at: e4
+    shot: {kind: look, at: "bucket:0", dist: 2.5, height: 0.4, angle: 10}
+    hud: {step: 4}
+  - at: vacuum-0.2
+    world:
+      - {scan: true}
+      - {remove: ["$100 · xmin 100 · xmax 105#a1", "$70 · xmin 105#a2"]}
+      - {key: "$60 · xmin 106#a3", tone: green}
+    hud: {callout: "VACUUM", tone: green, for: 1.6}
+  - at: n4
+    shot: {kind: nova, side: -0.4}
+    nova: {face: confused}
+  - at: e5
+    shot: {kind: engineer, side: 0.3}
+    engineer: {face: focus}
+  - at: end
+    shot: {kind: two, side: 0.2, dist: 2.6}
+    nova: {face: celebrate, gesture: wave}
+    engineer: {face: smile, gesture: thumbsUp}
+    until: end+9

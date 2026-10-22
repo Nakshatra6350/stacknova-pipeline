@@ -1,0 +1,24 @@
+# What to paste when posting Postgres MVCC part 4 by hand.
+name: Postgres MVCC part 4
+title: "Postgres Stops Accepting Writes: XID Wraparound #Shorts"
+description: |
+  Transaction IDs are 32 bits, compared on a circle. If VACUUM can't freeze old rows in time, Postgres stops starting transactions that write. Watch age(datfrozenxid).
+
+  Part 4 of 4. The full Postgres MVCC deep dive is on the channel.
+
+  #Shorts #postgresql #database #backenddeveloper #systemdesign
+caption: |
+  ERROR: database is not accepting commands that assign new transaction IDs. ⏳
+
+  1️⃣ Transaction IDs are 32 bits: about 4 billion
+  2️⃣ Postgres compares them on a circle: about 2 billion in the past, 2 billion in the future
+  3️⃣ Old rows must be frozen before the counter comes back around: that's VACUUM's job too
+  4️⃣ If VACUUM falls behind, Postgres warns, then 3 million IDs before the edge it stops starting writes. Reads keep working.
+
+  Watch age(datfrozenxid) for every database, and make sure autovacuum can finish.
+
+  The full MVCC deep dive is on YouTube: StackNova (link in bio).
+  Save this for your next on-call 📌
+  Do you alert on transaction ID age? 👇
+
+  #postgresql #database #backenddeveloper #systemdesign #sql

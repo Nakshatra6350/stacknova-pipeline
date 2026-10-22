@@ -61,3 +61,136 @@ lines:
   - id: e7
     who: engineer
     say: "Alert on transaction ID age, long before the limit, and make sure every vacuum can finish. The full MVCC deep dive is on our channel."
+
+hook: "WRITES STOPPED. 40 HOURS."
+events:
+  ids: e2.transaction
+  forty: e4.forty
+  emptied: e5.emptied
+
+sfx:
+  - {at: 0.4, sound: alarm, gain: 0.45}
+  - {at: e1-0.6, sound: vision, gain: 0.5}
+  - {at: ids, sound: pop, gain: 0.6}
+  - {at: forty, sound: thud, gain: 0.7}
+  - {at: emptied, sound: whip, gain: 0.6}
+  - {at: emptied+0.8, sound: rise, gain: 0.7}
+  - {at: e7.alert, sound: ding, gain: 0.5}
+
+props:
+  err:
+    kind: code
+    file: shard4 · postgres log
+    code: |
+      ERROR:  database is not accepting commands that
+              assign new transaction IDs to avoid
+              wraparound data loss
+  when: {kind: label, text: "Mandrill · Feb 2019", sub: "Mailchimp's email service, shard4", tone: cyan}
+  dial: {kind: dial}
+  busy: {kind: label, text: "autovacuum", sub: "fell behind, or failed", tone: amber}
+  days: {kind: label, text: "VACUUM ≈ 40 days", sub: "the estimate for that database", tone: red}
+  hour: {kind: label, text: "≈ 1 hour", sub: "after emptying two huge tables", tone: green}
+  hours: {kind: label, text: "~40 hours", sub: "of impaired sending", tone: red}
+  sql:
+    kind: code
+    file: alert
+    code: |
+      SELECT datname, age(datfrozenxid)
+      FROM pg_database;
+      -- page someone at a billion, not two
+
+beats:
+  - at: -1
+    shot: {kind: look, prop: err, dist: 1.6, height: 0.04}
+    hud: {step: 0}
+    prop: {id: err, place: [0, 2.05, -0.5]}
+    nova: {face: panic}
+    world:
+      - {put: ["send 1#s1", "send 2#s2", "send 3#s3"], bucket: 0, dur: 0.01, tone: red}
+      - {put: ["send 4#s4", "send 5#s5", "send 6#s6", "send 7#s7"], bucket: 1, dur: 0.01, tone: red}
+      - {put: ["search 1#q1", "search 2#q2", "search 3#q3", "search 4#q4", "search 5#q5", "search 6#q6"], bucket: 2, dur: 0.01, tone: cyan}
+      - {put: ["url 1#u1", "url 2#u2", "url 3#u3", "url 4#u4", "url 5#u5", "url 6#u6", "url 7#u7"], bucket: 3, dur: 0.01, tone: cyan}
+      - {put: ["send 8#s8", "send 9#s9"], bucket: 4, dur: 0.01, tone: red}
+      - {bucket: [0, 1, 2, 3, 4], tone: alarm}
+  - at: n1.write
+    shot: {kind: nova, side: -0.4}
+    nova: {gesture: panic}
+    until: n1>
+  - at: e1-0.9
+    shot: {kind: engineer, side: 0.4}
+    prop: {id: err, hide: true}
+    engineer: {enter: true, face: focus}
+  - at: e1.mandrill-0.3
+    shot: {kind: look, prop: when, dist: 1.6, height: 0.04}
+    prop: {id: when, place: [0, 2.05, -0.5]}
+  - at: n2
+    shot: {kind: nova, side: 0.4}
+    prop: {id: when, hide: true}
+    nova: {face: confused}
+  # 32-bit IDs, frozen too late
+  - at: e2
+    shot: {kind: look, prop: dial, dist: 1.7, height: 0.04}
+    prop: {id: dial, place: [0, 2.0, -0.5], state: {now: 0.2, frozen: 0.2}}
+    hud: {step: 1}
+  - at: ids
+    prop: {id: dial, state: {now: 0.7, frozen: 0.5, warn: 1}, dur: 2.6}
+    hud: {callout: "XID WRAPAROUND", tone: red, for: 2.0}
+  - at: e3
+    shot: {kind: look, prop: busy, dist: 1.6, height: 0.04}
+    prop: [{id: dial, hide: true}, {id: busy, place: [0, 2.05, -0.5]}]
+  - at: n3
+    shot: {kind: nova, side: -0.4}
+    prop: {id: busy, hide: true}
+    nova: {face: confused}
+  # forty days
+  - at: e4
+    shot: {kind: look, prop: days, dist: 1.6, height: 0.04}
+    prop: {id: days, place: [0, 2.05, -0.5]}
+    hud: {step: 2}
+  - at: n4
+    shot: {kind: nova, side: 0.4}
+    prop: {id: days, hide: true}
+    nova: {face: panic, gesture: panic}
+    until: n4>
+  # empty two huge tables, and the vacuum finishes
+  - at: e5
+    shot: {kind: look, at: "front:2:0.55:1.6", dist: 3.6, height: 0.5, angle: 6}
+    hud: {step: 3}
+    engineer: {face: calm}
+  - at: emptied
+    world:
+      - {remove: ["search 1#q1", "search 2#q2", "search 3#q3", "search 4#q4", "search 5#q5", "search 6#q6"]}
+      - {remove: ["url 1#u1", "url 2#u2", "url 3#u3", "url 4#u4", "url 5#u5", "url 6#u6", "url 7#u7"]}
+      - {scan: true}
+  - at: e5.hour-0.3
+    shot: {kind: look, prop: hour, dist: 1.6, height: 0.04}
+    prop: {id: hour, place: [0, 2.05, -0.5]}
+    world:
+      - {bucket: [0, 1, 2, 3, 4], tone: idle}
+      - {key: ["send 1#s1", "send 2#s2", "send 3#s3", "send 4#s4", "send 5#s5", "send 6#s6", "send 7#s7", "send 8#s8", "send 9#s9"], tone: green}
+  - at: n5
+    shot: {kind: nova, side: -0.4}
+    prop: {id: hour, hide: true}
+    nova: {face: confused}
+  - at: e6
+    shot: {kind: look, prop: hours, dist: 1.6, height: 0.04}
+    prop: {id: hours, place: [0, 2.05, -0.5]}
+  - at: n6
+    shot: {kind: nova, side: 0.4}
+    prop: {id: hours, hide: true}
+    nova: {face: focus}
+  - at: e7
+    shot: {kind: look, prop: sql, dist: 1.6, height: 0.04}
+    prop: {id: sql, place: [0, 2.05, -0.5], type: true, dur: 1.2}
+  - at: e7.alert
+    prop: {id: sql, state: {hl: 2}}
+    hud: {callout: "ALERT ON XID AGE", tone: amber, for: 2.0}
+  - at: e7.full-0.3
+    shot: {kind: engineer, side: -0.3}
+    prop: {id: sql, hide: true}
+    engineer: {face: smirk}
+  - at: end
+    shot: {kind: two, side: 0.2, dist: 2.6}
+    nova: {face: celebrate, gesture: wave}
+    engineer: {face: smile, gesture: thumbsUp}
+    until: end+9

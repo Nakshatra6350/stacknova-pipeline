@@ -49,3 +49,113 @@ lines:
     who: engineer
     say: "Part four: the day a database stopped accepting writes."
     show: "Part 4: the day a database stopped accepting writes."
+
+hook: "DELETED. STILL GROWING."
+events:
+  idle: e3.idle
+  bloat: e4.bloats
+  fix: e5.set
+
+sfx:
+  - {at: 0.3, sound: tick, gain: 0.5}
+  - {at: e1.dead, sound: thud, gain: 0.5}
+  - {at: e2-0.2, sound: rise, gain: 0.5}
+  - {at: idle, sound: alarm, gain: 0.35}
+  - {at: bloat, sound: thud, gain: 0.6}
+  - {at: fix, sound: ding, gain: 0.5}
+  - {at: fix+1.2, sound: rise, gain: 0.7}
+
+props:
+  session: {kind: label, text: "pid 4127", sub: "idle in transaction · 1h 02m", tone: amber}
+  blocked: {kind: label, text: "VACUUM: 0 removed", sub: "an open snapshot may still need them", tone: red}
+  sql:
+    kind: code
+    file: psql
+    code: |
+      SELECT pid, now() - xact_start AS open_for
+      FROM pg_stat_activity
+      WHERE state = 'idle in transaction';
+
+      ALTER DATABASE app
+        SET idle_in_transaction_session_timeout = '5min';
+
+beats:
+  - at: -1
+    shot: {kind: look, at: "front:2:0.55:1.6", dist: 3.6, height: 0.5, angle: 6}
+    hud: {step: 0}
+    nova: {to: "front:3:1.1:1.6", dur: 0.01, face: confused, look: "top:2"}
+    world:
+      - {put: ["order 1 · dead#o1", "order 2 · dead#o2", "order 3 · dead#o3", "order 4 · dead#o4"], bucket: 1, stagger: 0.05, dur: 0.01, tone: dead}
+      - {put: ["order 5 · dead#o5", "order 6 · dead#o6", "order 7 · dead#o7", "order 8 · dead#o8", "order 9 · dead#o9"], bucket: 2, stagger: 0.05, dur: 0.01, tone: dead}
+      - {put: ["order 10 · dead#o10", "order 11 · dead#o11", "order 12 · dead#o12"], bucket: 3, stagger: 0.05, dur: 0.01, tone: dead}
+      - {put: "order 13 · live#o13", bucket: 0, tone: cyan}
+      - {put: "order 14 · live#o14", bucket: 4, tone: cyan}
+  - at: 0.3
+    world: {put: ["order 15 · dead#o15", "order 16 · dead#o16", "order 17 · dead#o17"], bucket: 2, stagger: 0.25, dur: 0.4, tone: dead}
+  - at: e1-0.9
+    shot: {kind: engineer, side: 0.4}
+    engineer: {enter: true, face: calm}
+    nova: {to: nova.home, dur: 1.0}
+  - at: e1.dead
+    hud: {step: 1, callout: "DEAD VERSIONS", tone: red, for: 1.6}
+  - at: n2
+    shot: {kind: nova, side: -0.4}
+    nova: {face: confused}
+  # VACUUM passes and can remove nothing
+  - at: e2
+    shot: {kind: wide, from: -6, to: 6, dist: 6.8}
+    world: {scan: true}
+  - at: e2.removes
+    shot: {kind: look, prop: blocked, dist: 1.6, height: 0.04}
+    prop: {id: blocked, place: [0, 2.05, -0.5]}
+  # one idle transaction
+  - at: e3
+    shot: {kind: engineer, side: -0.3}
+    prop: {id: blocked, hide: true}
+    hud: {step: 2}
+    engineer: {face: focus, vision: true}
+  - at: idle-0.3
+    shot: {kind: look, prop: session, dist: 1.6, height: 0.04}
+    prop: {id: session, place: [0, 2.05, -0.5]}
+  - at: n3
+    shot: {kind: nova, side: 0.4}
+    prop: {id: session, hide: true}
+    nova: {face: panic}
+  - at: e4
+    shot: {kind: look, at: "front:2:0.55:1.7", dist: 3.6, height: 0.5, angle: -6}
+  - at: bloat-0.3
+    world:
+      - {put: ["order 18 · dead#o18", "order 19 · dead#o19", "order 20 · dead#o20", "order 21 · dead#o21", "order 22 · dead#o22", "order 23 · dead#o23"], bucket: 2, stagger: 0.12, dur: 0.35, tone: dead}
+      - {put: ["order 24 · dead#o24", "order 25 · dead#o25", "order 26 · dead#o26"], bucket: 1, stagger: 0.12, dur: 0.35, tone: dead}
+      - {bucket: 2, tone: alarm}
+    hud: {step: 3, callout: "BLOAT", tone: red, for: 1.8}
+  - at: n4
+    shot: {kind: nova, side: -0.4}
+    nova: {face: confused}
+  # catch it, and let Postgres end it
+  - at: e5
+    shot: {kind: look, prop: sql, dist: 1.6, height: 0.04}
+    prop: {id: sql, place: [0, 2.05, -0.5], type: true, dur: 1.4}
+    hud: {step: 4}
+  - at: e5.idle
+    prop: {id: sql, state: {hl: 2}}
+  - at: fix
+    prop: {id: sql, state: {hl: 5}}
+  - at: fix+1.0
+    shot: {kind: wide, from: -6, to: 6, dist: 6.8}
+    prop: {id: sql, hide: true}
+    world:
+      - {scan: true}
+      - {remove: ["order 1 · dead#o1", "order 2 · dead#o2", "order 3 · dead#o3", "order 4 · dead#o4", "order 24 · dead#o24", "order 25 · dead#o25", "order 26 · dead#o26"]}
+      - {remove: ["order 5 · dead#o5", "order 6 · dead#o6", "order 7 · dead#o7", "order 8 · dead#o8", "order 9 · dead#o9", "order 15 · dead#o15", "order 16 · dead#o16", "order 17 · dead#o17"]}
+      - {remove: ["order 18 · dead#o18", "order 19 · dead#o19", "order 20 · dead#o20", "order 21 · dead#o21", "order 22 · dead#o22", "order 23 · dead#o23"]}
+      - {remove: ["order 10 · dead#o10", "order 11 · dead#o11", "order 12 · dead#o12"]}
+      - {bucket: 2, tone: idle}
+  - at: e6
+    shot: {kind: engineer, side: 0.3}
+    engineer: {face: smirk}
+  - at: end
+    shot: {kind: two, side: 0.2, dist: 2.6}
+    nova: {face: celebrate, gesture: wave}
+    engineer: {face: smile, gesture: thumbsUp}
+    until: end+9

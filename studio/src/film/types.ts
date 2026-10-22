@@ -63,7 +63,7 @@ export interface Beat {
 }
 
 export interface PropSpec {
-  kind: 'key' | 'code' | 'bits' | 'label' | 'gauge' | 'mark' | 'node' | 'grid';
+  kind: 'key' | 'code' | 'bits' | 'label' | 'gauge' | 'mark' | 'node' | 'grid' | 'dial';
   text?: string; sub?: string; tone?: string;
   file?: string; code?: string; width?: number;  // code
   value?: number | string; low?: number; extra?: boolean; result?: string; // bits

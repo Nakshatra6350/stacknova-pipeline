@@ -52,3 +52,118 @@ lines:
   - id: e6
     who: engineer
     say: "The full MVCC deep dive is on our channel now."
+
+hook: "POSTGRES STOPPED WRITING"
+events:
+  circle: e2.circle
+  freeze: e3.frozen
+  edge: e4.edge
+
+sfx:
+  - {at: 0.4, sound: alarm, gain: 0.4}
+  - {at: e1.bits, sound: pop, gain: 0.6}
+  - {at: circle, sound: rise, gain: 0.6}
+  - {at: freeze, sound: ding, gain: 0.5}
+  - {at: edge, sound: alarm, gain: 0.45}
+  - {at: e5.watch, sound: pop, gain: 0.5}
+
+props:
+  err:
+    kind: code
+    file: postgres log
+    code: |
+      ERROR:  database is not accepting commands that
+              assign new transaction IDs to avoid
+              wraparound data loss in database "app"
+  dial: {kind: dial}
+  four: {kind: label, text: "4,294,967,296", sub: "2³² transaction IDs", tone: cyan}
+  sql:
+    kind: code
+    file: psql
+    code: |
+      SELECT datname, age(datfrozenxid)
+      FROM pg_database;
+      --  datname |    age
+      --  app     | 1,870,442,019   -- too close
+
+beats:
+  - at: -1
+    shot: {kind: look, prop: err, dist: 1.6, height: 0.04}
+    hud: {step: 0}
+    prop: {id: err, place: [0, 2.05, -0.5]}
+    nova: {face: panic}
+    world:
+      - {put: "$70 · xmin 105#a2", bucket: 0, tone: cyan}
+      - {put: "$250 · xmin 98#b1", bucket: 1, tone: cyan}
+      - {put: "$40 · xmin 99#c1", bucket: 2, tone: cyan}
+      - {put: "$900 · xmin 97#d1", bucket: 3, tone: cyan}
+      - {put: "$15 · xmin 101#e1", bucket: 4, tone: cyan}
+      - {bucket: [0, 1, 2, 3, 4], tone: alarm}
+  - at: n1.commands
+    shot: {kind: nova, side: -0.4}
+  # 32-bit IDs on a circle
+  - at: e1-0.9
+    shot: {kind: engineer, side: 0.4}
+    prop: {id: err, hide: true}
+    engineer: {enter: true, face: focus}
+  - at: e1.bits-0.3
+    shot: {kind: look, prop: dial, dist: 1.7, height: 0.04}
+    prop: {id: dial, place: [0, 2.0, -0.5], state: {now: 0.1, frozen: 0.05}}
+    hud: {step: 1, callout: "32-BIT IDs", tone: amber, for: 1.6}
+  - at: n2
+    shot: {kind: look, prop: four, dist: 1.6, height: 0.04}
+    prop: {id: four, place: [0, 2.0, -0.5]}
+  - at: e2
+    shot: {kind: look, prop: dial, dist: 1.7, height: 0.04}
+    prop: {id: four, hide: true}
+    hud: {step: 2}
+  - at: circle
+    prop: {id: dial, state: {now: 0.35, frozen: 0.3}, dur: 2.2}
+  # freezing keeps the past in the past
+  - at: e3
+    shot: {kind: look, at: "front:2:0.55:1.6", dist: 3.6, height: 0.5, angle: 6}
+    hud: {step: 3}
+  - at: freeze
+    world:
+      - {relabel: "$250 · xmin 98#b1", text: "$250 · frozen"}
+      - {relabel: "$40 · xmin 99#c1", text: "$40 · frozen"}
+      - {relabel: "$900 · xmin 97#d1", text: "$900 · frozen"}
+      - {relabel: "$15 · xmin 101#e1", text: "$15 · frozen"}
+      - {key: ["$250 · xmin 98#b1", "$40 · xmin 99#c1", "$900 · xmin 97#d1", "$15 · xmin 101#e1"], tone: green}
+      - {bucket: [0, 1, 2, 3, 4], tone: idle}
+      - {scan: true}
+  - at: e3.vacuums
+    shot: {kind: look, prop: dial, dist: 1.7, height: 0.04}
+    prop: {id: dial, state: {frozen: 0.08}, dur: 1.2}
+  - at: n3
+    shot: {kind: nova, side: 0.4}
+    nova: {face: confused}
+  - at: e4
+    shot: {kind: look, prop: dial, dist: 1.7, height: 0.04}
+    prop: {id: dial, state: {now: 0.62, frozen: 0.49}, dur: 2.4}
+  - at: edge
+    prop: {id: dial, state: {warn: 1}}
+    world: {bucket: [0, 1, 2, 3, 4], tone: alarm}
+    hud: {step: 4, callout: "WRITES STOP", tone: red, for: 2.0}
+  - at: e4.reads
+    hud: {callout: "READS STILL WORK", tone: green, for: 1.6}
+  - at: n4
+    shot: {kind: nova, side: -0.4}
+    prop: {id: dial, hide: true}
+    nova: {face: confused}
+  - at: e5
+    shot: {kind: look, prop: sql, dist: 1.6, height: 0.04}
+    prop: {id: sql, place: [0, 2.05, -0.5], type: true, dur: 1.4}
+  - at: e5.autovacuum
+    prop: {id: sql, state: {hl: 3}}
+    hud: {callout: "ALERT EARLY", tone: amber, for: 1.8}
+  - at: e6
+    shot: {kind: engineer, side: -0.3}
+    prop: {id: sql, hide: true}
+    engineer: {face: smile}
+    world: {bucket: [0, 1, 2, 3, 4], tone: idle}
+  - at: end
+    shot: {kind: two, side: 0.2, dist: 2.6}
+    nova: {face: celebrate, gesture: wave}
+    engineer: {face: smile, gesture: thumbsUp}
+    until: end+9

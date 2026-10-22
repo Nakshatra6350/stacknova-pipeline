@@ -1,0 +1,15 @@
+# What to paste when posting Postgres MVCC teaser carousel by hand.
+name: Postgres MVCC teaser carousel
+caption: |
+  Why your SELECT never waits for my UPDATE, in 6 slides. 🐘 Swipe →
+
+  1️⃣ An UPDATE writes a new row version
+  2️⃣ xmin: who wrote it. xmax: who replaced it
+  3️⃣ Your snapshot decides which version you see
+  4️⃣ Readers never block writers, writers never block readers
+
+  The full Postgres MVCC deep dive is out Saturday on YouTube: StackNova.
+  Save this for your next database interview 📌
+  Which database do you use at work? 👇
+
+  #postgresql #database #backenddeveloper #systemdesign #sql

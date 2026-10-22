@@ -1,0 +1,18 @@
+# What to paste when posting the episode 007 carousel by hand (Tuesday 27 October 2026).
+name: HashMap deep dive carousel
+caption: |
+  How HashMap really works, in 8 slides. 🔑 Swipe →
+
+  1️⃣ hashCode() turns the key into a number
+  2️⃣ h ^ (h >>> 16) mixes the top bits into the bottom
+  3️⃣ hash & (n - 1) picks the bucket in one jump: O(1)
+  4️⃣ Collisions chain: the stored hash is checked first, then equals()
+  5️⃣ At 75% full the table doubles, and one more bit splits each chain
+  6️⃣ With 64+ buckets, a crowded bucket becomes a red-black tree
+  7️⃣ Why trees exist: the 2011 hash flooding attack
+
+  The full deep dive is on YouTube: StackNova (link in bio).
+  Save this for your next Java interview 📌
+  Which slide was new to you? 👇
+
+  #java #jvm #backenddeveloper #javadeveloper #softwareengineering

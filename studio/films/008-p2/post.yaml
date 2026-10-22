@@ -1,0 +1,23 @@
+# What to paste when posting Postgres MVCC part 2 by hand.
+name: Postgres MVCC part 2
+title: "A Postgres UPDATE Is Really INSERT + DELETE #Shorts"
+description: |
+  One UPDATE, two row versions: the old one gets an xmax, the new one an xmin. SELECT xmin, xmax, ctid to see them, and watch the ctid move.
+
+  Part 2 of 4. The full Postgres MVCC deep dive is out Saturday 31 October.
+
+  #Shorts #postgresql #database #backenddeveloper #systemdesign
+caption: |
+  I updated one row. Why does the table hold two? 🔍
+
+  1️⃣ In Postgres an UPDATE is really an INSERT plus a DELETE
+  2️⃣ The old version gets an xmax: the transaction that replaced it
+  3️⃣ The new version gets an xmin: the transaction that wrote it
+  4️⃣ SELECT xmin, xmax, ctid shows them; update the row and its ctid moves
+  5️⃣ The old version stays on disk until no transaction can see it, then VACUUM takes the space back
+
+  Part 3: the idle transaction that stops the cleanup
+  Save this for your next database interview 📌
+  Have you ever selected xmin and xmax? 👇
+
+  #postgresql #database #backenddeveloper #systemdesign #sql

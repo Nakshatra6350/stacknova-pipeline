@@ -1,0 +1,25 @@
+# What to paste when posting episode 007's flagship reel by hand (Tuesday 27 October 2026).
+name: The 2011 hash flood
+title: "The 2011 Attack That Froze Servers With One Request #Shorts"
+description: |
+  One web request could keep a server's CPU at 100% for hours: thousands of form fields with the same hash code, all in one HashMap bucket. Java 8's fix: turn a crowded bucket into a red-black tree.
+
+  The full HashMap deep dive is on the channel.
+
+  #Shorts #java #javadeveloper #backenddeveloper #codinginterview
+caption: |
+  One web request. 100% CPU. For hours. 🧨
+
+  December 2011: researchers showed that a single crafted request could freeze Java, PHP, Python and Ruby servers.
+  1️⃣ The request carried thousands of form fields
+  2️⃣ "Aa" and "BB" share one hashCode (2112), and so does every combination of them
+  3️⃣ Every field lands in the same HashMap bucket: one giant chain
+  4️⃣ Each insert walks the whole chain: twice the fields, four times the work
+
+  The fix came in two parts: servers capped how many parameters a request may carry, and Java 8 turned a crowded bucket into a red-black tree, so each key costs a few hops instead of the whole chain.
+
+  The full HashMap deep dive is on YouTube: StackNova (link in bio).
+  Save this for your next system design interview 📌
+  Had you heard of hash flooding before? 👇
+
+  #java #jvm #backenddeveloper #javadeveloper #softwareengineering

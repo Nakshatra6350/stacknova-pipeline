@@ -150,6 +150,44 @@ export function gridCard(seed = 7): Card<GridState> {
   }, { cells: 128, filled: 0, moved: 1 }, 22);
 }
 
+export interface DialState { now: number; frozen: number; warn: number }
+/** Transaction IDs on a circle (episode 008): 2^32 of them, compared modulo 2^32, so from `now`
+ *  (0..1 around the circle) about half the circle is the past and half the future. `frozen`
+ *  (0..1) is how far behind `now` the oldest unfrozen row is; past 0.5 is the wraparound edge,
+ *  where writes stop. `warn` lights the edge. */
+export function dialCard(): Card<DialState> {
+  return new Card<DialState>(0.9, 0.9, 800, (ctx, w, h, s) => {
+    panel(ctx, w, h, 'rgba(95,214,245,0.55)');
+    const cx = w / 2, cy = h / 2 + 18, r = w * 0.34;
+    const at = (k: number) => -Math.PI / 2 + k * Math.PI * 2;
+    ctx.lineWidth = 26;
+    // the past half (behind now) and the future half (ahead of now)
+    ctx.strokeStyle = 'rgba(95,214,245,0.28)'; ctx.beginPath(); ctx.arc(cx, cy, r, at(s.now - 0.5), at(s.now)); ctx.stroke();
+    ctx.strokeStyle = 'rgba(150,170,200,0.14)'; ctx.beginPath(); ctx.arc(cx, cy, r, at(s.now), at(s.now + 0.5)); ctx.stroke();
+    // the unfrozen stretch, from the oldest unfrozen row up to now
+    if (s.frozen > 0) {
+      ctx.strokeStyle = s.frozen > 0.45 ? INK.red : s.frozen > 0.3 ? INK.amber : INK.green;
+      ctx.beginPath(); ctx.arc(cx, cy, r, at(s.now - Math.min(0.5, s.frozen)), at(s.now)); ctx.stroke();
+    }
+    // the edge: half way round, where the past would become the future
+    const edge = at(s.now - 0.5);
+    ctx.strokeStyle = s.warn > 0 ? INK.red : 'rgba(255,122,136,0.5)'; ctx.lineWidth = 8;
+    ctx.beginPath(); ctx.moveTo(cx + Math.cos(edge) * (r - 30), cy + Math.sin(edge) * (r - 30)); ctx.lineTo(cx + Math.cos(edge) * (r + 30), cy + Math.sin(edge) * (r + 30)); ctx.stroke();
+    // now
+    const a = at(s.now);
+    ctx.strokeStyle = INK.text; ctx.lineWidth = 8; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * (r - 20), cy + Math.sin(a) * (r - 20)); ctx.stroke();
+    ctx.fillStyle = INK.text; ctx.beginPath(); ctx.arc(cx, cy, 12, 0, 7); ctx.fill();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = INK.dim; ctx.font = `400 26px ${MONO}`; ctx.fillText('transaction IDs: 2³² on a circle', cx, 44);
+    ctx.font = `700 26px ${MONO}`;
+    ctx.fillStyle = INK.cyan; ctx.fillText('past', cx + Math.cos(at(s.now - 0.25)) * (r + 52), cy + Math.sin(at(s.now - 0.25)) * (r + 52));
+    ctx.fillStyle = INK.dim; ctx.fillText('future', cx + Math.cos(at(s.now + 0.25)) * (r + 56), cy + Math.sin(at(s.now + 0.25)) * (r + 56));
+    ctx.fillStyle = s.warn > 0 ? INK.red : 'rgba(255,122,136,0.8)';
+    ctx.fillText('edge', cx + Math.cos(edge) * (r + 52), cy + Math.sin(edge) * (r + 52));
+  }, { now: 0.1, frozen: 0.05, warn: 0 }, 22);
+}
+
 /** A big ✓ or ✗. */
 export function markCard(kind: 'x' | 'check', size = 1): Card<{ kind: string }> {
   return new Card<{ kind: string }>(0.3 * size, 0.3 * size, 900 / size, (ctx, w, h, s) => {

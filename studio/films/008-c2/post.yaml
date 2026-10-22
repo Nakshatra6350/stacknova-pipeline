@@ -1,0 +1,18 @@
+# What to paste when posting Postgres MVCC deep dive carousel by hand.
+name: Postgres MVCC deep dive carousel
+caption: |
+  How Postgres never blocks, in 7 slides, and the outage it can cause. 🐘 Swipe →
+
+  1️⃣ An UPDATE writes a new version
+  2️⃣ Two stamps per version: xmin and xmax
+  3️⃣ Snapshots decide what you see
+  4️⃣ Readers never wait
+  5️⃣ VACUUM cleans up dead versions
+  6️⃣ One idle transaction = bloat
+  7️⃣ 32-bit IDs: freeze in time, or writes stop
+
+  The full deep dive is on YouTube: StackNova (link in bio).
+  Save this for your next system design interview 📌
+  Which slide was new to you? 👇
+
+  #postgresql #database #backenddeveloper #systemdesign #sql

@@ -253,3 +253,430 @@ lines:
   - id: n11
     who: nova
     say: "See you there!"
+
+tail: 12
+hook: "THE DATABASE REFUSED EVERY WRITE"
+events:
+  welcome: w1
+  commit: e10.commits
+  stamp: e16.update
+  vacuum1: e17.vacuum
+  bloat: e19.bloats
+  wrap: e25.stops
+  emptied: e27.emptied
+
+sfx:
+  - {at: 0.4, sound: alarm, gain: 0.4}
+  - {at: e2.forty, sound: thud, gain: 0.6}
+  - {at: welcome-0.4, sound: nod-up, gain: 0.9}
+  - {at: e6.keeps-0.2, sound: vision, gain: 0.6}
+  - {at: e8.changes, sound: pop, gain: 0.6}
+  - {at: e9.reads, sound: whip, gain: 0.5}
+  - {at: commit, sound: arp, gain: 0.6}
+  - {at: stamp, sound: pop, gain: 0.6}
+  - {at: vacuum1, sound: rise, gain: 0.7}
+  - {at: bloat, sound: thud, gain: 0.6}
+  - {at: e23.circle, sound: rise, gain: 0.6}
+  - {at: wrap, sound: alarm, gain: 0.45}
+  - {at: emptied, sound: whip, gain: 0.6}
+  - {at: e29.line#2, sound: ding, gain: 0.5}
+
+props:
+  log:
+    kind: code
+    file: postgres log
+    code: |
+      ERROR:  database is not accepting commands that
+              assign new transaction IDs to avoid
+              wraparound data loss
+  forty: {kind: label, text: "40 days", sub: "the estimated fix", tone: red}
+  lock: {kind: label, text: "ONE COPY + A LOCK", sub: "readers wait for writers", tone: red}
+  w1:
+    kind: code
+    file: mvcc.go · ReadWhileWriting
+    code: |
+      w, _ := pool.Begin(ctx)                      // the writer
+      w.Exec(ctx, `UPDATE accounts SET balance = 70 WHERE id = 1`)
+      q := `SELECT balance FROM accounts WHERE id = 1`
+      pool.QueryRow(ctx, q).Scan(&before)          // 100, no wait
+
+      w.Commit(ctx)
+      pool.QueryRow(ctx, q).Scan(&after)           // 70
+  undo: {kind: label, text: "InnoDB: undo log", sub: "Postgres: old versions stay in the table", tone: cyan}
+  snap: {kind: label, text: "xmin : xmax : running", sub: "how Postgres stores a snapshot", tone: cyan}
+  rc: {kind: label, text: "READ COMMITTED", sub: "a new snapshot for every statement", tone: cyan}
+  rr: {kind: label, text: "REPEATABLE READ", sub: "one snapshot for the whole transaction", tone: amber}
+  w2:
+    kind: code
+    file: mvcc.go · Version
+    code: |
+      q := `SELECT xmin::text, xmax::text, ctid::text
+            FROM accounts WHERE id = 1`
+      pool.QueryRow(ctx, q).Scan(&xmin, &xmax, &ctid)
+  auto: {kind: label, text: "50 + 20% of rows", sub: "when autovacuum wakes up (defaults)", tone: cyan}
+  full: {kind: label, text: "VACUUM FULL", sub: "a smaller file, but the table is locked", tone: amber}
+  idle: {kind: label, text: "pid 4127", sub: "idle in transaction · 1h 02m", tone: amber}
+  slots: {kind: label, text: "slots · prepared xacts", sub: "they hold cleanup back too", tone: amber}
+  w3:
+    kind: code
+    file: mvcc.go · IdleInTransaction
+    code: |
+      rows, _ := pool.Query(ctx, `
+          SELECT pid,
+                 EXTRACT(EPOCH FROM now() - xact_start)::bigint
+          FROM pg_stat_activity
+          WHERE state = 'idle in transaction'`)
+  dial: {kind: dial}
+  freeze: {kind: label, text: "200,000,000", sub: "autovacuum_freeze_max_age (default)", tone: cyan}
+  bits: {kind: label, text: "32 bits", sub: "xmin and xmax in every row version", tone: amber}
+  mandrill: {kind: label, text: "Mandrill · 4 Feb 2019", sub: "one busy shard; autovacuum fell behind", tone: cyan}
+  hour: {kind: label, text: "40 days → 1 hour", sub: "after emptying two huge tables", tone: green}
+  hours: {kind: label, text: "~40 hours", sub: "of impaired sending · Sentry: July 2015", tone: red}
+  w4:
+    kind: code
+    file: mvcc.go · Overdue
+    code: |
+      rows, _ := pool.Query(ctx,
+          `SELECT datname, age(datfrozenxid) FROM pg_database`)
+      for rows.Next() {
+          rows.Scan(&name, &age)
+          if age > limit {        // say, a billion: half way
+              overdue = append(overdue, name)
+          }
+      }
+  turns: {kind: label, text: "writers still take turns", sub: "the second waits for the first", tone: amber}
+  cost: {kind: label, text: "new version + index entries", sub: "for every update", tone: red}
+  hot: {kind: label, text: "HOT update", sub: "no indexed column changed + room on the page", tone: green}
+  fill: {kind: label, text: "fillfactor", sub: "leave room on each page", tone: green}
+  part: {kind: label, text: "short transactions", sub: "no idle sessions · watch VACUUM and XID age", tone: green}
+
+beats:
+  # ---------------------------------------------------------------- s01 the database that refused every write
+  - at: -1
+    shot: {kind: wide, from: -10, to: 6, dist: 7.0}
+    hud: {step: 0}
+    nova: {to: "front:2:1.2:1.6", dur: 0.01, face: panic, look: "top:2"}
+    world:
+      - {put: "$100 · xmin 100#a1", bucket: 0, tone: cyan}
+      - {put: "$250 · xmin 98#b1", bucket: 1, tone: cyan}
+      - {put: "$40 · xmin 99#c1", bucket: 2, tone: cyan}
+      - {put: "$900 · xmin 97#d1", bucket: 3, tone: cyan}
+      - {put: "$15 · xmin 101#e1", bucket: 4, tone: cyan}
+      - {bucket: [0, 1, 2, 3, 4], tone: alarm}
+  - at: e1.refused-0.3
+    shot: {kind: look, prop: log, dist: 1.75, height: 0.04}
+    prop: {id: log, place: [0, 2.05, -0.5]}
+    hud: {callout: "NO WRITES", tone: red, for: 1.8}
+  - at: n1
+    shot: {kind: nova, side: -0.4}
+    prop: {id: log, hide: true}
+    nova: {to: nova.home, dur: 1.0, face: surprised}
+  - at: e2
+    shot: {kind: engineer, side: 0.4}
+    engineer: {face: focus}
+  - at: e2.forty-0.3
+    shot: {kind: look, prop: forty, dist: 1.7, height: 0.04}
+    prop: {id: forty, place: [0, 2.0, -0.4]}
+  - at: n2
+    shot: {kind: nova, side: 0.4}
+    prop: {id: forty, hide: true}
+    nova: {face: panic}
+  - at: e3
+    shot: {kind: two, side: -0.2}
+    engineer: {face: smirk}
+    world: {bucket: [0, 1, 2, 3, 4], tone: idle}
+  - at: welcome-0.3
+    shot: {kind: wide, from: -14, to: 14, dist: 8.0}
+    hud: {brand: true, for: 9.5}
+  # ---------------------------------------------------------------- s02 one copy and a lock?
+  - at: n3-0.3
+    shot: {kind: look, at: "bucket:0", dist: 2.6, height: 0.45, angle: 12}
+    hud: {step: 1}
+    nova: {to: "front:1:1.0:1.5", dur: 0.9, face: normal, look: "slot:0:0"}
+  - at: n3.locks
+    prop: {id: lock, place: "front:0:1.0:2.25"}
+    world: {bucket: 0, tone: alarm}
+  - at: e4
+    shot: {kind: two, side: 0.3}
+    prop: {id: lock, hide: true}
+    nova: {to: nova.home, dur: 1.0}
+  - at: e5.freeze
+    hud: {callout: "EVERYONE WAITS", tone: red, for: 1.8}
+  - at: n4
+    shot: {kind: nova, side: -0.4}
+    nova: {face: confused}
+    world: {bucket: 0, tone: idle}
+  - at: e6
+    shot: {kind: engineer, side: 0.4}
+    engineer: {face: smirk}
+  - at: e6.keeps
+    engineer: {vision: true}
+  - at: e6.version-0.2
+    shot: {kind: look, at: "bucket:0", dist: 2.5, height: 0.4, angle: -8}
+    world: {put: "$70 · xmin 105#a2", bucket: 0, from: "top:0", dur: 0.45, tone: amber}
+    hud: {callout: "MORE THAN ONE VERSION", tone: amber, for: 1.8}
+  - at: e6>
+    world: {remove: "$70 · xmin 105#a2"}
+  # ---------------------------------------------------------------- s03 a read that never waits (walkthrough 1)
+  - at: e7
+    shot: {kind: look, at: [-0.24, 1.62, 1.05], dist: 1.75, height: 0.04, fov: 34}
+    hud: {step: 2}
+    prop: {id: w1, place: [-0.66, 1.74, 1.0], type: true, dur: 1.6}
+    engineer: {face: calm, look: "prop:w1"}
+    nova: {to: [1.15, 1.5, 1.55], dur: 0.7, look: "engineer.head"}
+    until: e11
+  - at: e8.line
+    prop: {id: w1, state: {hl: 0}}
+  - at: e8.line#2
+    prop: {id: w1, state: {hl: 1}}
+  - at: e8.changes
+    world: {put: "$70 · xmin 105#a3", bucket: 0, from: "top:0", dur: 0.45, tone: amber}
+  - at: e9.line
+    prop: {id: w1, state: {hl: 3}}
+  - at: e9.hundred-0.3
+    shot: {kind: look, at: "bucket:0", dist: 2.4, height: 0.4, angle: 8}
+    world: {key: "$70 · xmin 105#a3", tone: dim}
+    hud: {callout: "$100 · NO WAITING", tone: cyan, for: 1.8}
+  - at: e10
+    shot: {kind: look, at: [-0.24, 1.62, 1.05], dist: 1.75, height: 0.04, fov: 34}
+    prop: {id: w1, state: {hl: 5}}
+  - at: commit+0.1
+    world:
+      - {key: "$70 · xmin 105#a3", tone: green}
+      - {relabel: "$100 · xmin 100#a1", text: "$100 · xmin 100 · xmax 105"}
+      - {key: "$100 · xmin 100#a1", tone: dead}
+  - at: e10.line#2
+    prop: {id: w1, state: {hl: 6}}
+  - at: n5
+    shot: {kind: look, at: "bucket:0", dist: 2.4, height: 0.4, angle: 10}
+    prop: {id: w1, hide: true}
+    nova: {to: nova.home, dur: 0.8, face: surprised}
+  - at: e11
+    shot: {kind: engineer, side: 0.3}
+    engineer: {face: calm}
+  - at: n5a
+    shot: {kind: nova, side: -0.4}
+    nova: {face: confused}
+  - at: e11a-0.2
+    shot: {kind: look, prop: undo, dist: 1.8, height: 0.04}
+    prop: {id: undo, place: [0, 2.0, -0.4]}
+  # ---------------------------------------------------------------- s04 snapshots and stamps (walkthrough 2)
+  - at: e12
+    shot: {kind: look, at: "slot:0:0", dist: 1.8, height: 0.25, angle: 6}
+    hud: {step: 3}
+    prop: {id: undo, hide: true}
+  - at: e12.x
+    world: {key: "$70 · xmin 105#a3", tone: amber}
+    hud: {callout: "xmin: WHO WROTE IT", tone: amber, for: 2.0}
+  - at: e12.x#2
+    world: {key: "$100 · xmin 100#a1", tone: red}
+    hud: {callout: "xmax: WHO REPLACED IT", tone: red, for: 2.0}
+  - at: e13
+    shot: {kind: engineer, side: -0.3}
+    world: [{key: "$70 · xmin 105#a3", tone: green}, {key: "$100 · xmin 100#a1", tone: dead}]
+  - at: e13a-0.2
+    shot: {kind: look, prop: snap, dist: 1.8, height: 0.04}
+    prop: {id: snap, place: [0, 2.0, -0.4]}
+  - at: e14
+    prop: [{id: snap, hide: true}, {id: rc, place: [0, 2.2, -0.4]}]
+    shot: {kind: look, at: [0, 2.0, -0.4], dist: 2.0, height: 0.0}
+  - at: e14.repeatable
+    prop: {id: rr, place: [0, 1.78, -0.4]}
+  - at: e14a
+    shot: {kind: two, side: 0.3}
+    prop: [{id: rc, hide: true}, {id: rr, hide: true}]
+  - at: n6
+    shot: {kind: nova, side: 0.4}
+    nova: {face: happy}
+  - at: e15
+    shot: {kind: look, at: [-0.24, 1.62, 1.05], dist: 1.75, height: 0.04, fov: 34}
+    prop: {id: w2, place: [-0.66, 1.74, 1.0], type: true, dur: 1.2}
+    engineer: {look: "prop:w2"}
+    nova: {to: [1.15, 1.5, 1.55], dur: 0.7, look: "engineer.head"}
+    until: e16.update
+  - at: stamp-0.2
+    shot: {kind: look, at: "bucket:0", dist: 2.5, height: 0.45, angle: -8}
+    prop: {id: w2, hide: true}
+    nova: {to: nova.home, dur: 0.8}
+    world:
+      - {relabel: "$70 · xmin 105#a3", text: "$70 · xmin 105 · xmax 106"}
+      - {key: "$70 · xmin 105#a3", tone: dead}
+      - {put: "$60 · xmin 106#a4", bucket: 0, from: "top:0", dur: 0.45, tone: green}
+    hud: {callout: "NEW xmin · NEW ctid", tone: amber, for: 2.0}
+  # ---------------------------------------------------------------- s05 dead rows, VACUUM and bloat (walkthrough 3)
+  - at: n7
+    shot: {kind: nova, side: -0.4}
+    hud: {step: 4}
+    nova: {face: confused}
+  - at: vacuum1-0.2
+    shot: {kind: wide, from: -6, to: 6, dist: 6.8}
+    world:
+      - {scan: true}
+      - {remove: ["$100 · xmin 100#a1", "$70 · xmin 105#a3"]}
+    hud: {callout: "VACUUM", tone: green, for: 1.6}
+  - at: e17a
+    shot: {kind: look, prop: auto, dist: 1.7, height: 0.04}
+    prop: {id: auto, place: [0, 2.0, -0.4]}
+  - at: e17a.full-0.3
+    prop: [{id: auto, hide: true}, {id: full, place: [0, 2.0, -0.4]}]
+  - at: e18
+    shot: {kind: engineer, side: 0.4}
+    prop: {id: full, hide: true}
+    engineer: {face: focus}
+  - at: e18.idle-0.3
+    shot: {kind: look, prop: idle, dist: 1.6, height: 0.04}
+    prop: {id: idle, place: [0, 2.05, -0.5]}
+  - at: e19
+    shot: {kind: look, at: "front:2:0.55:1.6", dist: 3.6, height: 0.5, angle: 6}
+    prop: {id: idle, hide: true}
+  - at: bloat-0.3
+    world:
+      - {put: ["$40 · dead#c2", "$38 · dead#c3", "$35 · dead#c4", "$31 · dead#c5", "$30 · dead#c6", "$28 · dead#c7", "$26 · dead#c8", "$22 · dead#c9", "$20 · dead#c10", "$18 · dead#c11", "$15 · dead#c12"], bucket: 2, stagger: 0.12, dur: 0.35, tone: dead}
+      - {bucket: 2, tone: alarm}
+    hud: {callout: "BLOAT", tone: red, for: 1.8}
+  - at: e19a-0.2
+    shot: {kind: look, prop: slots, dist: 1.6, height: 0.04}
+    prop: {id: slots, place: [0, 2.05, -0.5]}
+  - at: e20
+    shot: {kind: look, at: [-0.24, 1.62, 1.05], dist: 1.75, height: 0.04, fov: 34}
+    prop: [{id: slots, hide: true}, {id: w3, place: [-0.66, 1.74, 1.0], type: true, dur: 1.4}]
+    engineer: {look: "prop:w3"}
+    nova: {to: [1.15, 1.5, 1.55], dur: 0.7, look: "engineer.head"}
+    until: e21>
+  - at: e21.line
+    prop: {id: w3, state: {hl: 2}}
+  - at: e21.line#2
+    prop: {id: w3, state: {hl: 4}}
+  - at: e21.set
+    shot: {kind: wide, from: -6, to: 6, dist: 6.8}
+    prop: {id: w3, hide: true}
+    world:
+      - {scan: true}
+      - {remove: ["$40 · dead#c2", "$38 · dead#c3", "$35 · dead#c4", "$31 · dead#c5", "$30 · dead#c6", "$28 · dead#c7", "$26 · dead#c8", "$22 · dead#c9", "$20 · dead#c10", "$18 · dead#c11", "$15 · dead#c12"]}
+      - {bucket: 2, tone: idle}
+  - at: n7a
+    shot: {kind: nova, side: -0.4}
+    nova: {to: nova.home, dur: 0.8, face: confused}
+  - at: e21a
+    shot: {kind: look, prop: full, dist: 1.7, height: 0.04}
+    prop: {id: full, place: [0, 2.0, -0.4]}
+  # ---------------------------------------------------------------- s06 wraparound: the Mandrill outage (walkthrough 4)
+  - at: e22
+    shot: {kind: engineer, side: -0.3}
+    hud: {step: 5}
+    prop: {id: full, hide: true}
+    engineer: {face: focus}
+  - at: e23-0.2
+    shot: {kind: look, prop: dial, dist: 1.8, height: 0.04}
+    prop: {id: dial, place: [0, 2.0, -0.4], state: {now: 0.1, frozen: 0.05}}
+  - at: e23.circle
+    prop: {id: dial, state: {now: 0.35, frozen: 0.3}, dur: 2.4}
+  - at: e24
+    shot: {kind: look, at: "front:2:0.55:1.6", dist: 3.6, height: 0.5, angle: -6}
+  - at: e24.frozen
+    world:
+      - {relabel: "$250 · xmin 98#b1", text: "$250 · frozen"}
+      - {relabel: "$900 · xmin 97#d1", text: "$900 · frozen"}
+      - {relabel: "$15 · xmin 101#e1", text: "$15 · frozen"}
+      - {key: ["$250 · xmin 98#b1", "$900 · xmin 97#d1", "$15 · xmin 101#e1"], tone: green}
+      - {scan: true}
+  - at: e24a-0.2
+    shot: {kind: look, prop: freeze, dist: 1.7, height: 0.04}
+    prop: [{id: freeze, place: [0, 2.0, -0.4]}, {id: dial, state: {frozen: 0.08}, dur: 1.2}]
+  - at: n8
+    shot: {kind: nova, side: 0.4}
+    prop: {id: freeze, hide: true}
+    nova: {face: confused}
+  - at: e25
+    shot: {kind: look, prop: dial, dist: 1.8, height: 0.04}
+    prop: {id: dial, state: {now: 0.62, frozen: 0.49}, dur: 2.4}
+  - at: wrap
+    prop: {id: dial, state: {warn: 1}}
+    world: {bucket: [0, 1, 2, 3, 4], tone: alarm}
+    hud: {callout: "WRITES STOP", tone: red, for: 2.0}
+  - at: n8a
+    shot: {kind: nova, side: -0.4}
+    prop: {id: dial, hide: true}
+    nova: {face: confused}
+  - at: e25a-0.2
+    shot: {kind: look, prop: bits, dist: 1.6, height: 0.04}
+    prop: {id: bits, place: [0, 2.05, -0.5]}
+  - at: e26
+    shot: {kind: look, prop: mandrill, dist: 1.7, height: 0.04}
+    prop: [{id: bits, hide: true}, {id: mandrill, place: [0, 2.0, -0.4]}]
+  - at: e27
+    shot: {kind: look, at: "front:2:0.55:1.6", dist: 3.6, height: 0.5, angle: 6}
+    prop: {id: mandrill, hide: true}
+    world:
+      - {put: ["search 1#q1", "search 2#q2", "search 3#q3", "search 4#q4", "search 5#q5"], bucket: 1, dur: 0.3, stagger: 0.08, tone: cyan}
+      - {put: ["url 1#u1", "url 2#u2", "url 3#u3", "url 4#u4", "url 5#u5", "url 6#u6"], bucket: 3, dur: 0.3, stagger: 0.08, tone: cyan}
+  - at: emptied
+    world:
+      - {remove: ["search 1#q1", "search 2#q2", "search 3#q3", "search 4#q4", "search 5#q5"]}
+      - {remove: ["url 1#u1", "url 2#u2", "url 3#u3", "url 4#u4", "url 5#u5", "url 6#u6"]}
+      - {scan: true}
+      - {bucket: [0, 1, 2, 3, 4], tone: idle}
+  - at: e27.hour-0.3
+    shot: {kind: look, prop: hour, dist: 1.7, height: 0.04}
+    prop: {id: hour, place: [0, 2.0, -0.4]}
+  - at: e28
+    prop: [{id: hour, hide: true}, {id: hours, place: [0, 2.0, -0.4]}]
+  - at: e28.yours-0.2
+    shot: {kind: look, at: [-0.24, 1.62, 1.05], dist: 1.75, height: 0.04, fov: 34}
+    prop: [{id: hours, hide: true}, {id: w4, place: [-0.66, 1.74, 1.0], type: true, dur: 1.4}]
+    engineer: {look: "prop:w4"}
+    nova: {to: [1.15, 1.5, 1.55], dur: 0.7, look: "engineer.head"}
+    until: e29>
+  - at: e29.line
+    prop: {id: w4, state: {hl: 1}}
+  - at: e29.line#2
+    prop: {id: w4, state: {hl: 4}}
+    hud: {callout: "ALERT EARLY", tone: amber, for: 1.8}
+  # ---------------------------------------------------------------- s07 what MVCC costs
+  - at: n9
+    shot: {kind: nova, side: 0.4}
+    hud: {step: 6}
+    prop: {id: w4, hide: true}
+    nova: {to: nova.home, dur: 0.8, face: happy}
+  - at: e30
+    shot: {kind: engineer, side: -0.3}
+    engineer: {face: calm}
+  - at: e30.readers
+    hud: {callout: "NO READ LOCKS", tone: green, for: 1.8}
+  - at: e30a-0.2
+    shot: {kind: look, prop: turns, dist: 1.7, height: 0.04}
+    prop: {id: turns, place: [0, 2.0, -0.4]}
+  - at: e31
+    prop: [{id: turns, hide: true}, {id: cost, place: [0, 2.0, -0.4]}]
+  - at: e32
+    prop: [{id: cost, hide: true}, {id: hot, place: [0, 2.0, -0.4]}]
+  - at: e32a
+    prop: [{id: hot, hide: true}, {id: fill, place: [0, 2.0, -0.4]}]
+  - at: e33
+    prop: [{id: fill, hide: true}, {id: part, place: [0, 2.0, -0.4]}]
+  # ---------------------------------------------------------------- s08 recap and next
+  - at: e34
+    shot: {kind: wide, from: -16, to: 16, dist: 7.8}
+    prop: {id: part, hide: true}
+    engineer: {face: calm, look: camera}
+    until: n10
+  - at: e34.stamped
+    hud: {callout: "NEW VERSION · xmin / xmax", tone: amber, for: 2.4}
+  - at: e34.snapshot
+    hud: {callout: "SNAPSHOTS: READERS NEVER WAIT", tone: green, for: 2.4}
+  - at: e35.removes
+    hud: {callout: "VACUUM CLEANS · FREEZES", tone: green, for: 2.6}
+  - at: n10
+    shot: {kind: nova, side: 0.4}
+    nova: {face: happy}
+  - at: e36
+    shot: {kind: two, side: -0.2}
+    engineer: {face: smile}
+  - at: n11
+    shot: {kind: two, side: 0.2, dist: 2.4}
+    nova: {face: celebrate, gesture: wave}
+    until: end+14
+  - at: end
+    shot: {kind: two, side: 0.3, dist: 2.6}
+    engineer: {face: smile, gesture: thumbsUp}
+    until: end+14

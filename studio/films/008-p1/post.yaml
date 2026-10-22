@@ -1,0 +1,24 @@
+# What to paste when posting Postgres MVCC part 1 by hand.
+name: Postgres MVCC part 1
+title: "Why Postgres Readers Never Wait for Writers (MVCC) #Shorts"
+description: |
+  An UPDATE in Postgres doesn't change the row: it writes a new version. Until it commits, everyone else keeps reading the old one. Readers never block writers, writers never block readers.
+
+  Part 1 of 4. The full Postgres MVCC deep dive is out Saturday 31 October.
+
+  #Shorts #postgresql #database #backenddeveloper #systemdesign
+caption: |
+  Your SELECT doesn't wait for my UPDATE. Here's why. 🐘
+
+  1️⃣ An UPDATE doesn't change the row: it writes a new version
+  2️⃣ Every version carries the ID of the transaction that wrote it (xmin)
+  3️⃣ Until the update commits, other readers' snapshots still see the old version
+  4️⃣ Readers never block writers, writers never block readers: that's MVCC
+
+  The part most people mix up: two writers on the same row still take turns. MVCC removes waiting between readers and writers.
+
+  Part 2: where the old version goes
+  Save this for your next system design interview 📌
+  Did you think Postgres locked rows for reads? 👇
+
+  #postgresql #database #backenddeveloper #systemdesign #sql

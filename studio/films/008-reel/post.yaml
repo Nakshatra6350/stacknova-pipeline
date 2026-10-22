@@ -1,0 +1,25 @@
+# What to paste when posting The Mandrill outage by hand.
+name: The Mandrill outage
+title: "The Postgres Outage a 40-Day VACUUM Couldn't Fix #Shorts"
+description: |
+  February 2019: Mailchimp's Mandrill had a Postgres shard run out of transaction IDs and stop accepting writes. The VACUUM estimate was up to 40 days. Sending was impaired for about 40 hours.
+
+  The full Postgres MVCC deep dive is on the channel.
+
+  #Shorts #postgresql #database #backenddeveloper #systemdesign
+caption: |
+  Emails stuck for about 40 hours. The database refused every write. 📉
+
+  February 2019, Mailchimp's Mandrill:
+  1️⃣ One Postgres shard ran out of transaction IDs (wraparound) and stopped accepting writes
+  2️⃣ It was busier than the others; its autovacuum fell behind, or failed
+  3️⃣ A VACUUM of that database was estimated at up to 40 days
+  4️⃣ They emptied two huge tables to free the IDs, and the vacuum finished in about an hour
+
+  The lesson: alert on transaction ID age long before the limit, and make sure every vacuum can finish.
+
+  The full MVCC deep dive is on YouTube: StackNova (link in bio).
+  Save this for your next on-call 📌
+  Had you heard of XID wraparound before? 👇
+
+  #postgresql #database #backenddeveloper #systemdesign #sql

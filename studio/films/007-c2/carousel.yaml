@@ -1,0 +1,30 @@
+# Carousel for Tuesday 27 October 2026, the day episode 007 comes out: how HashMap really works,
+# in nine slides (content/episodes/007-hashmap/episode.yaml `carousel`), each over a 3D still.
+number: "007"
+slides:
+  - headline: How HashMap really works
+    body: From one jump to the tree that stopped an attack
+    still: {timeline: studio/public/films/007-reel/timeline.json, t: 4.0, y: 0.35}
+  - headline: 1. hashCode() → a number
+    body: Equal objects must return the same hashCode
+    still: {timeline: studio/public/story/hashmap-short.json, t: 18.3, y: 0.25}
+  - headline: 2. Mix the top bits in
+    body: "h ^ (h >>> 16): small tables only see the low bits"
+    still: {timeline: studio/public/story/hashmap-short.json, t: 19.7, y: 0.25}
+  - headline: 3. Pick a bucket
+    body: "hash & (16 - 1) keeps 4 bits: 0111 → bucket 7. O(1)"
+    still: {timeline: studio/public/story/hashmap-short.json, t: 24.6, y: 0.3}
+  - headline: 4. Collisions chain
+    body: Check the stored hash first, then equals()
+    still: {timeline: studio/public/story/hashmap-short.json, t: 44.0, y: 0.4}
+  - headline: 5. 75% full? Double
+    body: "One more bit splits each chain: stay in 7 or move to 23"
+    still: {timeline: studio/public/films/007-p2/timeline.json, t: 30.4, y: 0.45}
+  - headline: 6. Crowded bucket → tree
+    body: "Only at 64+ buckets: O(log n) instead of O(n)"
+    still: {timeline: studio/public/films/007-p2/timeline.json, t: 41.5, y: 0.3}
+  - headline: 7. Why trees exist
+    body: "2011: colliding keys froze servers. Java 8 capped the damage"
+    still: {timeline: studio/public/films/007-reel/timeline.json, t: 66.0, y: 0.35}
+  - headline: Follow @stacknova.dev
+    body: "Full deep dive on YouTube: StackNova"
