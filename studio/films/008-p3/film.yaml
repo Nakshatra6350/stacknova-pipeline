@@ -1,0 +1,51 @@
+# Postgres MVCC, part 3 of 4: one idle transaction, one bloated table. A quick Short.
+#
+# Facts, PostgreSQL 18 (docs: 24.1 Routine Vacuuming, 27.2 pg_stat_activity, 19.11
+# idle_in_transaction_session_timeout): a deleted or updated row version stays until no transaction
+# can still see it; a long-open transaction's snapshot (backend_xmin) holds back that cleanup;
+# pg_stat_activity shows sessions in state 'idle in transaction';
+# idle_in_transaction_session_timeout ends sessions idle in a transaction longer than it
+id: 008-p3
+format: short
+world: mvcc
+title: POSTGRES MVCC
+episode: EP 008 · PART 3
+steps: [STILL GROWING, DEAD ROWS, IDLE TX, BLOAT, FIX]
+end: {kicker: PART 4, head: "The day Postgres\nstopped writing", cta: part 4}
+
+lines:
+  - id: n1
+    who: nova
+    say: "Our orders table keeps growing, and we delete old orders every night!"
+  - id: e1
+    who: engineer
+    say: "Deleted rows don't disappear. They become dead versions, waiting for vacuum."
+    show: "Deleted rows don't disappear. They become dead versions, waiting for VACUUM."
+  - id: n2
+    who: nova
+    say: "Then why isn't vacuum cleaning them?"
+    show: "Then why isn't VACUUM cleaning them?"
+  - id: e2
+    who: engineer
+    say: "Because someone might still need them. Vacuum only removes versions that no open transaction can see."
+    show: "Because someone might still need them. VACUUM only removes versions that no open transaction can see."
+  - id: e3
+    who: engineer
+    say: "Look. A session began a transaction an hour ago, and went idle. Its snapshot is still open."
+  - id: n3
+    who: nova
+    say: "One idle connection holds up the whole cleanup?"
+  - id: e4
+    who: engineer
+    say: "Every version that snapshot might still need has to stay. The table bloats, and every scan wades through the dead rows."
+  - id: n4
+    who: nova
+    say: "How do I catch it?"
+  - id: e5
+    who: engineer
+    say: "Look in p g stat activity for sessions idle in transaction. And set idle in transaction session timeout, so Postgres ends them for you."
+    show: "Look in pg_stat_activity for sessions idle in transaction. And set idle_in_transaction_session_timeout, so Postgres ends them for you."
+  - id: e6
+    who: engineer
+    say: "Part four: the day a database stopped accepting writes."
+    show: "Part 4: the day a database stopped accepting writes."

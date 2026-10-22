@@ -1,0 +1,45 @@
+# Postgres MVCC, part 1 of 4: readers never wait. A quick Short leading into episode 008
+# (Saturday 31 October 2026).
+#
+# Facts, PostgreSQL 18 (docs: 13.1 Introduction, 5.6 System Columns, 13.2 Transaction Isolation):
+#   each statement sees a snapshot of the data; "reading never blocks writing and writing never
+#   blocks reading"; an UPDATE writes a new row version, the old one stays; xmin is the transaction
+#   that inserted a row version; at Read Committed (the default) a statement sees only data
+#   committed before it began, so others see the old version until the update commits
+id: 008-p1
+format: short
+world: mvcc
+title: POSTGRES MVCC
+episode: EP 008 · PART 1
+steps: ["WAIT?", NEW VERSION, SNAPSHOT, NO WAITING, COMMIT]
+end: {kicker: PART 2, head: "UPDATE is really\nINSERT + DELETE", cta: part 2}
+
+lines:
+  - id: n1
+    who: nova
+    say: "I'm updating Ana's balance. Shouldn't every reader have to wait until I'm done?"
+  - id: e1
+    who: engineer
+    say: "Not in Postgres. Your update doesn't change the row. It writes a new version of it."
+  - id: n2
+    who: nova
+    say: "A new version? Then which one does a reader see?"
+  - id: e2
+    who: engineer
+    say: "The one its snapshot allows. Every row version carries the ID of the transaction that wrote it."
+  - id: e3
+    who: engineer
+    say: "Yours hasn't committed yet, so everyone else still reads the old version, with the old balance."
+  - id: n3
+    who: nova
+    say: "So nobody waits for me?"
+  - id: e4
+    who: engineer
+    say: "Readers never block writers, and writers never block readers. That's MVCC: multi-version concurrency control."
+  - id: n4
+    who: nova
+    say: "And when I commit?"
+  - id: e5
+    who: engineer
+    say: "New snapshots see your version. The old one stays behind for a while. Part two: where it goes."
+    show: "New snapshots see your version. The old one stays behind for a while. Part 2: where it goes."

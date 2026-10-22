@@ -1,0 +1,47 @@
+# Postgres MVCC, part 2 of 4: an UPDATE is really an INSERT plus a DELETE. A quick Short.
+#
+# Facts, PostgreSQL 18 (docs: 5.6 System Columns, 24.1 Routine Vacuuming): xmin is the inserting
+# transaction, xmax the deleting (or locking) one, ctid the physical location of the row version;
+# an UPDATE or DELETE does not immediately remove the old version; VACUUM reclaims the space once
+# no transaction can see it
+id: 008-p2
+format: short
+world: mvcc
+title: POSTGRES MVCC
+episode: EP 008 · PART 2
+steps: ["TWO ROWS?", XMAX, XMIN, CTID, VACUUM]
+end: {kicker: PART 3, head: "One idle transaction,\none bloated table", cta: part 3}
+
+lines:
+  - id: n1
+    who: nova
+    say: "I updated one row. Why does the table now hold two?"
+  - id: e1
+    who: engineer
+    say: "Because in Postgres, an update is really an insert plus a delete."
+  - id: e2
+    who: engineer
+    say: "The old version gets an x max: the transaction that replaced it. The new version gets an x min: the transaction that wrote it."
+    show: "The old version gets an xmax: the transaction that replaced it. The new version gets an xmin: the transaction that wrote it."
+  - id: n2
+    who: nova
+    say: "Can I see that?"
+  - id: e3
+    who: engineer
+    say: "Ask for the hidden columns: x min, x max, and c t i d, the row's physical address. Update the row, and its c t i d moves."
+    show: "Ask for the hidden columns: xmin, xmax, and ctid, the row's physical address. Update the row, and its ctid moves."
+  - id: n3
+    who: nova
+    say: "So the old row is just... dead?"
+  - id: e4
+    who: engineer
+    say: "Dead, but still on disk, until no transaction can see it. Then vacuum takes the space back."
+    show: "Dead, but still on disk, until no transaction can see it. Then VACUUM takes the space back."
+  - id: n4
+    who: nova
+    say: "And if vacuum can't clean it?"
+    show: "And if VACUUM can't clean it?"
+  - id: e5
+    who: engineer
+    say: "Then your table keeps growing. Part three: the idle transaction that stops the cleanup."
+    show: "Then your table keeps growing. Part 3: the idle transaction that stops the cleanup."

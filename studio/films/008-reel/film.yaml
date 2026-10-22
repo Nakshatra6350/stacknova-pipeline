@@ -1,0 +1,63 @@
+# Episode 008's flagship reel (90-150 s), for release day, Saturday 31 October 2026: the Mandrill
+# outage of February 2019, told in the MVCC world.
+#
+# Facts (Mailchimp, "What we learned from the recent Mandrill outage"): the outage began 05:35 UTC
+# on 4 February 2019 and was resolved 22:09 UTC on 5 February; Mandrill's Postgres shard4 reached
+# its transaction ID limit (wraparound) and stopped accepting writes; that shard ran hotter, and
+# its autovacuum likely fell behind or failed (they could not determine which); a standalone
+# VACUUM was estimated at up to 40 days; truncating the very large Search and Url tables freed the
+# XIDs and the vacuum then finished in about an hour; sending was impaired for about 40 hours;
+# XID wraparound alerting was added. PostgreSQL 18 docs: 32-bit XIDs, freezing (24.1.5).
+id: 008-reel
+format: short
+world: mvcc
+title: POSTGRES MVCC
+episode: EP 008 · THE MANDRILL OUTAGE
+steps: [NO WRITES, WHY, 40 DAYS, THE FIX]
+end: {kicker: "FULL DEEP DIVE", head: "Postgres MVCC,\nall of it", cta: more}
+
+lines:
+  - id: n1
+    who: nova
+    say: "Emails stopped going out. For hours! The database won't take a single write!"
+  - id: e1
+    who: engineer
+    say: "February 2019. Mailchimp's email service, Mandrill. One Postgres shard stopped accepting writes."
+  - id: n2
+    who: nova
+    say: "Why? Was the disk full?"
+  - id: e2
+    who: engineer
+    say: "It ran out of transaction IDs. Postgres uses thirty-two bit IDs, and it must freeze old rows before the counter wraps around."
+    show: "It ran out of transaction IDs. Postgres uses 32-bit IDs, and it must freeze old rows before the counter wraps around."
+  - id: e3
+    who: engineer
+    say: "That shard was busier than the others. Its autovacuum fell behind, or failed. They never found out which."
+  - id: n3
+    who: nova
+    say: "So they just run vacuum?"
+    show: "So they just run VACUUM?"
+  - id: e4
+    who: engineer
+    say: "They tried. Vacuuming that database by hand was estimated to take up to forty days."
+    show: "They tried. Vacuuming that database by hand was estimated to take up to 40 days."
+  - id: n4
+    who: nova
+    say: "Forty days?!"
+    show: "40 days?!"
+  - id: e5
+    who: engineer
+    say: "So they emptied two huge tables to free the IDs. Then the vacuum finished in about an hour."
+  - id: n5
+    who: nova
+    say: "How long were emails stuck?"
+  - id: e6
+    who: engineer
+    say: "Sending was impaired for about forty hours."
+    show: "Sending was impaired for about 40 hours."
+  - id: n6
+    who: nova
+    say: "How do we never let that happen?"
+  - id: e7
+    who: engineer
+    say: "Alert on transaction ID age, long before the limit, and make sure every vacuum can finish. The full MVCC deep dive is on our channel."

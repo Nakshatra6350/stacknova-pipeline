@@ -70,3 +70,141 @@ lines:
   - id: e9
     who: engineer
     say: "It capped the damage. How HashMap really works, from the first jump to that tree, is in the full deep dive on our channel."
+
+hook: "ONE REQUEST. CPU 100%."
+events:
+  flood: n1.cpu
+  fix: e6.fix
+  tree: e7.tree
+
+sfx:
+  - {at: 0.3, sound: tick, gain: 0.5}
+  - {at: flood, sound: alarm, gain: 0.45}
+  - {at: flood+0.3, sound: thud, gain: 0.7}
+  - {at: e1-0.6, sound: vision, gain: 0.6}
+  - {at: e3.both, sound: pop, gain: 0.6}
+  - {at: e4.fourteen, sound: rise, gain: 0.7}
+  - {at: n4, sound: thud, gain: 0.6}
+  - {at: e5.twice, sound: alarm, gain: 0.35}
+  - {at: fix, sound: ding, gain: 0.5}
+  - {at: tree, sound: arp, gain: 0.8}
+
+props:
+  cpu: {kind: gauge, text: "server CPU %", max: 100, limit: 80}
+  ccc: {kind: label, text: "December 2011", sub: "28C3 · Klink & Wälde", tone: cyan}
+  post:
+    kind: code
+    file: POST /login · 16,384 fields
+    code: |
+      AaAaAaAa=1&AaAaAaBB=1&AaAaBBAa=1&
+      AaAaBBBB=1&AaBBAaAa=1&AaBBAaBB=1&
+      AaBBBBAa=1&AaBBBBBB=1&BBAaAaAa=1&
+      ...16,384 field names, one hashCode
+  pairs:
+    kind: code
+    file: Java
+    code: |
+      "Aa".hashCode()   // 2112
+      "BB".hashCode()   // 2112
+      "AaAa", "AaBB", "BBAa", "BBBB"
+      // all four: one hashCode
+  nsq: {kind: label, text: "O(n²)", sub: "twice the keys, four times the work", tone: red}
+  cap: {kind: label, text: "max parameters", sub: "Tomcat's default: 10,000 per request", tone: green}
+  logn: {kind: label, text: "O(log n)", sub: "a few hops per key", tone: green}
+
+beats:
+  - at: -1
+    shot: {kind: look, at: "bucket:9", dist: 2.8, height: 0.6, angle: 8}
+    hud: {step: 0}
+    nova: {to: "front:11:1.2:1.6", dur: 0.01, face: panic, look: "top:9"}
+    prop: {id: cpu, place: "front:9:1.1:2.45"}
+  - at: 0.2
+    world:
+      - {put: [AaAaAaAa, AaAaAaBB, AaAaBBAa, AaAaBBBB, AaBBAaAa, AaBBAaBB, AaBBBBAa, AaBBBBBB, BBAaAaAa, BBAaAaBB, BBAaBBAa, BBAaBBBB, BBBBAaAa, BBBBAaBB, BBBBBBAa, BBBBBBBB], bucket: 9, stagger: 0.18, dur: 0.35, tone: red}
+  - at: flood-0.8
+    prop: {id: cpu, state: {value: 100}, dur: 1.0}
+    world: [{bucket: 9, tone: alarm}, {shake: 9}]
+    nova: {gesture: panic}
+    until: n1>
+  # December 2011
+  - at: e1-0.9
+    shot: {kind: engineer, side: 0.4}
+    prop: {id: cpu, hide: true}
+    engineer: {enter: true, face: focus}
+    nova: {to: nova.home, dur: 1.0, face: surprised}
+  - at: e1.2011
+    prop: {id: ccc, place: [0, 2.35, -0.2]}
+  - at: n2
+    shot: {kind: nova, side: -0.4}
+    prop: {id: ccc, hide: true}
+    nova: {face: confused}
+  # thousands of form fields, all with one hash code
+  - at: e2
+    shot: {kind: look, prop: post, dist: 1.55, height: 0.04}
+    prop: {id: post, place: [0, 2.05, -0.5], type: true, dur: 1.6}
+  - at: e2.same
+    hud: {step: 1, callout: "SAME hashCode", tone: red, for: 1.8}
+  - at: n3
+    shot: {kind: nova, side: 0.4}
+    prop: {id: post, hide: true}
+    nova: {face: confused}
+  - at: e3
+    shot: {kind: look, prop: pairs, dist: 1.5, height: 0.04}
+    prop: {id: pairs, place: [0, 2.05, -0.5], type: true, dur: 1.4}
+  - at: e3.both
+    prop: {id: pairs, state: {hl: 1}}
+  - at: e3.glue
+    prop: {id: pairs, state: {hl: 2}}
+  - at: e4.fourteen
+    prop: {id: pairs, state: {hl: 3}}
+    hud: {callout: "16,384 KEYS · 1 HASH", tone: red, for: 2.2}
+  # one bucket, one giant chain
+  - at: n4-0.2
+    shot: {kind: look, at: "front:9:0.32:1.7", dist: 3.8, height: 0.35, angle: 6}
+    hud: {step: 2}
+    prop: {id: pairs, hide: true}
+    nova: {face: panic, look: "top:9"}
+    world: {chain: 9, keys: [AaAaAaAa, AaAaAaBB, AaAaBBAa, AaAaBBBB, AaBBAaAa, AaBBAaBB, AaBBBBAa, AaBBBBBB, BBAaAaAa], hashes: ["-540425984", "-540425984", "-540425984", "-540425984", "-540425984", "-540425984", "-540425984", "-540425984", "-540425984"]}
+  - at: e5.twice-0.2
+    prop: {id: nsq, place: "front:9:1.0:2.55"}
+  - at: n5
+    shot: {kind: nova, side: -0.4}
+    prop: {id: nsq, hide: true}
+    nova: {face: panic, gesture: panic}
+    until: n5>
+  # the fix: a cap on parameters, and tree buckets
+  - at: e6
+    shot: {kind: engineer, side: 0.4}
+    engineer: {face: smirk}
+  - at: fix
+    hud: {step: 3}
+  - at: e6.capped-0.2
+    shot: {kind: look, prop: cap, dist: 1.6, height: 0.04}
+    prop: {id: cap, place: [0, 2.05, -0.5]}
+  - at: e7
+    shot: {kind: look, at: "front:9:0.32:1.9", dist: 3.9, height: 0.35, angle: -6}
+    prop: {id: cap, hide: true}
+    engineer: {vision: true}
+  - at: tree-0.3
+    world: [{chain: 9, tree: true}, {bucket: 9, tone: active}]
+    hud: {callout: "JAVA 8: TREE BUCKETS", tone: green, for: 2.2}
+  - at: n6
+    shot: {kind: nova, side: 0.4}
+    nova: {face: confused}
+  - at: e8
+    shot: {kind: look, at: "front:9:0.32:1.9", dist: 3.6, height: 0.35, angle: 8}
+  - at: e8.few-0.3
+    prop: {id: logn, place: "front:9:1.0:2.6"}
+  - at: n7
+    shot: {kind: two, side: -0.2}
+    prop: {id: logn, hide: true}
+    nova: {face: celebrate}
+    world: {chain: 9, hide: true}
+  - at: e9
+    shot: {kind: engineer, side: -0.3}
+    engineer: {face: smirk}
+  - at: end
+    shot: {kind: two, side: 0.2, dist: 2.6}
+    nova: {face: celebrate, gesture: wave}
+    engineer: {face: smile, gesture: thumbsUp}
+    until: end+9

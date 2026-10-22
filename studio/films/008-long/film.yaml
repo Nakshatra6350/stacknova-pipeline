@@ -1,0 +1,255 @@
+# Episode 008, the long video: how Postgres lets readers and writers work at the same time
+# (MVCC), told by the engineer and Nova in the row vault (the mvcc world: five rows, each slab a
+# row version). Out Saturday 31 October 2026. Packaging, sources and the fact check are in
+# content/episodes/008-postgres-mvcc/episode.yaml; the walkthroughs show its samples/go.
+id: 008-long
+format: long
+world: mvcc
+title: POSTGRES MVCC
+episode: EP 008
+steps: [NO WRITES, "ONE COPY?", VERSIONS, SNAPSHOTS, VACUUM, WRAPAROUND, COSTS]
+end: {kicker: "NEXT · TUESDAY", head: "A new deep dive,\ntwice a week", cta: next}
+music: 0.32
+
+lines:
+  # s01 hook: the database that refused every write
+  - id: e1
+    who: engineer
+    segment: s01
+    say: "February 2019. An email service stopped sending for nearly two days. The database wasn't down. It simply refused every write."
+  - id: n1
+    who: nova
+    say: "Refused? A healthy database?"
+  - id: e2
+    who: engineer
+    say: "Healthy, and protecting itself. And the fix it asked for was estimated to take forty days."
+    show: "Healthy, and protecting itself. And the fix it asked for was estimated to take 40 days."
+  - id: n2
+    who: nova
+    say: "Forty days?! What could do that?"
+    show: "40 days?! What could do that?"
+  - id: e3
+    who: engineer
+    say: "The same machinery that lets Postgres read and write at the same time. Let's open it up."
+  - id: w1
+    who: engineer
+    speed: 1.15
+    after: 0.6
+    say: "Every digital frontier begins with an idea. What brings it to life is the engineering beneath it. Welcome to StackNova, exploring the architecture of tomorrow, one system at a time."
+    show: "Every digital frontier begins with an idea. What brings it to life is the engineering beneath it. Welcome to StackNova — exploring the architecture of tomorrow, one system at a time."
+
+  # s02 the naive model: one copy and a lock
+  - id: n3
+    who: nova
+    segment: s02
+    say: "I'd guess Postgres keeps one copy of each row, and locks it while someone changes it."
+  - id: e4
+    who: engineer
+    say: "That's what most people picture. A writer locks the row, and every reader waits."
+  - id: e5
+    who: engineer
+    say: "Then a long report would freeze every checkout, and every checkout would freeze the report."
+  - id: n4
+    who: nova
+    say: "So what does it do instead?"
+  - id: e6
+    who: engineer
+    say: "It keeps more than one version of a row, and lets each reader see the right one."
+
+  # s03 versions: a read that does not wait (walkthrough 1)
+  - id: e7
+    who: engineer
+    segment: s03
+    say: "Here's the proof, in Go, with the p g x driver."
+    show: "Here's the proof, in Go, with the pgx driver."
+  - id: e8
+    who: engineer
+    say: "Line one opens a transaction: the writer. Line two changes Ana's balance from a hundred to seventy. It isn't committed yet."
+    show: "Line 1 opens a transaction: the writer. Line 2 changes Ana's balance from 100 to 70. It isn't committed yet."
+  - id: e9
+    who: engineer
+    say: "Line four reads the same row on another connection. It doesn't wait. It gets a hundred: the old version."
+    show: "Line 4 reads the same row on another connection. It doesn't wait. It gets 100: the old version."
+  - id: e10
+    who: engineer
+    say: "Line six commits. And line seven reads again: seventy. A new statement, a new snapshot."
+    show: "Line 6 commits. And line 7 reads again: 70. A new statement, a new snapshot."
+  - id: n5
+    who: nova
+    say: "Two versions of the same row, at the same time?"
+  - id: e11
+    who: engineer
+    say: "Exactly. The update didn't change the row. It wrote a new version, and left the old one for anyone still looking."
+  - id: n5a
+    who: nova
+    say: "Where does the old version live?"
+  - id: e11a
+    who: engineer
+    say: "Right beside the new one, in the same table. Some databases, like MySQL's InnoDB, move old versions to an undo log instead. Postgres keeps them in place."
+
+  # s04 snapshots and visibility (walkthrough 2)
+  - id: e12
+    who: engineer
+    segment: s04
+    say: "Every version carries two stamps. X min: the transaction that wrote it. X max: the transaction that replaced or deleted it."
+    show: "Every version carries two stamps. xmin: the transaction that wrote it. xmax: the transaction that replaced or deleted it."
+  - id: e13
+    who: engineer
+    say: "A snapshot says which transactions a statement may see. A version is visible when its x min committed before the snapshot, and its x max didn't."
+    show: "A snapshot says which transactions a statement may see. A version is visible when its xmin committed before the snapshot, and its xmax didn't."
+  - id: e13a
+    who: engineer
+    say: "Postgres stores a snapshot as a range of transaction IDs, plus the ones still running when it was taken. Anything still running is invisible, even if it commits a moment later."
+  - id: e14
+    who: engineer
+    say: "At read committed, the default, every statement takes a new snapshot. At repeatable read, the whole transaction keeps its first one."
+    show: "At Read Committed, the default, every statement takes a new snapshot. At Repeatable Read, the whole transaction keeps its first one."
+  - id: e14a
+    who: engineer
+    say: "So a report at repeatable read sees every balance as of its first query, even if hundreds of payments commit while it runs."
+    show: "So a report at Repeatable Read sees every balance as of its first query, even if hundreds of payments commit while it runs."
+  - id: n6
+    who: nova
+    say: "Can I see those stamps?"
+  - id: e15
+    who: engineer
+    say: "Ask for them. This query selects x min, x max, and c t i d: where the version sits on disk."
+    show: "Ask for them. This query selects xmin, xmax, and ctid: where the version sits on disk."
+  - id: e16
+    who: engineer
+    say: "Run it, update the row, and run it again. A new x min, and a new c t i d. The old version is still on the page, just not visible to you."
+    show: "Run it, update the row, and run it again. A new xmin, and a new ctid. The old version is still on the page, just not visible to you."
+
+  # s05 dead versions, VACUUM and the idle transaction (walkthrough 3)
+  - id: n7
+    who: nova
+    segment: s05
+    say: "And the old versions? Do they stay forever?"
+  - id: e17
+    who: engineer
+    say: "Until no snapshot can see them. Then they're dead, and vacuum takes the space back. Autovacuum does it for you, table by table."
+    show: "Until no snapshot can see them. Then they're dead, and VACUUM takes the space back. Autovacuum does it for you, table by table."
+  - id: e17a
+    who: engineer
+    say: "It wakes up when enough rows have died: by default, fifty, plus a fifth of the table. And it doesn't shrink the file. It marks the space free for new rows. Vacuum full rewrites the table smaller, but it locks the table while it does."
+    show: "It wakes up when enough rows have died: by default, 50, plus a fifth of the table. And it doesn't shrink the file. It marks the space free for new rows. VACUUM FULL rewrites the table smaller, but it locks the table while it does."
+  - id: e18
+    who: engineer
+    say: "But one open transaction can hold all of it back. If a session starts a transaction and goes idle, its snapshot stays open."
+  - id: e19
+    who: engineer
+    say: "Every version it might still need has to stay. The table bloats, and scans wade through dead rows."
+  - id: e19a
+    who: engineer
+    say: "Old replication slots and forgotten prepared transactions hold cleanup back the same way."
+  - id: e20
+    who: engineer
+    say: "So look for it. This query lists the sessions that are idle inside a transaction."
+  - id: e21
+    who: engineer
+    say: "Line three turns how long the transaction has been open into seconds. Line five keeps only the idle ones. And Postgres can end them for you: set idle in transaction session timeout."
+    show: "Line 3 turns how long the transaction has been open into seconds. Line 5 keeps only the idle ones. And Postgres can end them for you: set idle_in_transaction_session_timeout."
+  - id: n7a
+    who: nova
+    say: "And if I need the disk space back right away?"
+  - id: e21a
+    who: engineer
+    say: "Then schedule vacuum full for a quiet moment. It blocks every read and write on that table until it's done."
+    show: "Then schedule VACUUM FULL for a quiet moment. It blocks every read and write on that table until it's done."
+
+  # s06 wraparound: the Mandrill outage (walkthrough 4)
+  - id: e22
+    who: engineer
+    segment: s06
+    say: "Vacuum has a second job, and that's where the outage came from."
+    show: "VACUUM has a second job, and that's where the outage came from."
+  - id: e23
+    who: engineer
+    say: "Transaction IDs are thirty-two bits. Postgres compares them on a circle: about two billion in the past, two billion in the future."
+    show: "Transaction IDs are 32 bits. Postgres compares them on a circle: about 2 billion in the past, 2 billion in the future."
+  - id: e24
+    who: engineer
+    say: "Before the counter comes back around, every old row must be frozen: marked older than everything. Vacuum does that too."
+    show: "Before the counter comes back around, every old row must be frozen: marked older than everything. VACUUM does that too."
+  - id: e24a
+    who: engineer
+    say: "Autovacuum forces a freezing pass on any table whose oldest unfrozen ID is two hundred million transactions old. That's the default, and it leaves plenty of room."
+    show: "Autovacuum forces a freezing pass on any table whose oldest unfrozen ID is 200 million transactions old. That's the default, and it leaves plenty of room."
+  - id: n8
+    who: nova
+    say: "And if vacuum falls behind?"
+    show: "And if VACUUM falls behind?"
+  - id: e25
+    who: engineer
+    say: "Postgres warns you. Then, three million IDs before the edge, it stops starting any transaction that writes."
+    show: "Postgres warns you. Then, 3 million IDs before the edge, it stops starting any transaction that writes."
+  - id: n8a
+    who: nova
+    say: "Can't it just use bigger IDs?"
+  - id: e25a
+    who: engineer
+    say: "Not today. Every row version stores its IDs in thirty-two bits, so freezing is the way out, and your monitoring is the safety net."
+    show: "Not today. Every row version stores its IDs in 32 bits, so freezing is the way out, and your monitoring is the safety net."
+  - id: e26
+    who: engineer
+    say: "That's what hit Mailchimp's Mandrill on February the fourth, 2019. One shard was busier than the rest, and its autovacuum fell behind, or failed."
+    show: "That's what hit Mailchimp's Mandrill on 4 February 2019. One shard was busier than the rest, and its autovacuum fell behind, or failed."
+  - id: e27
+    who: engineer
+    say: "A full vacuum was estimated at up to forty days. So they emptied two huge tables to free the IDs, and the vacuum finished in about an hour."
+    show: "A full VACUUM was estimated at up to 40 days. So they emptied two huge tables to free the IDs, and the vacuum finished in about an hour."
+  - id: e28
+    who: engineer
+    say: "Sending was impaired for about forty hours. Sentry hit the same wall in July 2015. Both added alerts afterwards. Here's yours."
+    show: "Sending was impaired for about 40 hours. Sentry hit the same wall in July 2015. Both added alerts afterwards. Here's yours."
+  - id: e29
+    who: engineer
+    say: "Line two asks every database for the age of its oldest unfrozen transaction ID. Line five raises the alarm at your limit, say a billion, long before the edge."
+    show: "Line 2 asks every database for the age of its oldest unfrozen transaction ID. Line 5 raises the alarm at your limit, say a billion, long before the edge."
+
+  # s07 trade-offs
+  - id: n9
+    who: nova
+    segment: s07
+    say: "So MVCC is free speed?"
+  - id: e30
+    who: engineer
+    say: "It's a trade. Readers never block writers, and writers never block readers. Every statement sees a consistent snapshot."
+  - id: e30a
+    who: engineer
+    say: "One thing it doesn't remove: two writers changing the same row still take turns. The second waits for the first to commit or roll back."
+  - id: e31
+    who: engineer
+    say: "The cost: every update writes a whole new version, and usually new index entries too. Dead versions take space until vacuum runs."
+    show: "The cost: every update writes a whole new version, and usually new index entries too. Dead versions take space until VACUUM runs."
+  - id: e32
+    who: engineer
+    say: "Postgres softens that with heap-only tuples. When no indexed column changes and the page has room, the indexes don't need a new entry."
+  - id: e32a
+    who: engineer
+    say: "Lower a table's fill factor to leave room on each page, and more updates qualify."
+    show: "Lower a table's fillfactor to leave room on each page, and more updates qualify."
+  - id: e33
+    who: engineer
+    say: "Your part: keep transactions short, never leave a session idle inside one, and watch vacuum and transaction ID age."
+    show: "Your part: keep transactions short, never leave a session idle inside one, and watch VACUUM and transaction ID age."
+
+  # s08 recap and next
+  - id: e34
+    who: engineer
+    segment: s08
+    say: "Recap. An update writes a new version, stamped with x min and x max. Each statement reads through a snapshot, so readers never wait."
+    show: "Recap. An update writes a new version, stamped with xmin and xmax. Each statement reads through a snapshot, so readers never wait."
+  - id: e35
+    who: engineer
+    say: "Vacuum removes versions nobody can see, and freezes old rows before the IDs wrap around. Let it finish, and Postgres never stops."
+    show: "VACUUM removes versions nobody can see, and freezes old rows before the IDs wrap around. Let it finish, and Postgres never stops."
+  - id: n10
+    who: nova
+    say: "What's next?"
+  - id: e36
+    who: engineer
+    say: "A new deep dive every Tuesday and Saturday. Follow, so you don't miss it."
+  - id: n11
+    who: nova
+    say: "See you there!"

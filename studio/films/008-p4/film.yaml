@@ -1,0 +1,54 @@
+# Postgres MVCC, part 4 of 4: when Postgres stops accepting writes (transaction ID wraparound).
+#
+# Facts, PostgreSQL 18 (docs: 24.1.5 Preventing Transaction ID Wraparound Failures, 19.10
+# autovacuum_freeze_max_age): XIDs are 32 bits; compared modulo 2^32, so about two billion are
+# "older" and two billion "newer"; rows are frozen (FrozenTransactionId is older than every
+# normal XID); the server warns, then refuses to assign new XIDs once fewer than three million
+# remain until wraparound: transactions in progress continue, only read-only ones can start;
+# check age(datfrozenxid) in pg_database; autovacuum_freeze_max_age defaults to 200 million
+id: 008-p4
+format: short
+world: mvcc
+title: POSTGRES MVCC
+episode: EP 008 · PART 4
+steps: [NO WRITES, 32 BITS, A CIRCLE, FREEZE, WATCH]
+end: {kicker: "DEEP DIVE · OUT NOW", head: "Postgres MVCC,\nall of it", cta: deep dive}
+
+lines:
+  - id: n1
+    who: nova
+    say: "The database says it's not accepting commands. We didn't change anything!"
+  - id: e1
+    who: engineer
+    say: "You're running out of transaction IDs. In Postgres, they're only thirty-two bits."
+    show: "You're running out of transaction IDs. In Postgres, they're only 32 bits."
+  - id: n2
+    who: nova
+    say: "Thirty-two bits? That's four billion!"
+    show: "32 bits? That's 4 billion!"
+  - id: e2
+    who: engineer
+    say: "And Postgres compares them on a circle: about two billion in the past, two billion in the future."
+    show: "And Postgres compares them on a circle: about 2 billion in the past, 2 billion in the future."
+  - id: e3
+    who: engineer
+    say: "So old rows must be frozen, marked older than everything, before the counter comes back around. That's vacuum's job too."
+    show: "So old rows must be frozen, marked older than everything, before the counter comes back around. That's VACUUM's job too."
+  - id: n3
+    who: nova
+    say: "And if vacuum falls behind?"
+    show: "And if VACUUM falls behind?"
+  - id: e4
+    who: engineer
+    say: "Postgres warns you. Then, three million IDs before the edge, it stops starting transactions that write. Only reads keep working."
+    show: "Postgres warns you. Then, 3 million IDs before the edge, it stops starting transactions that write. Only reads keep working."
+  - id: n4
+    who: nova
+    say: "How do I see it coming?"
+  - id: e5
+    who: engineer
+    say: "Watch the age of dat frozen x i d for every database. Autovacuum freezes long before the limit. Your job is to make sure it can finish."
+    show: "Watch age(datfrozenxid) for every database. Autovacuum freezes long before the limit. Your job is to make sure it can finish."
+  - id: e6
+    who: engineer
+    say: "The full MVCC deep dive is on our channel now."
