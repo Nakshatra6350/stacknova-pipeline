@@ -95,9 +95,7 @@ def slot(day: str, date: str, number: int, item: str) -> dict[str, Any]:
                                      post))
         out["title"] = kit["titles"][0]
         out["files"] = [f"{name}.mp4", f"{name} - subtitles and thumbnails/"]
-        out["note"] = ("Being rebuilt with more code walkthroughs: the video, chapters and "
-                       "description will update here before Tuesday. "
-                       "Thumbnail: thumb-a.jpg, then thumb-b and thumb-c under Test & compare. "
+        out["note"] = ("Thumbnail: thumb-a.jpg, then thumb-b and thumb-c under Test & compare. "
                        "Subtitles: subtitles.en.srt (English, with timing).")
         out["fields"] = [
             {"label": "Title", "text": kit["titles"][0]},
