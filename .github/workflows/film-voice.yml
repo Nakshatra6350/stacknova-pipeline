@@ -8,6 +8,8 @@ name: film voice
 # A long film would take hours in one job, so each film is split into chunks of lines (plan), the
 # chunks are spoken in parallel jobs (speak: each stores chunk-<id>-<digest>-<n>.zip in the draft
 # Release), and the last job puts each film's chunks back together and removes them (store).
+# When a film already has a stored voice for an earlier version, only its new or changed lines are
+# spoken; the store job takes the rest from that voice (the matrix's `base`).
 on:
   push:
     branches: [look-v3]
@@ -41,6 +43,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0 # the plan reads earlier versions of film.yaml to reuse unchanged lines
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           enable-cache: true
@@ -141,6 +144,12 @@ jobs:
             for zip in "$work"/chunk-*.zip; do
               unzip -q "$zip" -d "$work/chunks/$(basename "$zip" .zip)"
             done
+            # the lines that did not change come from the film's stored voice ("0-base" merges first)
+            base="$(echo "$MATRIX" | jq -r --arg id "$id" '[.[] | select(.film == $id)][0].base // ""')"
+            if [ -n "$base" ]; then
+              gh release download look-v3-draft -p "$base" -D "$work"
+              unzip -q "$work/$base" -d "$work/chunks/0-base"
+            fi
             uv run --no-sync python studio/scripts/film_voice.py --merge "$film" "$work/chunks" "$work/out"
             (cd "$work/out" && zip -qr "$RUNNER_TEMP/$name" .)
             gh release upload look-v3-draft "$RUNNER_TEMP/$name" --clobber

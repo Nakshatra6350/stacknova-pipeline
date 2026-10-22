@@ -1,0 +1,207 @@
+<title>StackNova Posting Board</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+  /* Layout: a control-room run sheet in the channel's own dark look (single theme by choice).
+     Day tabs, the day's posts as a timeline; each post opens into the exact words to paste. */
+  :root {
+    --night: #0b0717; --panel: #151027; --raise: #1d1636; --line: #2c2448;
+    --fg: #f3f0ff; --muted: #a8a1cb; --faint: #6f6893;
+    --violet: #8b6dff; --pink: #ff4d8d; --orange: #ff8a3d; --gold: #ffd24d; --ok: #3ddc97;
+    --sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--night); color: var(--fg); font: 400 15px/1.5 var(--sans);
+         padding-block: 28px 64px;
+         padding-left: max(16px, env(safe-area-inset-left, 0px));
+         padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  main { max-width: 860px; margin: 0 auto; display: grid; gap: 22px; }
+  h1, h2, h3 { margin: 0; text-wrap: balance; }
+  h1 { font: 800 clamp(26px, 5vw, 36px)/1.1 var(--sans); letter-spacing: -0.02em; }
+  h2 { font: 600 17px/1.3 var(--sans); }
+  .mark { font: 800 15px/1 var(--sans); letter-spacing: -0.01em; color: var(--muted); }
+  .mark b { background: linear-gradient(90deg, var(--pink), var(--orange)); -webkit-background-clip: text;
+            background-clip: text; color: transparent; }
+  .lede { color: var(--muted); margin: 6px 0 0; max-width: 62ch; }
+  .tnum { font-variant-numeric: tabular-nums; }
+
+  .progress { display: grid; gap: 8px; }
+  .bar { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
+  .bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--violet), var(--pink), var(--orange)); transition: width .3s; }
+  .progress p { margin: 0; color: var(--muted); font-size: 14px; }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px; display: grid; gap: 12px; }
+  .panel summary { cursor: pointer; font-weight: 600; }
+  ul.rules { margin: 0; padding-left: 18px; color: var(--muted); display: grid; gap: 4px; }
+  ul.rules b { color: var(--fg); font-weight: 600; }
+  button:focus-visible, summary:focus-visible, input:focus-visible { outline: 2px solid var(--violet); outline-offset: 2px; }
+
+  .next { border-color: color-mix(in srgb, var(--pink) 55%, var(--line)); }
+  .next .when { color: var(--pink); }
+
+  .days { display: flex; gap: 6px; flex-wrap: wrap; }
+  .days button { background: var(--panel); color: var(--muted); border: 1px solid var(--line); border-radius: 999px;
+                 padding: 7px 14px; font: 600 13px var(--sans); cursor: pointer; }
+  .days button[aria-pressed=true] { background: var(--fg); color: var(--night); border-color: var(--fg); }
+  .days small { font-weight: 500; opacity: .75; margin-left: 4px; }
+
+  .slots { display: grid; gap: 8px; }
+  .slot { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+  .slot.done { opacity: .55; }
+  .row { display: grid; grid-template-columns: 92px 1fr auto; gap: 12px; align-items: center; padding: 12px 14px; }
+  .when { font: 700 18px/1 var(--mono); }
+  .when small { display: block; margin-top: 4px; font: 500 11px var(--mono); color: var(--faint); }
+  .what { min-width: 0; display: grid; gap: 3px; }
+  .what .title { font-weight: 600; overflow-wrap: anywhere; }
+  .chip { justify-self: start; font: 700 11px/1 var(--mono); padding: 4px 7px; border-radius: 6px; letter-spacing: .02em; }
+  .chip.long { background: color-mix(in srgb, var(--pink) 22%, transparent); color: var(--pink); }
+  .chip.short { background: color-mix(in srgb, var(--orange) 22%, transparent); color: var(--orange); }
+  .chip.reel { background: color-mix(in srgb, var(--violet) 26%, transparent); color: #b7a6ff; }
+  .chip.carousel { background: color-mix(in srgb, var(--gold) 20%, transparent); color: var(--gold); }
+  .done-toggle { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); cursor: pointer; white-space: nowrap; }
+  .done-toggle input { width: 18px; height: 18px; accent-color: var(--ok); }
+  .open { background: none; border: 0; color: var(--fg); text-align: left; padding: 0; cursor: pointer; font: inherit; width: 100%; }
+
+  .detail { border-top: 1px solid var(--line); padding: 14px; display: grid; gap: 14px; }
+  .files { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); }
+  .files code { font: 500 12px var(--mono); background: var(--night); border: 1px solid var(--line); border-radius: 6px;
+                padding: 3px 6px; color: var(--fg); overflow-wrap: anywhere; }
+  .note { margin: 0; font-size: 13px; color: var(--muted); }
+  .field { display: grid; gap: 6px; min-width: 0; }
+  .field header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .field h3 { font: 600 13px var(--sans); color: var(--muted); }
+  .field pre { margin: 0; background: var(--night); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px;
+               font: 400 13px/1.55 var(--sans); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 300px; overflow: auto; }
+  .copy { background: var(--raise); color: var(--fg); border: 1px solid var(--line); border-radius: 7px; padding: 5px 10px;
+          font: 600 12px var(--sans); cursor: pointer; white-space: nowrap; }
+  .copy.ok { border-color: var(--ok); color: var(--ok); }
+  details.more { display: grid; gap: 10px; }
+  details.more > summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+  details.more[open] > .field { margin-top: 10px; }
+
+  @media (max-width: 520px) {
+    .row { grid-template-columns: 70px 1fr; }
+    .done-toggle { grid-column: 1 / -1; }
+    .when { font-size: 16px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .bar i { transition: none; } }
+</style>
+
+<main>
+  <header>
+    <div class="mark">Stack<b>Nova</b></div>
+    <h1>Posting board, new plan</h1>
+    <p class="lede">Every Short, Reel, carousel and deep dive from Friday 23 to Wednesday 28 October, with the exact words to paste. The files are in <code>Desktop\StackNova Launch\New plan\&lt;day&gt;</code>. Times are India time; the small time under each is UTC.</p>
+  </header>
+
+  <section class="progress" aria-live="polite">
+    <div class="bar"><i id="bar"></i></div>
+    <p id="count"></p>
+  </section>
+
+  <section class="panel next" id="next" hidden></section>
+
+  <details class="panel">
+    <summary>Before you post</summary>
+    <ul class="rules">
+      <li>YouTube: category <b>Education</b>, <b>not made for kids</b>, altered or synthetic content <b>Yes</b> (the voice is synthetic). Paste the tags line under <b>Show more → Tags</b>.</li>
+      <li>Instagram Reel: <b>Edit cover → Add from camera roll</b> and pick the post's <code>- cover.jpg</code> file.</li>
+      <li>Deep dive (Tuesday): upload <code>thumb-a.jpg</code>, then add <code>thumb-b</code> and <code>thumb-c</code> under <b>Test &amp; compare</b>; upload the subtitles file (English, with timing); pin the pinned comment.</li>
+      <li>In the first hour after each post, reply to every comment.</li>
+    </ul>
+  </details>
+
+  <nav class="days" id="days" aria-label="Day"></nav>
+  <section class="slots" id="slots"></section>
+</main>
+
+<script>
+const DATA = /*DATA*/null;
+const KIND = { long: "YouTube video", short: "YouTube Short", reel: "Instagram Reel", carousel: "Instagram carousel" };
+const store = {
+  get(key, fallback) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch { return fallback; } },
+  set(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* not saved */ } },
+};
+const posted = new Set(store.get("sn-plan-posted", []));
+const opened = new Set();
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function field(label, text, key) {
+  return `<div class="field"><header><h3>${esc(label)}</h3><button class="copy" type="button" data-copy="${esc(key)}">Copy</button></header><pre id="${esc(key)}">${esc(text)}</pre></div>`;
+}
+
+function detail(slot) {
+  const files = `<div class="files">Files: ${slot.files.map(n => `<code>${esc(n)}</code>`).join(" ")}</div>`;
+  const note = slot.note ? `<p class="note">${esc(slot.note)}</p>` : "";
+  const main = slot.fields.map((f, i) => field(f.label, f.text, `${slot.id}-${i}`)).join("");
+  const more = slot.more && slot.more.length
+    ? `<details class="more"><summary>${esc(slot.moreLabel)}</summary>${slot.more.map((f, i) => field(f.label, f.text, `${slot.id}-m${i}`)).join("")}</details>` : "";
+  return files + note + main + more;
+}
+
+function row(slot) {
+  const done = posted.has(slot.id), open = opened.has(slot.id);
+  return `<article class="slot${done ? " done" : ""}" data-id="${esc(slot.id)}">
+    <div class="row">
+      <div class="when tnum">${esc(slot.ist)}<small>${esc(slot.utc)} UTC</small></div>
+      <button class="open what" type="button" aria-expanded="${open}" data-open="${esc(slot.id)}">
+        <span class="chip ${slot.kind}">${KIND[slot.kind]}</span>
+        <span class="title">${esc(slot.title)}</span>
+      </button>
+      <label class="done-toggle"><input type="checkbox" id="done-${esc(slot.id)}" data-done="${esc(slot.id)}" ${done ? "checked" : ""}> Posted</label>
+    </div>
+    ${open ? `<div class="detail">${detail(slot)}</div>` : ""}
+  </article>`;
+}
+
+const days = [...new Set(DATA.slots.map(s => s.day))];
+const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
+let day = store.get("sn-plan-day", null);
+if (!days.includes(day)) day = (DATA.slots.find(s => s.date >= today) || DATA.slots[0]).day;
+
+function render() {
+  const total = DATA.slots.length, count = DATA.slots.filter(s => posted.has(s.id)).length;
+  document.getElementById("bar").style.width = `${(100 * count / total).toFixed(1)}%`;
+  document.getElementById("count").textContent = `${count} of ${total} posted or scheduled`;
+  document.getElementById("days").innerHTML = days.map(d => {
+    const n = DATA.slots.filter(s => s.day === d).length;
+    return `<button type="button" aria-pressed="${d === day}" data-day="${esc(d)}">${esc(d)}<small>${n}</small></button>`;
+  }).join("");
+  document.getElementById("slots").innerHTML = DATA.slots.filter(s => s.day === day).map(row).join("");
+  const next = DATA.slots.find(s => !posted.has(s.id));
+  const box = document.getElementById("next");
+  box.hidden = !next;
+  if (next) {
+    box.innerHTML = `<h2>Up next: <span class="when tnum">${esc(next.day)}, ${esc(next.ist)}</span></h2>
+      <p class="note">${KIND[next.kind]} · ${esc(next.title)}</p>
+      <div><button class="copy" type="button" data-go="${esc(next.id)}">Open it</button></div>`;
+  }
+}
+
+document.addEventListener("click", async e => {
+  const t = e.target.closest("[data-open],[data-day],[data-copy],[data-go]");
+  if (!t) return;
+  if (t.dataset.open) { opened.has(t.dataset.open) ? opened.delete(t.dataset.open) : opened.add(t.dataset.open); render(); }
+  if (t.dataset.day) { day = t.dataset.day; store.set("sn-plan-day", day); render(); }
+  if (t.dataset.go) {
+    const slot = DATA.slots.find(s => s.id === t.dataset.go);
+    day = slot.day; opened.add(slot.id); render();
+    document.querySelector(`[data-id="${CSS.escape(slot.id)}"]`)?.scrollIntoView({ block: "start" });
+  }
+  if (t.dataset.copy) {
+    const pre = document.getElementById(t.dataset.copy);
+    try { await navigator.clipboard.writeText(pre.textContent); t.textContent = "Copied"; t.classList.add("ok"); }
+    catch { const r = document.createRange(); r.selectNodeContents(pre); const s = getSelection(); s.removeAllRanges(); s.addRange(r); t.textContent = "Selected, press Ctrl+C"; }
+    setTimeout(() => { t.textContent = "Copy"; t.classList.remove("ok"); }, 1800);
+  }
+});
+document.addEventListener("change", e => {
+  const t = e.target;
+  if (t.dataset.done) { t.checked ? posted.add(t.dataset.done) : posted.delete(t.dataset.done); store.set("sn-plan-posted", [...posted]); render(); }
+});
+render();
+</script>

@@ -218,20 +218,76 @@ lines:
     who: nova
     segment: s08
     say: "So HashMap is perfect now?"
-  - id: e35
+  - id: f1
     who: engineer
-    say: "It's great, with a few rules. One: never change a field that equals or hash code uses while the object is a key. The map filed it under the old hash, and get looks under the new one."
-    show: "It's great, with a few rules. One: never change a field that equals or hashCode uses while the object is a key. The map filed it under the old hash, and get looks under the new one."
-  - id: e36
+    say: "It's fast, if you follow four rules. Each one has broken real production code. So let's break each one, and fix it, in code."
+  - id: f2
     who: engineer
-    say: "Two: it's not thread-safe. If threads change it at the same time, you need outside locking, or use ConcurrentHashMap."
-  - id: e37
+    say: "Rule one: a key must never change. Here the key is a user, and line three builds her hash code from her email. Line six puts Ana in the map."
+  - id: f3
     who: engineer
-    say: "Three: no order. Iteration order can even change after a resize. If you need insertion order, use LinkedHashMap."
-  - id: e38
+    say: "Line seven changes her email, and with it her hash. So line eight looks in bucket eight. Her entry still sits in bucket three. Get returns null, and the entry leaks."
+  - id: f4
+    who: nova
+    say: "So how do I make a key that can't change?"
+  - id: f5
     who: engineer
-    say: "And four: new HashMap of a hundred is a capacity, not room for a hundred entries. Since Java nineteen, HashMap dot new HashMap sizes it for you."
-    show: "And four: new HashMap<>(100) is a capacity, not room for 100 entries. Since Java 19, HashMap.newHashMap(100) sizes it for you."
+    say: "Make the key a record. Its fields are final, and Java writes equals and hash code from them. Line four won't even compile now."
+  - id: f5a
+    who: engineer
+    say: "To change her email, lines five and six remove the old key and put a new one, on purpose."
+  - id: f6
+    who: engineer
+    say: "Rule two: HashMap is not thread-safe. This code counts orders from a hundred thousand tasks, on virtual threads, all at once."
+  - id: f7
+    who: engineer
+    say: "Line two is a merge: read the count, add one, write it back. Two threads read forty-one. Both write forty-two. One order is gone."
+    show: "Line two is a merge: read the count, add one, write it back. Two threads read 41. Both write 42. One order is gone."
+  - id: f8
+    who: nova
+    say: "So the total comes out short?"
+  - id: f9
+    who: engineer
+    say: "We ran it three times and got three different totals, every one short. And a resize racing a write can lose whole entries."
+  - id: f10
+    who: engineer
+    say: "The fix is one word on line one: ConcurrentHashMap. Its merge is atomic for each key, so line six prints a hundred thousand, every time."
+    show: "The fix is one word on line one: ConcurrentHashMap. Its merge is atomic for each key, so line six prints 100,000, every time."
+  - id: f11
+    who: engineer
+    say: "It stays fast because it locks small. An empty bucket is claimed with one compare-and-swap. A busy bucket locks only itself, and every other bucket keeps working."
+  - id: f12
+    who: nova
+    say: "Rule three?"
+  - id: f13
+    who: engineer
+    say: "Order. Put ana, tom, kai and zoe, and HashMap hands them back as zoe, kai, tom, ana. It walks the table bucket by bucket, and a resize can shuffle it again."
+  - id: f14
+    who: engineer
+    say: "LinkedHashMap also links every entry onto a list, in the order you put it. Line eight prints them back exactly as they went in."
+  - id: f15
+    who: engineer
+    say: "Flip one switch, and it becomes a cache. This is a complete least recently used cache, in eight lines."
+  - id: f16
+    who: engineer
+    say: "Line three passes true: access order. Now every get moves an entry to the end of the list."
+  - id: f17
+    who: engineer
+    say: "And line six is the whole policy. When the size passes the limit, the eldest entry goes."
+  - id: f17a
+    who: engineer
+    say: "Watch. A cache of three holds ana, bo and leo. Get ana, and she moves to the end. Put dee, and bo, the one used longest ago, is dropped."
+  - id: f18
+    who: nova
+    say: "And the last rule?"
+  - id: f19
+    who: engineer
+    say: "Size it right. New HashMap of a hundred is a capacity: a hundred and twenty-eight buckets. Entry ninety-seven doubles the table, and moves every entry."
+    show: "Size it right. new HashMap<>(100) is a capacity: 128 buckets. Entry 97 doubles the table, and moves every entry."
+  - id: f20
+    who: engineer
+    say: "Line three is the fix, since Java nineteen. HashMap dot new HashMap of a hundred does the math: two hundred and fifty-six buckets, so a hundred entries fit with no resize."
+    show: "Line three is the fix, since Java 19. HashMap.newHashMap(100) does the math: 256 buckets, so 100 entries fit with no resize."
   - id: n13
     who: nova
     say: "And memory?"
@@ -292,8 +348,21 @@ sfx:
   - {at: flood2, sound: alarm, gain: 0.4}
   - {at: flood2+0.4, sound: thud, gain: 0.7}
   - {at: fixtree, sound: arp, gain: 0.7}
-  - {at: e35.never, sound: pop, gain: 0.5}
   - {at: e42.mvcc, sound: ding, gain: 0.5}
+  - {at: f2.puts, sound: pop, gain: 0.6}
+  - {at: f3.eight#2, sound: whip, gain: 0.5}
+  - {at: f3.leaks, sound: thud, gain: 0.5}
+  - {at: f5.compile, sound: clank, gain: 0.5}
+  - {at: f7.both, sound: whip, gain: 0.5}
+  - {at: f7.gone, sound: thud, gain: 0.6}
+  - {at: f10.every, sound: ding, gain: 0.5}
+  - {at: f13.zoe#2, sound: tick, gain: 0.5}
+  - {at: f13.kai#2, sound: tick, gain: 0.5}
+  - {at: f13.tom#2, sound: tick, gain: 0.5}
+  - {at: f13.ana#2, sound: tick, gain: 0.5}
+  - {at: f17a.dropped, sound: pop, gain: 0.6}
+  - {at: f19.ninety, sound: alarm, gain: 0.4}
+  - {at: f20.resize, sound: ding, gain: 0.5}
 
 props:
   cpu: {kind: gauge, text: "server CPU %", max: 100, limit: 80}
@@ -361,14 +430,96 @@ props:
   tomcat: {kind: label, text: "maxParameterCount", sub: "Tomcat's default: 10,000 parameters", tone: green}
   probe: {kind: key, text: "ana@corp.dev"}
   x8: {kind: mark, text: x}
-  rule1: {kind: label, text: "1 · immutable keys", sub: "never change what equals / hashCode use", tone: amber}
-  rule2: {kind: label, text: "2 · ConcurrentHashMap", sub: "when threads change it at once", tone: cyan}
-  rule3: {kind: label, text: "3 · LinkedHashMap", sub: "when you need insertion order", tone: cyan}
-  rule4:
+  # s08: four production rules, each a bug in code and its fix in code
+  w5:
     kind: code
-    file: Java 19+
+    file: VanishingKey.java · the bug
     code: |
-      Map<String, User> users = HashMap.newHashMap(100);
+      class User {
+          String email;                       // can change
+          public int hashCode() { return email.hashCode(); }
+      }
+      var ana = new User("ana@mail.com");
+      map.put(ana, "Ana");                    // filed in bucket 3
+      ana.email = "ana@corp.dev";             // a new hash
+      map.get(ana);                           // null: looks in bucket 8
+  w5b:
+    kind: code
+    file: VanishingKey.java · the fix
+    code: |
+      record User(String email) {}            // final fields, equals, hashCode
+      var ana = new User("ana@mail.com");
+      map.put(ana, "Ana");
+      ana.email = "ana@corp.dev";             // won't compile
+      map.remove(ana);                        // changing a key: remove...
+      map.put(new User("ana@corp.dev"), "Ana");   // ...then put
+  w6:
+    kind: code
+    file: RaceCount.java · HashMap
+    code: |
+      var counts = new HashMap<String, Integer>();
+      Runnable inc = () -> counts.merge("order", 1, Integer::sum);
+      try (var pool = Executors.newVirtualThreadPerTaskExecutor()) {
+          for (int i = 0; i < 100_000; i++) pool.submit(inc);
+      }
+      System.out.println(counts.get("order"));   // 95078
+  w6b:
+    kind: code
+    file: RaceCount.java · ConcurrentHashMap
+    code: |
+      var counts = new ConcurrentHashMap<String, Integer>();
+      Runnable inc = () -> counts.merge("order", 1, Integer::sum);
+      try (var pool = Executors.newVirtualThreadPerTaskExecutor()) {
+          for (int i = 0; i < 100_000; i++) pool.submit(inc);
+      }
+      System.out.println(counts.get("order"));   // 100000, every time
+  ta: {kind: key, text: "thread A: 41 + 1"}
+  tb: {kind: key, text: "thread B: 41 + 1"}
+  lost: {kind: label, text: "2 writes, 1 update", sub: "the other +1 is gone", tone: red}
+  race: {kind: gauge, text: "orders counted (one real run)", max: 100000, limit: 100000}
+  cas: {kind: label, text: "empty bucket", sub: "one compare-and-swap, no lock", tone: green}
+  lock: {kind: label, text: "busy bucket: locks itself", sub: "every other bucket keeps working", tone: green}
+  w7:
+    kind: code
+    file: LruCache.java · order
+    code: |
+      var hash = new HashMap<String, Integer>();
+      var linked = new LinkedHashMap<String, Integer>();
+      for (var key : List.of("ana", "tom", "kai", "zoe")) {
+          hash.put(key, 1);
+          linked.put(key, 1);
+      }
+      System.out.println(hash.keySet());     // [zoe, kai, tom, ana]
+      System.out.println(linked.keySet());   // [ana, tom, kai, zoe]
+  linked: {kind: label, text: "ana → tom → kai → zoe", sub: "LinkedHashMap: the order you put them", tone: cyan}
+  w8:
+    kind: code
+    file: LruCache.java · an LRU cache
+    code: |
+      class LruCache<K, V> extends LinkedHashMap<K, V> {
+          private final int max;
+          LruCache(int max) { super(16, 0.75f, true); this.max = max; }
+          @Override
+          protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
+              return size() > max;
+          }
+      }
+  lru0: {kind: label, text: "ana → bo → leo", sub: "eldest first", tone: cyan}
+  lru1: {kind: label, text: "bo → leo → ana", sub: "get(ana) moves her to the end", tone: amber}
+  lru2: {kind: label, text: "leo → ana → dee", sub: "put(dee): 4 > 3, bo is dropped", tone: green}
+  w9:
+    kind: code
+    file: Sizing.java
+    code: |
+      Map<Integer, String> a = new HashMap<>(100);
+      // 128 buckets: entry 97 resizes
+      Map<Integer, String> b = HashMap.newHashMap(100);
+      // 256 buckets: 100 entries, no resize
+  grid: {kind: grid, max: 128}
+  load128: {kind: gauge, text: "entries in 128 buckets", max: 128, limit: 96}
+  grid2: {kind: grid, max: 256}
+  load256: {kind: gauge, text: "entries in 256 buckets", max: 256, limit: 192}
+  ok: {kind: mark, text: check}
   node: {kind: node, key: "user:42", text: "alice", hash: "…0111"}
   next: {kind: label, text: "MVCC", sub: "Saturday 31 October", tone: cyan, size: 1.4}
 
@@ -664,37 +815,254 @@ beats:
   - at: fixtree-0.3
     world: [{chain: 9, tree: true}, {bucket: 9, tone: active}]
     hud: {callout: "A FEW HOPS PER KEY", tone: green, for: 2.2}
-  # ---------------------------------------------------------------- s08 what HashMap costs you
+  # ---------------------------------------------------------------- s08 HashMap in production: four rules, each a bug and its fix in code
   - at: n12
     shot: {kind: two, side: 0.3}
     hud: {step: 6}
     world: {chain: 9, hide: true}
     nova: {face: happy}
-  - at: e35-0.2
+  - at: f1
+    shot: {kind: engineer, side: 0.4}
+    engineer: {face: smirk, gesture: explain}
+    until: f1.code
+  # rule 1: a key must never change (walkthrough 5)
+  - at: f2
+    shot: {kind: look, at: [-0.24, 1.62, 1.05], dist: 1.75, height: 0.04, fov: 34}
+    prop: {id: w5, place: [-0.66, 1.74, 1.0], type: true, dur: 1.6}
+    engineer: {face: calm, look: "prop:w5"}
+    nova: {to: [1.15, 1.5, 1.55], dur: 0.7, look: "engineer.head"}
+    hud: {callout: "RULE 1 · KEYS NEVER CHANGE", tone: amber, for: 1.8}
+  - at: f2.three
+    prop: {id: w5, state: {hl: 3}}
+  - at: f2.six
+    prop: {id: w5, state: {hl: 6}}
+  - at: f2.puts
     shot: {kind: look, at: "front:3:0.55:1.45", dist: 2.7, height: 0.3, angle: 10}
+    prop: {id: w5, hide: true}
     world: {put: ana@mail.com, bucket: 3, tone: amber}
-    prop: {id: rule1, place: "front:3:1.0:2.12"}
-  - at: e35.never
+  - at: f3.changes
     world: [{relabel: ana@mail.com, text: ana@corp.dev}, {key: ana@mail.com, tone: red}]
-  - at: e35.new-0.6
+    hud: {callout: "LINE 7 · A NEW HASH", tone: red, for: 1.6}
+  - at: f3.eight-0.2
     shot: {kind: look, at: "bucket:8", dist: 2.6, height: 0.5, angle: -6}
-    prop: [{id: rule1, hide: true}, {id: probe, place: "front:8:1.2:2.6"}]
-  - at: e35.new-0.4
+    prop: {id: probe, place: "front:8:1.2:2.6"}
+  - at: f3.eight#2-0.3
     prop: {id: probe, to: "top:8", dur: 0.4, arc: 0.1}
-  - at: e35.new+0.05
+  - at: f3.eight#2+0.15
     prop: [{id: probe, hide: true}, {id: x8, place: "front:8:0.5:1.75"}]
-  - at: e36
-    shot: {kind: look, prop: rule2, dist: 1.7, height: 0.05}
-    prop: [{id: x8, hide: true}, {id: rule2, place: [0, 2.0, -0.4]}]
-  - at: e37
-    prop: [{id: rule2, hide: true}, {id: rule3, place: [0, 2.0, -0.4]}]
-  - at: e38
-    shot: {kind: look, prop: rule4, dist: 1.6, height: 0.05}
-    prop: [{id: rule3, hide: true}, {id: rule4, place: [0, 2.0, -0.4], type: true, dur: 1.2}]
+  - at: f3.her#3
+    shot: {kind: look, at: "front:3:0.55:1.45", dist: 2.7, height: 0.3, angle: 10}
+    prop: {id: x8, hide: true}
+  - at: f3.leaks-0.2
+    world: {key: ana@mail.com, tone: dim}
+    hud: {callout: "STILL IN BUCKET 3 · A LEAK", tone: red, for: 2.0}
+  - at: f4
+    shot: {kind: nova, side: -0.4}
+    nova: {to: nova.home, dur: 0.6, face: confused}
+  - at: f5
+    shot: {kind: look, at: [-0.24, 1.62, 1.05], dist: 1.75, height: 0.04, fov: 34}
+    prop: {id: w5b, place: [-0.66, 1.74, 1.0], type: true, dur: 1.4}
+    engineer: {face: calm, look: "prop:w5b"}
+    nova: {to: [1.15, 1.5, 1.55], dur: 0.7, look: "engineer.head"}
+  - at: f5.record
+    prop: {id: w5b, state: {hl: 1}}
+  - at: f5.four
+    prop: {id: w5b, state: {hl: 4}}
+  - at: f5.compile-0.2
+    hud: {callout: "WON'T COMPILE", tone: red, for: 1.6}
+  - at: f5a.five
+    prop: {id: w5b, state: {hl: 5}}
+  - at: f5a.put
+    prop: {id: w5b, state: {hl: 6}}
+  # rule 2: HashMap is not thread-safe (walkthrough 6)
+  - at: f6
+    prop: [{id: w5b, hide: true}, {id: w6, place: [-0.66, 1.74, 1.0], type: true, dur: 1.6}]
+    engineer: {face: focus, look: "prop:w6"}
+    hud: {callout: "RULE 2 · THREADS", tone: amber, for: 1.6}
+  - at: f6.hundred
+    prop: {id: w6, state: {hl: 4}}
+  - at: f7
+    prop: {id: w6, state: {hl: 2}}
+  - at: f7.two#2-0.3
+    shot: {kind: look, at: "front:15:0.55:1.55", dist: 2.8, height: 0.45, angle: -8}
+    prop: [{id: w6, hide: true}, {id: ta, place: "front:14:1.3:2.5"}, {id: tb, place: "front:0:1.3:2.5"}]
+    world: {put: "order: 41", bucket: 15, tone: cyan}
+  - at: f7.both
+    prop: [{id: ta, to: "top:15", dur: 0.45, arc: 0.12}, {id: tb, to: "top:15", dur: 0.45, arc: 0.12}]
+  - at: f7.both+0.5
+    prop: [{id: ta, hide: true}, {id: tb, hide: true}]
+    world: [{relabel: "order: 41", text: "order: 42"}, {bucket: 15, tone: alarm}]
+  - at: f7.gone-0.4
+    prop: {id: lost, place: "front:15:0.7:2.45"}
+  - at: f8
+    shot: {kind: nova, side: 0.4}
+    prop: {id: lost, hide: true}
+    world: {bucket: 15, tone: idle}
+    nova: {to: nova.home, dur: 0.6, face: surprised}
+  - at: f9
+    shot: {kind: look, prop: race, dist: 1.6, height: 0.05}
+    prop: {id: race, place: [0, 2.0, -0.4]}
+  - at: f9.ran
+    prop: {id: race, state: {value: 95078}, dur: 1.4}
+  - at: f9.totals-0.3
+    hud: {callout: "95,078 · 94,451 · 99,423", tone: red, for: 2.6}
+  - at: f10
+    shot: {kind: look, at: [-0.24, 1.62, 1.05], dist: 1.75, height: 0.04, fov: 34}
+    prop: [{id: race, hide: true}, {id: w6b, place: [-0.66, 1.74, 1.0], type: true, dur: 1.4}]
+    engineer: {face: smirk, look: "prop:w6b"}
+    nova: {to: [1.15, 1.5, 1.55], dur: 0.7, look: "engineer.head"}
+  - at: f10.concurrenthashmap
+    prop: {id: w6b, state: {hl: 1}}
+  - at: f10.six
+    prop: {id: w6b, state: {hl: 6}}
+  - at: f10.every-0.2
+    hud: {callout: "100,000 · EVERY TIME", tone: green, for: 1.8}
+  - at: f11
+    shot: {kind: look, at: "front:13:0.6:1.55", dist: 3.4, height: 0.55, angle: -6}
+    prop: {id: w6b, hide: true}
+    nova: {to: nova.home, dur: 0.6}
+  - at: f11.empty
+    world: {put: "cart: 1", bucket: 12, tone: green}
+    prop: {id: cas, place: "front:12:0.8:2.4"}
+  - at: f11.busy
+    prop: [{id: cas, hide: true}, {id: lock, place: "front:15:0.8:2.45"}, {id: ta, place: "front:14:1.3:2.5"}]
+    world: {bucket: 15, tone: active}
+  - at: f11.busy+0.3
+    prop: {id: ta, to: "top:15", dur: 0.4, arc: 0.12}
+  - at: f11.busy+0.75
+    prop: [{id: ta, hide: true}, {id: tb, place: "front:0:1.3:2.5"}]
+    world: {relabel: "order: 41", text: "order: 43"}
+  - at: f11.itself
+    prop: {id: tb, to: "top:15", dur: 0.4, arc: 0.12}
+  - at: f11.itself+0.45
+    prop: {id: tb, hide: true}
+    world: {relabel: "order: 41", text: "order: 44"}
+  # rule 3: order, and an LRU cache (walkthroughs 7 and 8)
+  - at: f12
+    shot: {kind: nova, side: -0.4}
+    prop: {id: lock, hide: true}
+    world: {bucket: 15, tone: idle}
+    nova: {face: happy}
+  - at: f13
+    shot: {kind: look, at: [-0.24, 1.62, 1.05], dist: 1.75, height: 0.04, fov: 34}
+    prop: {id: w7, place: [-0.66, 1.74, 1.0], type: true, dur: 1.6}
+    engineer: {face: calm, look: "prop:w7"}
+    nova: {to: [1.15, 1.5, 1.55], dur: 0.7, look: "engineer.head"}
+    hud: {callout: "RULE 3 · ORDER", tone: amber, for: 1.4}
+  - at: f13.put
+    prop: {id: w7, state: {hl: 3}}
+  - at: f13.hashmap-0.3
+    shot: {kind: look, at: "front:3:0.8:1.5", dist: 3.6, height: 0.6, angle: 0}
+    prop: {id: w7, hide: true}
+    world:
+      - {put: ana, bucket: 5, tone: amber}
+      - {put: tom, bucket: 3, tone: amber}
+      - {put: kai, bucket: 2, tone: amber}
+      - {put: zoe, bucket: 1, tone: amber}
+  - at: f13.zoe#2
+    world: {key: zoe, tone: green}
+  - at: f13.kai#2
+    world: {key: kai, tone: green}
+  - at: f13.tom#2
+    world: {key: tom, tone: green}
+  - at: f13.ana#2
+    world: {key: ana, tone: green}
+  - at: f13.walks
+    world: {scan: true}
+    hud: {callout: "BUCKET 0 → 15", tone: amber, for: 1.8}
+  - at: f14
+    world: {key: [ana, tom, kai, zoe], tone: dim}
+  - at: f14.links
+    world: {key: ana, tone: cyan}
+  - at: f14.links+0.3
+    world: {key: tom, tone: cyan}
+  - at: f14.links+0.6
+    world: {key: kai, tone: cyan}
+  - at: f14.links+0.9
+    world: {key: zoe, tone: cyan}
+  - at: f14.list
+    prop: {id: linked, place: "front:3:1.0:2.45"}
+  - at: f14.eight-0.3
+    shot: {kind: look, at: [-0.24, 1.62, 1.05], dist: 1.75, height: 0.04, fov: 34}
+    prop: [{id: linked, hide: true}, {id: w7, place: [-0.66, 1.74, 1.0]}]
+  - at: f14.eight
+    prop: {id: w7, state: {hl: 8}}
+  - at: f15.this
+    prop: [{id: w7, hide: true}, {id: w8, place: [-0.66, 1.74, 1.0], type: true, dur: 1.6}]
+    engineer: {face: smirk, look: "prop:w8"}
+  - at: f15.complete
+    hud: {callout: "AN LRU CACHE · 8 LINES", tone: green, for: 1.8}
+  - at: f16.three
+    prop: {id: w8, state: {hl: 3}}
+  - at: f17.six
+    prop: {id: w8, state: {hl: 6}}
+  - at: f17a
+    shot: {kind: look, at: "front:9:0.6:1.5", dist: 5.4, height: 0.9, angle: 0}
+    prop: {id: w8, hide: true}
+    world: {remove: [ana, tom, kai, zoe]}
+    nova: {to: nova.home, dur: 0.6}
+  - at: f17a.ana
+    world: {put: "ana#c", bucket: 5, tone: cyan}
+  - at: f17a.bo
+    world: {put: "bo#c", bucket: 13, tone: cyan}
+  - at: f17a.leo
+    world: {put: "leo#c", bucket: 7, tone: cyan}
+    prop: {id: lru0, place: "front:9:1.3:2.7"}
+  - at: f17a.get
+    world: {key: "ana#c", tone: amber}
+    prop: [{id: lru0, hide: true}, {id: lru1, place: "front:9:1.3:2.7"}]
+  - at: f17a.dee
+    world: {put: "dee#c", bucket: 5, tone: green}
+  - at: f17a.dropped-0.5
+    world: {key: "bo#c", tone: dead}
+    prop: [{id: lru1, hide: true}, {id: lru2, place: "front:9:1.3:2.7"}]
+  - at: f17a.dropped+0.5
+    world: {remove: "bo#c"}
+  # rule 4: size it right (walkthrough 9)
+  - at: f18
+    shot: {kind: nova, side: 0.4}
+    prop: {id: lru2, hide: true}
+    nova: {face: squint}
+  - at: f19
+    shot: {kind: look, at: [-0.24, 1.62, 1.05], dist: 1.75, height: 0.04, fov: 34}
+    prop: {id: w9, place: [-0.66, 1.74, 1.0], type: true, dur: 1.2}
+    engineer: {face: calm, look: "prop:w9"}
+    nova: {to: [1.15, 1.5, 1.55], dur: 0.7, look: "engineer.head"}
+    hud: {callout: "RULE 4 · SIZE IT RIGHT", tone: amber, for: 1.6}
+  - at: f19.new
+    prop: {id: w9, state: {hl: 1}}
+  - at: f19.capacity
+    shot: {kind: look, at: [0, 1.75, -0.8], dist: 2.45, height: 0.0, fov: 38}
+    prop: [{id: w9, hide: true}, {id: grid, place: [0, 2.05, -0.8]}, {id: load128, place: [0, 1.27, -0.8]}]
+  - at: f19.buckets-0.2
+    prop: [{id: load128, state: {value: 96}, dur: 1.2}, {id: grid, state: {filled: 96}, dur: 1.2}]
+  - at: f19.ninety
+    prop: [{id: load128, state: {value: 97}}, {id: grid, state: {filled: 97}}]
+    hud: {callout: "97 > 96", tone: red, for: 1.4}
+  - at: f19.doubles
+    prop: [{id: load128, hide: true}, {id: grid, state: {cells: 256, moved: 0}}]
+    hud: {callout: "128 → 256", tone: amber, for: 2.0}
+  - at: f19.moves
+    prop: {id: grid, state: {moved: 1}, dur: 1.6}
+  - at: f20
+    shot: {kind: look, at: [-0.24, 1.62, 1.05], dist: 1.75, height: 0.04, fov: 34}
+    prop: [{id: grid, hide: true}, {id: w9, place: [-0.66, 1.74, 1.0]}]
+  - at: f20.three
+    prop: {id: w9, state: {hl: 3}}
+  - at: f20.java
+    hud: {callout: "JAVA 19+", tone: green, for: 1.4}
+  - at: f20.math
+    shot: {kind: look, at: [0, 1.75, -0.8], dist: 2.45, height: 0.0, fov: 38}
+    prop: [{id: w9, hide: true}, {id: grid2, place: [0, 2.05, -0.8]}, {id: load256, place: [0, 1.27, -0.8]}]
+  - at: f20.entries
+    prop: [{id: load256, state: {value: 100}, dur: 1.0}, {id: grid2, state: {filled: 100}, dur: 1.0}]
+  - at: f20.resize-0.2
+    prop: {id: ok, place: [0.85, 2.5, -0.75]}
+    hud: {callout: "100 FIT · NO RESIZE", tone: green, for: 1.8}
   - at: n13
     shot: {kind: nova, side: -0.4}
-    prop: {id: rule4, hide: true}
-    nova: {face: squint}
+    prop: [{id: grid2, hide: true}, {id: load256, hide: true}, {id: ok, hide: true}]
+    nova: {to: nova.home, dur: 0.6, face: squint}
   - at: e39
     shot: {kind: look, prop: node, dist: 1.4, height: 0.04}
     prop: {id: node, place: [0, 2.0, -0.4]}

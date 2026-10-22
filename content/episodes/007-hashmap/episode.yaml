@@ -43,8 +43,9 @@ packaging:
     In December 2011, one crafted web request could keep a server's CPU at 100% for hours, and the
     weapon was the hash map. Here is how Java's HashMap really works: hashCode and the bit mix, the
     bucket index, collisions and equals, the 0.75 load factor and the resize that splits every
-    chain by one bit, red-black tree buckets, and the 2011 hash flooding attack they stopped. Four
-    walkthroughs of real Java code, line by line.
+    chain by one bit, red-black tree buckets, and the 2011 hash flooding attack they stopped. Eight
+    walkthroughs of real Java code, line by line, from the bucket index to a thread-safe
+    counter and an LRU cache.
 
     {chapters}
 
@@ -149,17 +150,36 @@ segments:
       And Java 8 brought tree buckets. Strings are Comparable, so even one giant bucket costs a
       few hops per key, not the whole chain.
   - id: s08
-    title: What HashMap costs you
+    title: Four rules, in code
     narration: >-
-      So HashMap is perfect now? It's great, with a few rules. One: never change a field that
-      equals or hashCode uses while the object is a key. The map filed it under the old hash, and
-      get looks under the new one. Two: it's not thread-safe. If threads change it at the same
-      time, you need outside locking, or use ConcurrentHashMap. Three: no order. Iteration order
-      can even change after a resize. If you need insertion order, use LinkedHashMap. And four:
-      new HashMap<>(100) is a capacity, not room for 100 entries. Since Java 19,
-      HashMap.newHashMap(100) sizes it for you. And memory? Every entry is a node object: a hash,
-      a key, a value and a pointer to the next node. For millions of tiny entries, that overhead
-      adds up.
+      So HashMap is perfect now? It's fast, if you follow four rules. Each one has broken real
+      production code. So let's break each one, and fix it, in code. Rule one: a key must never
+      change. Here the key is a user, and line three builds her hash code from her email. Line six
+      puts Ana in the map. Line seven changes her email, and with it her hash. So line eight looks
+      in bucket eight. Her entry still sits in bucket three. Get returns null, and the entry leaks.
+      So how do I make a key that can't change? Make the key a record. Its fields are final, and
+      Java writes equals and hash code from them. Line four won't even compile now. To change her
+      email, lines five and six remove the old key and put a new one, on purpose. Rule two: HashMap
+      is not thread-safe. This code counts orders from a hundred thousand tasks, on virtual threads,
+      all at once. Line two is a merge: read the count, add one, write it back. Two threads read 41.
+      Both write 42. One order is gone. So the total comes out short? We ran it three times and got
+      three different totals, every one short. And a resize racing a write can lose whole entries.
+      The fix is one word on line one: ConcurrentHashMap. Its merge is atomic for each key, so line
+      six prints 100,000, every time. It stays fast because it locks small. An empty bucket is
+      claimed with one compare-and-swap. A busy bucket locks only itself, and every other bucket
+      keeps working. Rule three? Order. Put ana, tom, kai and zoe, and HashMap hands them back as
+      zoe, kai, tom, ana. It walks the table bucket by bucket, and a resize can shuffle it again.
+      LinkedHashMap also links every entry onto a list, in the order you put it. Line eight prints
+      them back exactly as they went in. Flip one switch, and it becomes a cache. This is a complete
+      least recently used cache, in eight lines. Line three passes true: access order. Now every get
+      moves an entry to the end of the list. And line six is the whole policy. When the size passes
+      the limit, the eldest entry goes. Watch. A cache of three holds ana, bo and leo. Get ana, and
+      she moves to the end. Put dee, and bo, the one used longest ago, is dropped. And the last
+      rule? Size it right. new HashMap<>(100) is a capacity: 128 buckets. Entry 97 doubles the
+      table, and moves every entry. Line three is the fix, since Java 19. HashMap.newHashMap(100)
+      does the math: 256 buckets, so 100 entries fit with no resize. And memory? Every entry is a
+      node object: a hash, a key, a value and a pointer to the next node. For millions of tiny
+      entries, that overhead adds up.
   - id: s09
     title: Recap and what's next
     narration: >-
@@ -290,9 +310,27 @@ code_samples:
   - lang: java
     path: samples/java/hashmap/VanishingKey.java
     purpose: "A key whose hashCode changes after put cannot be found, a record key stays findable, and newHashMap (Java 19+)"
-    shown_in: []
+    shown_in: [s08]
+  - lang: java
+    path: samples/java/hashmap/RaceCount.java
+    purpose: "100,000 virtual-thread tasks counting into a HashMap lose updates; ConcurrentHashMap.merge counts every one"
+    shown_in: [s08]
+  - lang: java
+    path: samples/java/hashmap/LruCache.java
+    purpose: "HashMap iterates in bucket order, LinkedHashMap in insertion order; an LRU cache from LinkedHashMap in access order"
+    shown_in: [s08]
+  - lang: java
+    path: samples/java/hashmap/Sizing.java
+    purpose: "new HashMap<>(100) is 128 buckets and resizes at entry 97; HashMap.newHashMap(100) is 256 buckets and never resizes for 100"
+    shown_in: [s08]
 
 sources:
+  - title: "Java SE 25 API — java.lang.Record (fields, equals and hashCode of a record)"
+    url: https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Record.html
+  - title: "Java SE 25 API — Executors.newVirtualThreadPerTaskExecutor and ExecutorService.close"
+    url: https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/Executors.html#newVirtualThreadPerTaskExecutor()
+  - title: "OpenJDK source — java.util.concurrent.ConcurrentHashMap (putVal: CAS into an empty bin, synchronized on a busy bin's first node)"
+    url: https://github.com/openjdk/jdk/blob/master/src/java.base/share/classes/java/util/concurrent/ConcurrentHashMap.java
   - title: "Java SE 25 API — java.util.HashMap"
     url: https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/HashMap.html
   - title: "OpenJDK source — java.util.HashMap (implementation notes, constants, hash(), resize, treeifyBin)"
@@ -315,6 +353,26 @@ sources:
     url: https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/LinkedHashMap.html
 
 fact_check:
+  - claim: "A record's components are private final fields, and its equals and hashCode are derived from them; assigning to a component field does not compile"
+    source: https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Record.html
+  - claim: "HashMap is not synchronized: if threads modify it structurally at the same time, access must be synchronized externally"
+    source: https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/HashMap.html
+  - claim: "Counting 100,000 increments into a HashMap from many threads at once gave 95,078, 94,451 and 99,423 in three runs; ConcurrentHashMap gave 100,000 every time (RaceCount, run with 16 platform threads on Java 17; the video's version uses virtual threads)"
+    source: "derived from code sample"
+  - claim: "ConcurrentHashMap.merge performs the entire method invocation atomically"
+    source: https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/ConcurrentHashMap.html
+  - claim: "ConcurrentHashMap puts a node into an empty bin with a compare-and-swap, and otherwise synchronizes only on that bin's first node"
+    source: https://github.com/openjdk/jdk/blob/master/src/java.base/share/classes/java/util/concurrent/ConcurrentHashMap.java
+  - claim: "Executors.newVirtualThreadPerTaskExecutor (Java 21+) starts a virtual thread per task; closing the executor in try-with-resources waits for submitted tasks"
+    source: https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/Executors.html#newVirtualThreadPerTaskExecutor()
+  - claim: "Putting ana, tom, kai and zoe into a new HashMap iterates as [zoe, kai, tom, ana] (buckets 1, 2, 3 and 5), while a LinkedHashMap gives [ana, tom, kai, zoe]"
+    source: "derived from code sample"
+  - claim: "LinkedHashMap keeps a doubly-linked list of its entries in insertion order or, with the access-order constructor, in access order; overriding removeEldestEntry makes it a bounded cache"
+    source: https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/LinkedHashMap.html
+  - claim: "An access-ordered LinkedHashMap of size 3 holding ana, bo, leo: get(ana) then put(dee) drops bo and leaves [leo, ana, dee]"
+    source: "derived from code sample"
+  - claim: "HashMap.newHashMap(100) (Java 19+) sizes the table for 100 mappings: ceil(100 / 0.75) = 134, rounded up to 256 buckets, so 100 entries fit without a resize"
+    source: https://github.com/openjdk/jdk/blob/master/src/java.base/share/classes/java/util/HashMap.java
   - claim: "oCERT-2011-003 (released 28 December 2011): crafted HTTP requests could drive CPU to 100% for up to several hours; Java, PHP, Python and Ruby were among the affected; the risk comes from servers that do not limit POST parameters"
     source: https://ocert.org/advisories/ocert-2011-003
   - claim: "Alexander Klink and Julian Wälde presented the attack at 28C3 (the Chaos Communication Congress, December 2011)"
