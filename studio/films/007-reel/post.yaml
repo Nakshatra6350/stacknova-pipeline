@@ -1,6 +1,7 @@
 # What to paste when posting episode 007's flagship reel by hand (Tuesday 27 October 2026).
 name: The 2011 hash flood
 title: "The 2011 Attack That Froze Servers With One Request #Shorts"
+related: "the HashMap deep dive posted at 19:30 today"
 description: |
   One web request could keep a server's CPU at 100% for hours: thousands of form fields with the same hash code, all in one HashMap bucket. Java 8's fix: turn a crowded bucket into a red-black tree.
 

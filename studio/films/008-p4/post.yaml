@@ -1,6 +1,7 @@
 # What to paste when posting Postgres MVCC part 4 by hand.
 name: Postgres MVCC part 4
 title: "Postgres Stops Accepting Writes: XID Wraparound #Shorts"
+related: "the Postgres MVCC deep dive (out Saturday 31 October)"
 description: |
   Transaction IDs are 32 bits, compared on a circle. If VACUUM can't freeze old rows in time, Postgres stops starting transactions that write. Watch age(datfrozenxid).
 

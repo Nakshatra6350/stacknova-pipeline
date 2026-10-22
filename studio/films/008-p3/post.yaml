@@ -1,6 +1,7 @@
 # What to paste when posting Postgres MVCC part 3 by hand.
 name: Postgres MVCC part 3
 title: "One Idle Transaction Can Bloat Your Postgres Table #Shorts"
+related: "How Java HashMap Really Works (or leave empty; the MVCC deep dive is out Saturday 31 October)"
 description: |
   Deleted rows stay as dead versions until no open snapshot can need them. One session idle in a transaction holds up VACUUM. Find it in pg_stat_activity, and set idle_in_transaction_session_timeout.
 

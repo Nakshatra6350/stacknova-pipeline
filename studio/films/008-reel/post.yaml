@@ -1,6 +1,7 @@
 # What to paste when posting The Mandrill outage by hand.
 name: The Mandrill outage
 title: "The Postgres Outage a 40-Day VACUUM Couldn't Fix #Shorts"
+related: "the Postgres MVCC deep dive posted at 19:30 today"
 description: |
   February 2019: Mailchimp's Mandrill had a Postgres shard run out of transaction IDs and stop accepting writes. The VACUUM estimate was up to 40 days. Sending was impaired for about 40 hours.
 

@@ -1,6 +1,7 @@
 # What to paste when posting HashMap part 4 by hand.
 name: HashMap part 4
 title: "new HashMap(100) Isn't Room for 100 Entries (Java) #Shorts"
+related: "leave empty until the HashMap deep dive is out on Tuesday 27 October"
 description: |
   100 is a capacity, not a count. Java rounds it up to 128 buckets and resizes at 75% full, so entry 97 doubles the table. Since Java 19, HashMap.newHashMap(100) sizes it for 100 entries.
 

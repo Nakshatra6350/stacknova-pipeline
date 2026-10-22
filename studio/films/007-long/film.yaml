@@ -711,7 +711,7 @@ beats:
   - at: e41.doubles
     hud: {callout: "0.75 → DOUBLE · SPLIT BY 1 BIT", tone: amber, for: 2.6}
   - at: e41.tree
-    hud: {callout: "CROWDED + 64 BUCKETS → TREE", tone: green, for: 2.6}
+    hud: {callout: "CROWDED → TREE AT 64+", tone: green, for: 2.6}
   - at: n14
     shot: {kind: nova, side: 0.4}
     nova: {face: happy}

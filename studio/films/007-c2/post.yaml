@@ -1,7 +1,7 @@
 # What to paste when posting the episode 007 carousel by hand (Tuesday 27 October 2026).
 name: HashMap deep dive carousel
 caption: |
-  How HashMap really works, in 8 slides. 🔑 Swipe →
+  How HashMap really works, in 7 steps. 🔑 Swipe →
 
   1️⃣ hashCode() turns the key into a number
   2️⃣ h ^ (h >>> 16) mixes the top bits into the bottom

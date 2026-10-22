@@ -1,0 +1,30 @@
+# Carousel for Saturday 31 October 2026, the day episode 008 comes out: how Postgres never blocks,
+# in nine slides (content/episodes/008-postgres-mvcc/episode.yaml `carousel`), each over a 3D still.
+number: "008"
+slides:
+  - headline: How Postgres never blocks
+    body: MVCC in seven slides, and the outage it can cause
+    still: {timeline: studio/public/films/008-reel/timeline.json, t: e1+2.0, y: 0.4}
+  - headline: 1. An UPDATE writes a version
+    body: The old row stays; the new one is added beside it
+    still: {timeline: studio/public/films/008-p2/timeline.json, t: e1+2.0, y: 0.4}
+  - headline: 2. Two stamps per version
+    body: "xmin: who wrote it. xmax: who replaced or deleted it"
+    still: {timeline: studio/public/films/008-p2/timeline.json, t: e2>, y: 0.4}
+  - headline: 3. Snapshots decide
+    body: A statement sees only what committed before its snapshot
+    still: {timeline: studio/public/films/008-p1/timeline.json, t: e2+3.0, y: 0.4}
+  - headline: 4. Readers never wait
+    body: Reading never blocks writing; writing never blocks reading
+    still: {timeline: studio/public/films/008-p1/timeline.json, t: e4+2.0, y: 0.4}
+  - headline: 5. VACUUM cleans up
+    body: Dead versions stay until no snapshot can see them
+    still: {timeline: studio/public/films/008-p2/timeline.json, t: vacuum+1.5, y: 0.4}
+  - headline: 6. Idle = bloat
+    body: One idle transaction holds every dead row in place
+    still: {timeline: studio/public/films/008-p3/timeline.json, t: bloat+1.5, y: 0.4}
+  - headline: 7. Freeze or stop
+    body: "32-bit IDs: if VACUUM can't freeze in time, writes stop"
+    still: {timeline: studio/public/films/008-p4/timeline.json, t: freeze+1.5, y: 0.4}
+  - headline: Follow @stacknova.dev
+    body: "Full deep dive on YouTube: StackNova"

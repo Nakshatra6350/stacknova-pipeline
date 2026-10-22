@@ -1,6 +1,7 @@
 # What to paste when posting HashMap part 2 by hand.
 name: HashMap part 2
 title: "When a HashMap Bucket Becomes a Tree (Java Resize) #Shorts"
+related: "leave empty until the HashMap deep dive is out on Tuesday 27 October"
 description: |
   Eight keys jam one bucket. A ninth arrives. Java wants a tree, but the table is too small, so it doubles instead, and each key checks one more bit to find its new bucket.
 

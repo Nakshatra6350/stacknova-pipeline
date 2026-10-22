@@ -1,6 +1,7 @@
 # What to paste when posting Postgres MVCC part 2 by hand.
 name: Postgres MVCC part 2
 title: "A Postgres UPDATE Is Really INSERT + DELETE #Shorts"
+related: "How Java HashMap Really Works (or leave empty; the MVCC deep dive is out Saturday 31 October)"
 description: |
   One UPDATE, two row versions: the old one gets an xmax, the new one an xmin. SELECT xmin, xmax, ctid to see them, and watch the ctid move.
 

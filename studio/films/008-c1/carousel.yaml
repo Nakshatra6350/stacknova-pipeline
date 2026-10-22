@@ -1,0 +1,21 @@
+# Teaser carousel for Thursday 29 October 2026, two days before episode 008 (Postgres MVCC):
+# why a SELECT never waits for an UPDATE, in six slides, each over a still from the quick films.
+number: "008"
+slides:
+  - headline: Why your SELECT never waits
+    body: "MVCC: how Postgres lets readers and writers pass each other"
+    still: {timeline: studio/public/films/008-p1/timeline.json, t: n1+2.0, y: 0.4}
+  - headline: 1. An UPDATE writes a new version
+    body: The old row stays for anyone still reading it
+    still: {timeline: studio/public/films/008-p1/timeline.json, t: version+1.5, y: 0.4}
+  - headline: 2. xmin and xmax
+    body: "xmin: who wrote this version. xmax: who replaced it"
+    still: {timeline: studio/public/films/008-p2/timeline.json, t: stamp+1.5, y: 0.4}
+  - headline: 3. Your snapshot decides
+    body: You see what committed before your snapshot was taken
+    still: {timeline: studio/public/films/008-p1/timeline.json, t: e3+1.5, y: 0.4}
+  - headline: 4. Nobody waits
+    body: Readers never block writers; writers never block readers
+    still: {timeline: studio/public/films/008-p1/timeline.json, t: e4+2.0, y: 0.4}
+  - headline: Follow @stacknova.dev
+    body: "The full MVCC deep dive: Saturday on YouTube"

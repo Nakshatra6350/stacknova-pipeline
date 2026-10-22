@@ -1,6 +1,7 @@
 # What to paste when posting HashMap part 1 by hand (the pilot, drawn by story/hashmapShort.ts).
 name: HashMap part 1
 title: "HashMap Never Searches: How Java Finds Keys in O(1) #Shorts"
+related: "leave empty until the HashMap deep dive is out on Tuesday 27 October"
 description: |
   A HashMap never searches. Java hashes the key, keeps the last few bits, and jumps straight to one bucket.
 

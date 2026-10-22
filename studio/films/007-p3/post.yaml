@@ -1,6 +1,7 @@
 # What to paste when posting HashMap part 3 by hand.
 name: HashMap part 3
 title: "Java HashMap: get() Says null, Key Is Still There #Shorts"
+related: "leave empty until the HashMap deep dive is out on Tuesday 27 October"
 description: |
   Change a field that hashCode() uses after you put the key, and HashMap looks in the wrong bucket forever. The entry is still there: a quiet memory leak.
 
