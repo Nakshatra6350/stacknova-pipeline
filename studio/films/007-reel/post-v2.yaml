@@ -1,0 +1,28 @@
+# The 22 Oct 2026 reach plan: search-first packaging for the 007 flagship reel (Tuesday 27 October).
+name: The 2011 hash flood
+title: "Hash Collision Attack: One Request Froze Servers (2011)"
+related: "the HashMap deep dive posted at 19:30 today"
+description: |
+  A hash collision attack: in December 2011, one web request with thousands of form fields that share one hashCode could keep a server's CPU at 100% for hours, because every field landed in the same HashMap bucket. The fix came in two parts: a cap on request parameters, and Java 8's tree buckets.
+
+  The full HashMap deep dive is on the channel.
+
+  #java #hashmap #systemdesign
+cover: {t: 40.0, title: "One request froze the server", series: "The 2011 hash flood"}
+caption: |
+  One web request. 100% CPU. For hours 🧨
+
+  December 2011: researchers showed that a single crafted request could freeze Java, PHP, Python and Ruby servers.
+  1️⃣ The request carried thousands of form fields
+  2️⃣ "Aa" and "BB" share one hashCode (2112), and so does every combination of them
+  3️⃣ Every field lands in the same HashMap bucket: one giant chain
+  4️⃣ Each insert walks the whole chain: twice the fields, four times the work
+
+  The fix came in two parts: servers capped how many parameters a request may carry, and Java 8 turned a crowded bucket into a red-black tree.
+
+  The full HashMap deep dive is on YouTube: @StackNovaDev
+
+  📤 Send this to your security-minded friend
+  💬 Had you heard of hash flooding before?
+
+  #java #hashmap #cybersecurity #backenddeveloper #systemdesign

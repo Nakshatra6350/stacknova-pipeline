@@ -361,7 +361,7 @@ export function hashmapShort(stage: Stage, cast: Cast, hud: FrameHud, tl: Timeli
     hud.steps(STEPS.map(([a, b]) => span(t, a, b)));
     hud.caption(t < ev.end ? tl.lines.find((l) => t >= l.start - 0.08 && t <= l.end + 0.3) : undefined, t);
     const callouts: [string, '' | 'amber' | 'red', number, number][] = [
-      ['WHERE IS user:42?', '', -1, L.n1.start + 1.6],
+      ['HASHMAP NEVER SEARCHES', '', -1, L.n1.start + 1.6],
       ['ONE JUMP', 'amber', ev.jump - 0.1, ev.jump + 1.4], ['O(1)  on average', '', ev.o1 - 0.1, L.e5.end],
       ['COLLISION', 'red', ev.drop + 0.45, ev.drop + 2.2], ['8 KEYS, ONE BUCKET', 'red', ev.eight - 0.1, ev.eight + 1.4],
     ];

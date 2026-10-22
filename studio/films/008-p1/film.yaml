@@ -44,7 +44,7 @@ lines:
     say: "New snapshots see your version. The old one stays behind for a while. Part two: where it goes."
     show: "New snapshots see your version. The old one stays behind for a while. Part 2: where it goes."
 
-hook: "WHO WAITS FOR AN UPDATE?"
+hook: "NOBODY WAITS FOR YOUR UPDATE"
 events:
   version: e1.writes
   commit: n4.commit

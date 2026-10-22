@@ -1,0 +1,17 @@
+# Thumbnail styles to compare for the live long video 001 (idempotency), 22 Oct 2026 plan.
+words:
+  A: Charged twice?
+  B: Charged twice?
+  C: 1 tap. 2 charges.
+stamp: "×2"
+receipt:
+  heading: Recent activity
+  rows:
+    - {who: Sneaker Hub, when: "Today, 9:41", amount: "−$49.00"}
+    - {who: Sneaker Hub, when: "Today, 9:41", amount: "−$49.00", dup: true}
+flow:
+  - {box: Pay}
+  - {note: timeout, cut: true}
+  - {box: Retry}
+  - {note: ""}
+  - {box: "$49 × 2", bad: true}

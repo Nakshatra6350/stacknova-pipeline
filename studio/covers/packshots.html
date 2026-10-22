@@ -1,0 +1,148 @@
+<!doctype html>
+<!-- Covers and thumbnails for the 22 Oct 2026 reach plan (studio/scripts/packshots.py).
+     window.draw(d) lays out one picture and resolves once fonts and images are in:
+     cover   1080x1920 Instagram Reel cover. The profile grid shows only the middle 3:4
+             (y 240..1680), so every word sits inside it; the film's own 3D view fills the
+             lower part unscaled, the title stands above it, a bar shows which part of the series.
+     thumbA  1280x720: the engineer beside one bright object on a violet field
+     thumbB  1280x720: the object alone, big, on a warm field
+     thumbC  1280x720: three boxes and the step where it goes wrong, on night
+     A thumbnail must read at 160 px wide: few words, one object, strong edges. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  :root {
+    --night: #020008; --ink: #17122E; --white: #FFFFFF; --muted: #B7B0D6;
+    --violet: #7B5CFF; --pink: #FF4D8D; --orange: #FF8A3D; --gold: #FFD24D;
+    --grad: linear-gradient(90deg, var(--violet), var(--pink) 55%, var(--orange));
+  }
+  html, body { margin: 0; overflow: hidden; background: var(--night); }
+  #c { position: relative; overflow: hidden; color: var(--white); font-family: "Inter", sans-serif; }
+  .title { font-family: "Inter Display", sans-serif; font-weight: 800; letter-spacing: -0.035em;
+           line-height: 0.95; text-wrap: balance; margin: 0; }
+  .brand { display: flex; align-items: center; gap: 16px; font: 800 38px/1 "Inter Display", sans-serif;
+           letter-spacing: -0.02em; }
+  .brand img { border-radius: 14px; }
+  .brand .nova { background: linear-gradient(90deg, var(--pink), var(--orange) 60%, var(--gold));
+                 -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+  /* ---------------------------------------------------------------- cover */
+  .cover { width: 1080px; height: 1920px;
+           background: radial-gradient(120% 60% at 15% 18%, #241257 0%, #0a0422 45%, var(--night) 75%); }
+  .cover .view { position: absolute; left: 0; top: 700px; width: 1080px; height: 1160px;
+                 background-size: cover; background-position: center; }
+  .cover .view::before { content: ""; position: absolute; inset: 0;
+    background: linear-gradient(180deg, #0a0422 0%, rgba(10,4,34,0.55) 14%, rgba(10,4,34,0) 32%,
+                rgba(2,0,8,0) 50%, rgba(2,0,8,0.92) 74%, rgba(2,0,8,0.95) 100%); }
+  .cover .brand { position: absolute; left: 72px; top: 290px; }
+  .cover .brand img { width: 58px; height: 58px; }
+  .cover .title { position: absolute; left: 72px; top: 380px; width: 936px; font-size: 132px;
+                  text-shadow: 0 6px 40px rgba(2,0,8,0.7); }
+  .cover .series { position: absolute; left: 72px; top: 1560px; width: 936px; }
+  .cover .series p { margin: 0 0 18px; font: 700 40px/1 "Inter", sans-serif; color: var(--white);
+                     text-shadow: 0 2px 18px rgba(2,0,8,0.9); }
+  .cover .bar { display: flex; gap: 12px; }
+  .cover .bar i { flex: 1; height: 14px; border-radius: 7px; background: rgba(255,255,255,0.22); }
+  .cover .bar i.on { background: var(--grad); box-shadow: 0 0 24px rgba(255,77,141,0.6); }
+
+  /* ---------------------------------------------------------------- thumbnails */
+  .thumb { width: 1280px; height: 720px; }
+  .thumb .brand { position: absolute; left: 48px; top: 40px; font-size: 32px; z-index: 5; }
+  .thumb .brand img { width: 48px; height: 48px; }
+
+  /* the object: a payment app's activity list with the same charge twice */
+  .receipt { position: absolute; width: 470px; padding: 34px 36px 30px; border-radius: 34px;
+             background: #FFFFFF; color: #17122E; box-shadow: 0 30px 80px rgba(2,0,8,0.45); }
+  .receipt h3 { margin: 0 0 22px; font: 800 30px/1 "Inter Display", sans-serif; color: #6B6489; letter-spacing: -0.01em; }
+  .receipt .row { display: flex; align-items: center; justify-content: space-between;
+                  padding: 20px 0; border-top: 3px solid #EEEAF8; }
+  .receipt .who { font: 700 34px/1.1 "Inter", sans-serif; }
+  .receipt .who small { display: block; margin-top: 6px; font: 500 24px/1 "Inter", sans-serif; color: #8A84A6; }
+  .receipt .amt { font: 800 46px/1 "Inter Display", sans-serif; letter-spacing: -0.02em; }
+  .receipt .row.dup { margin: 0 -18px; padding: 20px 18px; border-radius: 18px; border-top-color: transparent;
+                      background: #FFE3EC; outline: 5px solid var(--pink); }
+  .receipt .row.dup .amt { color: #E0004F; }
+  .stamp { position: absolute; display: grid; place-items: center; width: 150px; height: 150px; border-radius: 50%;
+           background: var(--pink); color: #FFFFFF; font: 800 78px/1 "Inter Display", sans-serif;
+           letter-spacing: -0.04em; box-shadow: 0 0 0 10px rgba(255,255,255,0.9), 0 18px 50px rgba(2,0,8,0.5);
+           transform: rotate(-12deg); }
+
+  /* A: the engineer and the receipt on a violet field */
+  .thumbA { background: radial-gradient(90% 120% at 70% 40%, #9B83FF 0%, var(--violet) 38%, #3A1FB0 100%); }
+  .thumbA .engineer { position: absolute; right: -90px; top: 6px; height: 1240px; z-index: 2;
+                      filter: drop-shadow(0 20px 40px rgba(2,0,8,0.5)); }
+  .thumbA .receipt { left: 440px; top: 210px; transform: rotate(4deg); z-index: 3; width: 420px; }
+  .thumbA .stamp { left: 770px; top: 170px; z-index: 4; }
+  .thumbA .title { position: absolute; left: 48px; top: 150px; width: 430px; font-size: 104px; z-index: 4;
+                   text-shadow: 0 6px 30px rgba(20,6,80,0.6); }
+
+  /* B: the receipt alone, big, on a warm field */
+  .thumbB { background: radial-gradient(100% 130% at 75% 35%, #FFE27A 0%, var(--gold) 30%, var(--orange) 100%); }
+  .thumbB .receipt { right: 70px; top: 70px; width: 560px; transform: rotate(-5deg); }
+  .thumbB .stamp { right: 40px; top: 400px; width: 190px; height: 190px; font-size: 96px; }
+  .thumbB .title { position: absolute; left: 52px; top: 170px; width: 560px; font-size: 118px; color: var(--night); }
+  .thumbB .brand { color: var(--night); }
+  .thumbB .brand .nova { background: linear-gradient(90deg, var(--violet), var(--pink)); -webkit-background-clip: text; background-clip: text; }
+
+  /* C: three boxes, the step that fails, on night */
+  .thumbC { background: radial-gradient(80% 100% at 50% 110%, #2a1166 0%, #0b0420 55%, var(--night) 85%); }
+  .thumbC .title { position: absolute; left: 48px; top: 120px; width: 1180px; font-size: 128px; }
+  .thumbC .flow { position: absolute; left: 48px; right: 48px; top: 380px; display: flex; align-items: center; gap: 22px; }
+  .thumbC .box { flex: none; padding: 40px 38px; border-radius: 30px; background: #17122E;
+                 border: 5px solid rgba(183,176,214,0.45); font: 800 64px/1 "Inter Display", sans-serif; }
+  .thumbC .box.bad { border-color: var(--pink); background: #3a0a24; box-shadow: 0 0 60px rgba(255,77,141,0.55); color: #FFD0DF; }
+  .thumbC .arrow { flex: 1; height: 10px; border-radius: 5px; background: var(--grad); position: relative; }
+  .thumbC .arrow::after { content: ""; position: absolute; right: -6px; top: -11px; border: 16px solid transparent;
+                          border-left: 22px solid var(--orange); border-right: 0; }
+  .thumbC .arrow.cut { background: repeating-linear-gradient(90deg, var(--pink) 0 22px, transparent 22px 36px); }
+  .thumbC .arrow.cut::after { border-left-color: var(--pink); }
+  .thumbC .arrow small { position: absolute; left: 50%; top: -58px; transform: translateX(-50%);
+                         font: 700 30px/1 "JetBrains Mono", monospace; color: var(--pink); white-space: nowrap; }
+</style>
+</head>
+<body>
+<div id="c"></div>
+<script>
+  async function fonts(list) {
+    for (const f of list) {
+      const face = new FontFace(f.family, `url("${f.url}")`, { weight: String(f.weight) });
+      document.fonts.add(await face.load());
+    }
+  }
+  const esc = (s) => String(s).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+  const brand = (emblem) => `<div class="brand"><img src="${emblem}" alt=""><span>Stack<span class="nova">Nova</span></span></div>`;
+  const receipt = (r) => `<div class="receipt"><h3>${esc(r.heading)}</h3>${r.rows.map((x) =>
+    `<div class="row${x.dup ? ' dup' : ''}"><span class="who">${esc(x.who)}<small>${esc(x.when)}</small></span><span class="amt">${esc(x.amount)}</span></div>`).join('')}</div>`;
+
+  function fit(el, min) {  // shrink a title until it fits its box
+    let size = parseFloat(getComputedStyle(el).fontSize);
+    while ((el.scrollHeight > el.clientHeight + 2 || el.scrollWidth > el.clientWidth + 2) && size > min) {
+      size -= 4; el.style.fontSize = size + 'px';
+    }
+  }
+
+  window.draw = async (d) => {
+    await fonts(d.fonts);
+    const c = document.getElementById('c');
+    if (d.kind === 'cover') {
+      c.className = 'cover';
+      const parts = Array.from({ length: d.of || 0 }, (_, i) => `<i class="${i < d.part ? 'on' : ''}"></i>`).join('');
+      c.innerHTML = `<div class="view" style="background-image:url('${d.view}')"></div>${brand(d.emblem)}
+        <h1 class="title" style="height:300px">${esc(d.title)}</h1>
+        <div class="series"><p>${esc(d.series)}</p>${d.of ? `<div class="bar">${parts}</div>` : ''}</div>`;
+      fit(c.querySelector('.title'), 84);
+    } else {
+      c.className = 'thumb ' + d.kind;
+      const r = receipt(d.receipt), stamp = `<div class="stamp">${esc(d.stamp)}</div>`;
+      if (d.kind === 'thumbA') c.innerHTML = `${brand(d.emblem)}<h1 class="title">${esc(d.words)}</h1>${r}${stamp}<img class="engineer" src="${d.engineer}" alt="">`;
+      if (d.kind === 'thumbB') c.innerHTML = `${brand(d.emblem)}<h1 class="title">${esc(d.words)}</h1>${r}${stamp}`;
+      if (d.kind === 'thumbC') c.innerHTML = `${brand(d.emblem)}<h1 class="title">${esc(d.words)}</h1><div class="flow">${d.flow.map((s) =>
+        s.box ? `<div class="box${s.bad ? ' bad' : ''}">${esc(s.box)}</div>` : `<div class="arrow${s.cut ? ' cut' : ''}"><small>${esc(s.note || '')}</small></div>`).join('')}</div>`;
+    }
+    await Promise.all([...document.images].map((im) => im.complete ? 0 : new Promise((ok) => { im.onload = im.onerror = ok; })));
+    if (d.view) await new Promise((ok) => { const im = new Image(); im.onload = im.onerror = ok; im.src = d.view; });
+  };
+</script>
+</body>
+</html>

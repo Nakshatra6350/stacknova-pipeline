@@ -1,0 +1,14 @@
+# The 22 Oct 2026 reach plan for the HashMap deep dive (Tuesday 27 October): the kit's titles and the
+# description's opening paragraph, led by what people type ("how hashmap works internally in java",
+# "java hashmap internal working"). The rest of the kit (chapters, sources, tags) stays as it is.
+name: HashMap deep dive
+titles:
+  - "How HashMap Works Internally in Java (Buckets to Trees)"
+  - "Java HashMap Internal Working: Hash, Resize, Treeify"
+  - "HashMap Internal Working Interview Question, Line by Line"
+  - "Hash Collision in HashMap: How Java 8 Stopped an Attack"
+lead: |
+  How HashMap works internally in Java, from hashCode() to red-black tree buckets: the bit mix,
+  the bucket index, hash collisions and equals(), the 0.75 load factor and the resize that splits
+  every chain by one bit, and the 2011 hash collision attack that tree buckets stopped. Four
+  walkthroughs of real Java code, line by line.

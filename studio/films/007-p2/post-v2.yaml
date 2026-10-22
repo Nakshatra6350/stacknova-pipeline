@@ -1,0 +1,26 @@
+# The 22 Oct 2026 reach plan: search-first packaging for HashMap part 2 (Saturday 24 October).
+name: HashMap part 2
+title: "HashMap Treeify in Java 8: When a Bucket Becomes a Tree"
+related: "leave empty until the HashMap deep dive is out on Tuesday 27 October"
+description: |
+  In Java 8 and later, a HashMap bucket holding 8 colliding keys can turn into a red-black tree, but only once the table has 64 buckets. Before that, the ninth key doubles the table instead, and every key checks one more bit of the hash it already stored to find its new bucket. No rehashing.
+
+  Java HashMap internals, part 2 of 4. Next: the key that vanished. The full deep dive is out Tuesday 27 October.
+
+  #java #hashmap #javainterview
+cover: {t: 41.5, title: "When a bucket becomes a tree", series: "Java HashMap, part 2 of 4", part: 2, of: 4}
+caption: |
+  8 keys in one HashMap bucket. The 9th arrives. Does it become a tree? Usually not 🌳
+
+  1️⃣ Java wants to treeify a bucket at 8 keys
+  2️⃣ But trees need a table of at least 64 buckets
+  3️⃣ With only 16, it doubles the table instead: 16 → 32
+  4️⃣ No rehashing: each key checks one more bit of its stored hash. 0 stays in bucket 7, 1 moves to 7 + 16 = 23
+  5️⃣ At 64+ buckets, a crowded bucket becomes a red-black tree: O(log n) instead of the whole chain
+
+  Java HashMap internals, part 2 of 4. Part 3 tomorrow: the key that vanished 👻
+
+  📤 Send this to someone who says "a bucket becomes a tree at 8"
+  💬 Did you know a resize never computes a new hash?
+
+  #java #hashmap #javainterview #datastructures #backenddeveloper

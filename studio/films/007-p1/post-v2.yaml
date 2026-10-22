@@ -1,0 +1,30 @@
+# The 22 Oct 2026 reach plan: search-first packaging for HashMap part 1 (Friday 23 October).
+# Title leads with what people type ("how hashmap works internally in java"); the caption opens
+# with the claim, asks for a share and a comment, and keeps hashtags few and specific.
+name: HashMap part 1
+title: "How HashMap Works Internally in Java (It Never Searches)"
+related: "leave empty until the HashMap deep dive is out on Tuesday 27 October"
+description: |
+  How HashMap works internally in Java, in under a minute: get("user:42") hashes the key, mixes the top bits into the bottom, and jumps straight to one bucket. No searching, so get() is O(1) on average.
+
+  Java HashMap internals, part 1 of 4. Next: what happens when 8 keys land in the same bucket. The full deep dive is out Tuesday 27 October.
+
+  #java #hashmap #javainterview
+cover: {t: 25.0, title: "HashMap never searches", series: "Java HashMap, part 1 of 4", part: 1, of: 4}
+caption: |
+  HashMap never searches. Here's how Java finds any key in one jump 🔑
+
+  map.get("user:42"):
+  1️⃣ "user:42".hashCode() turns the key into a number
+  2️⃣ h ^ (h >>> 16) mixes the top bits into the bottom
+  3️⃣ With 16 buckets, the last 4 bits pick the bucket: 0111 → bucket 7
+  4️⃣ One jump, no loop. That's why get() is O(1) on average.
+
+  Two keys in the same bucket? That's a hash collision: the bucket keeps a short chain, and equals() finds the right key.
+
+  Java HashMap internals, part 1 of 4. Part 2 tomorrow: when a bucket becomes a tree 🌳
+
+  📤 Send this to a friend preparing for a Java interview
+  💬 Were you ever asked how HashMap works internally?
+
+  #java #hashmap #javainterview #javadeveloper #backenddeveloper

@@ -1,0 +1,27 @@
+# The 22 Oct 2026 reach plan: search-first packaging for HashMap part 3 (Sunday 25 October).
+name: HashMap part 3
+title: "HashMap get() Returns null? Your hashCode Changed"
+related: "leave empty until the HashMap deep dive is out on Tuesday 27 October"
+description: |
+  Why does HashMap get() return null for a key you just put? If a field used by hashCode() changes after you put the key, HashMap looks in the wrong bucket: get(), containsKey() and remove() all miss an entry that is still in the map. A quiet memory leak. The fix: immutable keys, like a String or a record.
+
+  Java HashMap internals, part 3 of 4. Next: why new HashMap<>(100) isn't room for 100. The full deep dive is out Tuesday 27 October.
+
+  #java #hashmap #javainterview
+cover: {t: 19.0, title: "The key that vanished", series: "Java HashMap, part 3 of 4", part: 3, of: 4}
+caption: |
+  get() returned null. The entry is still in the map 👻
+
+  1️⃣ HashMap stores each key's hash at the moment you put it
+  2️⃣ Then you changed a field that hashCode() uses: her email
+  3️⃣ New email, new hash, new bucket: get() jumps to bucket 8 and finds nothing
+  4️⃣ The entry still sits in bucket 3. get, containsKey and remove all miss it: a quiet memory leak
+
+  The fix: never change a field that equals() or hashCode() uses while the object is a key. Use immutable keys: a String, or a record of immutable values.
+
+  Java HashMap internals, part 3 of 4. Part 4 tomorrow: why new HashMap<>(100) isn't room for 100
+
+  📤 Send this to the teammate who uses mutable keys
+  💬 Have you ever hit this bug in production?
+
+  #java #hashmap #javainterview #javadeveloper #backenddeveloper

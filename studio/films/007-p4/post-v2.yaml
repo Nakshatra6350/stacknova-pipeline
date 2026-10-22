@@ -1,0 +1,27 @@
+# The 22 Oct 2026 reach plan: search-first packaging for HashMap part 4 (Monday 26 October).
+name: HashMap part 4
+title: "HashMap Initial Capacity in Java: Why 100 Isn't Room for 100"
+related: "leave empty until the HashMap deep dive is out on Tuesday 27 October"
+description: |
+  HashMap initial capacity in Java, explained: new HashMap<>(100) gives a capacity of 100, not room for 100 entries. Java rounds it up to 128 buckets and resizes at the 0.75 load factor, so entry 97 doubles the table. Since Java 19, HashMap.newHashMap(100) sizes it so 100 entries fit.
+
+  Java HashMap internals, part 4 of 4. The full HashMap deep dive is out Tuesday 27 October.
+
+  #java #hashmap #javainterview
+cover: {t: 22.0, title: "100 isn't room for 100", series: "Java HashMap, part 4 of 4", part: 4, of: 4}
+caption: |
+  new HashMap<>(100) is not room for 100 entries 📦
+
+  1️⃣ 100 is a capacity. Java rounds it up to a power of two: 128 buckets
+  2️⃣ The default load factor is 0.75, so the map resizes after 96 entries
+  3️⃣ Entry 97 doubles the table to 256 buckets and moves every entry
+  4️⃣ Since Java 19, HashMap.newHashMap(100) sizes the table so 100 entries fit without a resize
+
+  Why 0.75? Fuller tables mean longer chains; emptier ones waste memory.
+
+  Java HashMap internals, part 4 of 4. The full deep dive is out tomorrow on YouTube: @StackNovaDev
+
+  📤 Send this to a friend who sizes maps by hand
+  💬 Did you know about newHashMap?
+
+  #java #hashmap #javainterview #javadeveloper #backenddeveloper

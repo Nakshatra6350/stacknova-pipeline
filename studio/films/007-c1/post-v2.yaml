@@ -1,0 +1,17 @@
+# The 22 Oct 2026 reach plan: search-first caption for the HashMap carousel (Saturday 24 October).
+name: HashMap carousel
+caption: |
+  How HashMap works internally in Java, in 4 steps 🔑 Swipe →
+
+  1️⃣ hashCode() turns the key into a number
+  2️⃣ h ^ (h >>> 16) mixes the top bits into the bottom
+  3️⃣ The last bits pick the bucket: with 16 buckets, 0111 → bucket 7
+  4️⃣ Two keys in one bucket? A short chain, and equals() finds the right one
+
+  That's why get() is O(1) on average, and why a bad hashCode() makes it slow.
+
+  📌 Save this for your next Java interview
+  📤 Send it to a friend who's preparing
+  💬 Which step was new to you?
+
+  #java #hashmap #javainterview #datastructures #backenddeveloper
