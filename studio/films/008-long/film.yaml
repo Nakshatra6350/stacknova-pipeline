@@ -389,8 +389,8 @@ props:
               return err   // nil, or a failure a retry won't fix
           }
       }
-  wa: {kind: key, text: "withdraw $30 · tx A"}
-  wb: {kind: key, text: "withdraw $30 · tx B"}
+  wa: {kind: key, text: "A: -$30"}
+  wb: {kind: key, text: "B: -$30"}
   e40001: {kind: label, text: "40001", sub: "could not serialize access: tx A got there first", tone: red}
   retried: {kind: label, text: "retry: $70 → $40", sub: "the same transaction, on a fresh snapshot", tone: green}
   lostrc: {kind: label, text: "read committed: both write $70", sub: "one $30 withdrawal is lost", tone: red}

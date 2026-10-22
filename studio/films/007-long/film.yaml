@@ -473,8 +473,10 @@ props:
           for (int i = 0; i < 100_000; i++) pool.submit(inc);
       }
       System.out.println(counts.get("order"));   // 100000, every time
-  ta: {kind: key, text: "thread A: 41 + 1"}
-  tb: {kind: key, text: "thread B: 41 + 1"}
+  ta: {kind: key, text: "A: 41+1"}
+  tb: {kind: key, text: "B: 41+1"}
+  tc: {kind: key, text: "A: +1"}
+  td: {kind: key, text: "B: +1"}
   lost: {kind: label, text: "2 writes, 1 update", sub: "the other +1 is gone", tone: red}
   race: {kind: gauge, text: "orders counted (one real run)", max: 100000, limit: 100000}
   cas: {kind: label, text: "empty bucket", sub: "one compare-and-swap, no lock", tone: green}
@@ -837,21 +839,21 @@ beats:
   - at: f2.six
     prop: {id: w5, state: {hl: 6}}
   - at: f2.puts
-    shot: {kind: look, at: "front:3:0.55:1.45", dist: 2.7, height: 0.3, angle: 10}
+    shot: {kind: look, at: "bucket:3", dist: 2.7, height: 0.6, angle: 10}
     prop: {id: w5, hide: true}
     world: {put: ana@mail.com, bucket: 3, tone: amber}
   - at: f3.changes
     world: [{relabel: ana@mail.com, text: ana@corp.dev}, {key: ana@mail.com, tone: red}]
     hud: {callout: "LINE 7 · A NEW HASH", tone: red, for: 1.6}
   - at: f3.eight-0.2
-    shot: {kind: look, at: "bucket:8", dist: 2.6, height: 0.5, angle: -6}
-    prop: {id: probe, place: "front:8:1.2:2.6"}
+    shot: {kind: look, at: "bucket:8", dist: 2.7, height: 0.6, angle: -6}
+    prop: {id: probe, place: "front:8:1.0:1.45"}
   - at: f3.eight#2-0.3
     prop: {id: probe, to: "top:8", dur: 0.4, arc: 0.1}
   - at: f3.eight#2+0.15
-    prop: [{id: probe, hide: true}, {id: x8, place: "front:8:0.5:1.75"}]
+    prop: [{id: probe, hide: true}, {id: x8, place: "front:8:0.5:1.5"}]
   - at: f3.her#3
-    shot: {kind: look, at: "front:3:0.55:1.45", dist: 2.7, height: 0.3, angle: 10}
+    shot: {kind: look, at: "bucket:3", dist: 2.7, height: 0.6, angle: 10}
     prop: {id: x8, hide: true}
   - at: f3.leaks-0.2
     world: {key: ana@mail.com, tone: dim}
@@ -884,8 +886,8 @@ beats:
   - at: f7
     prop: {id: w6, state: {hl: 2}}
   - at: f7.two#2-0.3
-    shot: {kind: look, at: "front:15:0.55:1.55", dist: 2.8, height: 0.45, angle: -8}
-    prop: [{id: w6, hide: true}, {id: ta, place: "front:14:1.3:2.5"}, {id: tb, place: "front:0:1.3:2.5"}]
+    shot: {kind: look, at: "bucket:15", dist: 3.0, height: 0.5, angle: -10}
+    prop: [{id: w6, hide: true}, {id: ta, place: "front:14:1.1:1.5"}, {id: tb, place: "front:13:1.2:1.6"}]
     world: {put: "order: 41", bucket: 15, tone: cyan}
   - at: f7.both
     prop: [{id: ta, to: "top:15", dur: 0.45, arc: 0.12}, {id: tb, to: "top:15", dur: 0.45, arc: 0.12}]
@@ -893,7 +895,7 @@ beats:
     prop: [{id: ta, hide: true}, {id: tb, hide: true}]
     world: [{relabel: "order: 41", text: "order: 42"}, {bucket: 15, tone: alarm}]
   - at: f7.gone-0.4
-    prop: {id: lost, place: "front:15:0.7:2.45"}
+    prop: {id: lost, place: "front:15:0.8:1.15"}
   - at: f8
     shot: {kind: nova, side: 0.4}
     prop: {id: lost, hide: true}
@@ -918,24 +920,24 @@ beats:
   - at: f10.every-0.2
     hud: {callout: "100,000 · EVERY TIME", tone: green, for: 1.8}
   - at: f11
-    shot: {kind: look, at: "front:13:0.6:1.55", dist: 3.4, height: 0.55, angle: -6}
+    shot: {kind: look, at: "bucket:13", dist: 3.6, height: 0.6, angle: -6}
     prop: {id: w6b, hide: true}
     nova: {to: nova.home, dur: 0.6}
   - at: f11.empty
     world: {put: "cart: 1", bucket: 12, tone: green}
-    prop: {id: cas, place: "front:12:0.8:2.4"}
+    prop: {id: cas, place: "front:12:0.8:1.2"}
   - at: f11.busy
-    prop: [{id: cas, hide: true}, {id: lock, place: "front:15:0.8:2.45"}, {id: ta, place: "front:14:1.3:2.5"}]
+    prop: [{id: cas, hide: true}, {id: lock, place: "front:15:0.8:1.2"}, {id: tc, place: "front:14:1.1:1.5"}]
     world: {bucket: 15, tone: active}
   - at: f11.busy+0.3
-    prop: {id: ta, to: "top:15", dur: 0.4, arc: 0.12}
+    prop: {id: tc, to: "top:15", dur: 0.4, arc: 0.12}
   - at: f11.busy+0.75
-    prop: [{id: ta, hide: true}, {id: tb, place: "front:0:1.3:2.5"}]
+    prop: [{id: tc, hide: true}, {id: td, place: "front:13:1.2:1.6"}]
     world: {relabel: "order: 41", text: "order: 43"}
   - at: f11.itself
-    prop: {id: tb, to: "top:15", dur: 0.4, arc: 0.12}
+    prop: {id: td, to: "top:15", dur: 0.4, arc: 0.12}
   - at: f11.itself+0.45
-    prop: {id: tb, hide: true}
+    prop: {id: td, hide: true}
     world: {relabel: "order: 41", text: "order: 44"}
   # rule 3: order, and an LRU cache (walkthroughs 7 and 8)
   - at: f12
@@ -952,7 +954,7 @@ beats:
   - at: f13.put
     prop: {id: w7, state: {hl: 3}}
   - at: f13.hashmap-0.3
-    shot: {kind: look, at: "front:3:0.8:1.5", dist: 3.6, height: 0.6, angle: 0}
+    shot: {kind: look, at: "bucket:3", dist: 3.4, height: 0.7, angle: 0}
     prop: {id: w7, hide: true}
     world:
       - {put: ana, bucket: 5, tone: amber}
@@ -981,7 +983,7 @@ beats:
   - at: f14.links+0.9
     world: {key: zoe, tone: cyan}
   - at: f14.list
-    prop: {id: linked, place: "front:3:1.0:2.45"}
+    prop: {id: linked, place: "front:3:1.0:1.7"}
   - at: f14.eight-0.3
     shot: {kind: look, at: [-0.24, 1.62, 1.05], dist: 1.75, height: 0.04, fov: 34}
     prop: [{id: linked, hide: true}, {id: w7, place: [-0.66, 1.74, 1.0]}]
@@ -997,7 +999,7 @@ beats:
   - at: f17.six
     prop: {id: w8, state: {hl: 6}}
   - at: f17a
-    shot: {kind: look, at: "front:9:0.6:1.5", dist: 5.4, height: 0.9, angle: 0}
+    shot: {kind: look, at: "bucket:9", dist: 4.8, height: 1.4, angle: 0}
     prop: {id: w8, hide: true}
     world: {remove: [ana, tom, kai, zoe]}
     nova: {to: nova.home, dur: 0.6}
@@ -1007,15 +1009,15 @@ beats:
     world: {put: "bo#c", bucket: 13, tone: cyan}
   - at: f17a.leo
     world: {put: "leo#c", bucket: 7, tone: cyan}
-    prop: {id: lru0, place: "front:9:1.3:2.7"}
+    prop: {id: lru0, place: "front:9:1.3:2.3"}
   - at: f17a.get
     world: {key: "ana#c", tone: amber}
-    prop: [{id: lru0, hide: true}, {id: lru1, place: "front:9:1.3:2.7"}]
+    prop: [{id: lru0, hide: true}, {id: lru1, place: "front:9:1.3:2.3"}]
   - at: f17a.dee
     world: {put: "dee#c", bucket: 5, tone: green}
   - at: f17a.dropped-0.5
     world: {key: "bo#c", tone: dead}
-    prop: [{id: lru1, hide: true}, {id: lru2, place: "front:9:1.3:2.7"}]
+    prop: [{id: lru1, hide: true}, {id: lru2, place: "front:9:1.3:2.3"}]
   - at: f17a.dropped+0.5
     world: {remove: "bo#c"}
   # rule 4: size it right (walkthrough 9)
@@ -1057,7 +1059,7 @@ beats:
   - at: f20.entries
     prop: [{id: load256, state: {value: 100}, dur: 1.0}, {id: grid2, state: {filled: 100}, dur: 1.0}]
   - at: f20.resize-0.2
-    prop: {id: ok, place: [0.85, 2.5, -0.75]}
+    prop: {id: ok, place: [0.9, 2.25, -0.75]}
     hud: {callout: "100 FIT · NO RESIZE", tone: green, for: 1.8}
   - at: n13
     shot: {kind: nova, side: -0.4}

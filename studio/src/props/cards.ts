@@ -19,6 +19,9 @@ export function keyCard(text: string, tone: KeyTone): Card<{ dim: boolean }> {
     panel(ctx, w, h, s.dim ? 'rgba(120,140,170,0.5)' : col, 24);
     ctx.fillStyle = col; ctx.font = `700 30px ${MONO}`; ctx.textBaseline = 'top'; ctx.fillText('KEY', 30, 24);
     ctx.fillStyle = INK.text; ctx.font = `700 64px ${MONO}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    // a key too long for the card is drawn smaller rather than cut at both edges
+    const wide = ctx.measureText(`"${text}"`).width;
+    if (wide > w - 50) ctx.font = `700 ${Math.floor(64 * (w - 50) / wide)}px ${MONO}`;
     ctx.fillText(`"${text}"`, w / 2, h * 0.6);
   }, { dim: false }, 20);
 }
