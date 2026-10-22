@@ -1,0 +1,29 @@
+# The 22 Oct 2026 reach plan: search-first packaging for the 008 flagship reel (Saturday 31 October).
+name: The Mandrill outage
+title: "XID Wraparound Outage: When Postgres Refused Every Write"
+related: "the Postgres MVCC deep dive posted at 19:30 today"
+tags: "transaction id wraparound, postgres xid wraparound, postgres outage, postgresql vacuum, mandrill outage, autovacuum"
+description: |
+  A transaction ID wraparound outage: in February 2019, a Postgres shard at Mailchimp's Mandrill ran out of transaction IDs and stopped accepting writes. A VACUUM by hand was estimated at up to 40 days, and sending was impaired for about 40 hours. The lesson: alert on transaction ID age long before the limit.
+
+  The full Postgres MVCC deep dive is on the channel.
+
+  #postgresql #database #sql
+cover: {t: 45.0, title: "A 40-day VACUUM", series: "The Mandrill outage, 2019"}
+caption: |
+  Emails stuck for about 40 hours. The database refused every write, and a VACUUM was estimated at 40 days 📉
+
+  February 2019, Mailchimp's Mandrill:
+  1️⃣ One Postgres shard ran out of transaction IDs (wraparound) and stopped accepting writes
+  2️⃣ It was busier than the others; its autovacuum fell behind, or failed
+  3️⃣ A VACUUM of that database by hand was estimated at up to 40 days
+  4️⃣ They emptied two huge tables to free the IDs, and the vacuum finished in about an hour
+
+  The lesson: alert on transaction ID age long before the limit, and make sure every vacuum can finish.
+
+  The full Postgres MVCC deep dive is on YouTube: @StackNovaDev
+
+  📤 Send this to the person who owns your database alerts
+  💬 Had you heard of XID wraparound before?
+
+  #postgresql #postgres #database #sql #devops

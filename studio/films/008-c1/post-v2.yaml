@@ -1,0 +1,17 @@
+# The 22 Oct 2026 reach plan: search-first caption for the 008 teaser carousel (Thursday 29 October).
+name: Postgres MVCC teaser carousel
+caption: |
+  How Postgres MVCC works, in 4 steps: why your SELECT never waits for my UPDATE 🐘 Swipe →
+
+  1️⃣ An UPDATE writes a new row version; the old one stays for anyone still reading it
+  2️⃣ xmin: the transaction that wrote a version. xmax: the one that replaced it
+  3️⃣ Your snapshot decides which version you see
+  4️⃣ Readers never block writers, writers never block readers
+
+  The full Postgres MVCC deep dive is out Saturday on YouTube: @StackNovaDev
+
+  📌 Save this for your next database interview
+  📤 Send it to a friend who thinks reads lock rows
+  💬 Which database do you use at work?
+
+  #postgresql #postgres #database #sql #backenddeveloper

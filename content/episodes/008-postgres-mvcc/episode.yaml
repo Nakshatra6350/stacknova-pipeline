@@ -42,7 +42,9 @@ packaging:
     estimated at up to 40 days. Here is the machinery behind it: MVCC. Row versions stamped with
     xmin and xmax, snapshots and visibility, Read Committed vs Repeatable Read, dead rows and
     VACUUM, the idle transaction that bloats a table, transaction ID wraparound and freezing, and
-    what MVCC costs. Four walkthroughs of real Go code (pgx), line by line.
+    what MVCC costs, each cost with its fix in code: a withdrawal that retries on error 40001, the
+    query that measures HOT updates, and a pool that ends forgotten transactions. Seven walkthroughs
+    of real code (Go with pgx, and SQL), line by line.
 
     {chapters}
 

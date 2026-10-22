@@ -1,0 +1,27 @@
+# The 22 Oct 2026 reach plan: search-first packaging for Postgres MVCC part 2 (Thursday 29 October).
+name: Postgres MVCC part 2
+title: "Postgres xmin and xmax: Why an UPDATE Writes a New Row"
+related: "Postgres MVCC part 1 (the Short posted Wednesday 28 October)"
+tags: "postgres xmin xmax, postgresql update, postgres mvcc, postgresql ctid, postgres dead tuples, postgresql vacuum"
+description: |
+  Postgres xmin and xmax explained: an UPDATE is really an INSERT plus a DELETE. The old row version gets an xmax (the transaction that replaced it), the new one an xmin (the transaction that wrote it). SELECT xmin, xmax, ctid to see them: update the row and its ctid moves.
+
+  Postgres MVCC, part 2 of 4. Next: the idle transaction that stops the cleanup. The full deep dive is out Saturday 31 October.
+
+  #postgresql #database #sql
+cover: {t: 24.0, title: "One UPDATE, two rows", series: "Postgres MVCC, part 2 of 4", part: 2, of: 4}
+caption: |
+  A Postgres UPDATE doesn't change your row. It writes a new one 🔍
+
+  1️⃣ Postgres runs an UPDATE as an INSERT plus a DELETE
+  2️⃣ The old version gets an xmax: the transaction that replaced it
+  3️⃣ The new version gets an xmin: the transaction that wrote it
+  4️⃣ SELECT xmin, xmax, ctid shows them; update the row and its ctid (its physical address) moves
+  5️⃣ The old version stays on disk until no transaction can see it, then VACUUM takes the space back
+
+  Postgres MVCC, part 2 of 4. Part 3 tomorrow: the idle transaction that stops the cleanup
+
+  📤 Send this to the friend who thinks UPDATE edits rows in place
+  💬 Have you ever selected xmin and xmax?
+
+  #postgresql #postgres #database #sql #backenddeveloper

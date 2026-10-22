@@ -1,0 +1,20 @@
+# The 22 Oct 2026 reach plan: search-first caption for the 008 carousel (Saturday 31 October).
+name: Postgres MVCC deep dive carousel
+caption: |
+  How Postgres MVCC works, in 7 steps, and the outage it can cause 🐘 Swipe →
+
+  1️⃣ An UPDATE writes a new version
+  2️⃣ Two stamps per version: xmin and xmax
+  3️⃣ Snapshots decide what you see
+  4️⃣ Readers never wait
+  5️⃣ VACUUM cleans up dead versions
+  6️⃣ One idle transaction = table bloat
+  7️⃣ 32-bit transaction IDs: freeze in time, or writes stop
+
+  The full deep dive, with the Go code for each trade-off, is on YouTube: @StackNovaDev
+
+  📌 Save this for your next system design interview
+  📤 Send it to whoever runs your database
+  💬 Which step was new to you?
+
+  #postgresql #postgres #database #sql #backenddeveloper

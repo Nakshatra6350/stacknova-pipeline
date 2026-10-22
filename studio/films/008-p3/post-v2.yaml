@@ -1,0 +1,28 @@
+# The 22 Oct 2026 reach plan: search-first packaging for Postgres MVCC part 3 (Friday 30 October).
+name: Postgres MVCC part 3
+title: "Postgres Table Bloat: The Idle Transaction Blocking VACUUM"
+related: "Postgres MVCC part 2 (the Short posted Thursday 29 October)"
+tags: "postgres table bloat, postgres vacuum, idle in transaction, postgresql dead tuples, autovacuum not working, pg_stat_activity"
+description: |
+  Postgres table bloat explained: deleted rows stay as dead versions until no open snapshot can need them, so one session left idle in a transaction holds up VACUUM for the whole table. Find it in pg_stat_activity (state = 'idle in transaction') and set idle_in_transaction_session_timeout so Postgres ends it for you.
+
+  Postgres MVCC, part 3 of 4. Next: the day a database stopped accepting writes. The full deep dive is out Saturday 31 October.
+
+  #postgresql #database #sql
+cover: {t: 30.0, title: "Deleted. Still growing.", series: "Postgres MVCC, part 3 of 4", part: 3, of: 4}
+caption: |
+  Deleting rows won't shrink your Postgres table. One idle transaction can keep it growing 📈
+
+  1️⃣ Deleted rows become dead versions, waiting for VACUUM
+  2️⃣ VACUUM only removes versions no open transaction can still see
+  3️⃣ A session that began a transaction an hour ago and went idle keeps its snapshot open
+  4️⃣ Every version that snapshot might need stays: the table bloats, and every scan wades through dead rows
+
+  The fix: look in pg_stat_activity for sessions idle in transaction, and set idle_in_transaction_session_timeout so Postgres ends them for you.
+
+  Postgres MVCC, part 3 of 4. The full deep dive is on YouTube tomorrow
+
+  📤 Send this to whoever runs your database
+  💬 Ever found an idle transaction holding up VACUUM?
+
+  #postgresql #postgres #database #sql #backenddeveloper
