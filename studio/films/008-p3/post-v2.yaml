@@ -9,7 +9,7 @@ description: |
   Postgres MVCC, part 3 of 4. Next: the day a database stopped accepting writes. The full deep dive is out Saturday 31 October.
 
   #postgresql #database #sql
-cover: {t: 30.0, title: "Deleted. Still growing.", series: "Postgres MVCC, part 3 of 4", part: 3, of: 4}
+cover: {t: 35.0, title: "Deleted. Still growing.", series: "Postgres MVCC, part 3 of 4", part: 3, of: 4}
 caption: |
   Deleting rows won't shrink your Postgres table. One idle transaction can keep it growing 📈
 

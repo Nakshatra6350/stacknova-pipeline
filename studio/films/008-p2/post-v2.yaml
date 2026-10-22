@@ -9,7 +9,7 @@ description: |
   Postgres MVCC, part 2 of 4. Next: the idle transaction that stops the cleanup. The full deep dive is out Saturday 31 October.
 
   #postgresql #database #sql
-cover: {t: 24.0, title: "One UPDATE, two rows", series: "Postgres MVCC, part 2 of 4", part: 2, of: 4}
+cover: {t: 12.0, title: "One UPDATE, two rows", series: "Postgres MVCC, part 2 of 4", part: 2, of: 4}
 caption: |
   A Postgres UPDATE doesn't change your row. It writes a new one 🔍
 
