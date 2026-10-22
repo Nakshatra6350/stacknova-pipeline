@@ -148,17 +148,27 @@ segments:
       asks every database for the age of its oldest unfrozen transaction ID. Line 5 raises the
       alarm at your limit, say a billion, long before the edge.
   - id: s07
-    title: What MVCC costs
+    title: The trade-offs, in code
     narration: >-
       So MVCC is free speed? It's a trade. Readers never block writers, and writers never block
-      readers. Every statement sees a consistent snapshot. One thing it doesn't remove: two
-      writers changing the same row still take turns. The second waits for the first to commit
-      or roll back. The cost: every update writes a whole new version, and usually new index
-      entries too. Dead versions take space until VACUUM runs. Postgres softens that with heap-
-      only tuples. When no indexed column changes and the page has room, the indexes don't need
-      a new entry. Lower a table's fillfactor to leave room on each page, and more updates
-      qualify. Your part: keep transactions short, never leave a session idle inside one, and
-      watch VACUUM and transaction ID age.
+      readers. Every statement sees a consistent snapshot. One thing it doesn't remove: two writers
+      changing the same row still take turns. The second waits for the first to commit or roll back.
+      Here's what that means in code. This withdrawal runs at repeatable read: line one. Lines four
+      and five read the balance and check it. Line six writes the new balance. If another withdrawal
+      committed first, Postgres refuses this write with error 40001. So the second withdrawal just
+      fails? Nothing was written, so line nine sends it round the loop, and it runs again on a fresh
+      snapshot. Up to three tries. Run the same code at read committed instead, and both withdrawals
+      can read a hundred and both write seventy. One withdrawal silently vanishes. The cost: every
+      update writes a whole new version, and usually new index entries too. Dead versions take space
+      until VACUUM runs. Postgres softens that with heap-only tuples. When no indexed column changes
+      and the page has room, the indexes don't need a new entry. So measure it. This query divides a
+      table's HOT updates by all its updates. Line two is the percentage. If it's low on a busy
+      table, line seven leaves a tenth of every new page free, so the next version fits on the same
+      page. Your part: keep transactions short, never leave a session idle inside one, and watch
+      VACUUM and transaction ID age. And let the database enforce it. Lines four and five set two
+      limits on every connection in the pool. A transaction left idle for a minute is ended, and its
+      snapshot with it. A statement running past thirty seconds is cancelled. Vacuum never waits on
+      a forgotten session again.
   - id: s08
     title: Recap and what's next
     narration: >-
@@ -280,10 +290,14 @@ carousel:
 code_samples:
   - lang: go
     path: samples/go/mvcc.go
-    purpose: "Postgres MVCC from Go with pgx: a read that does not wait for a write, xmin/xmax/ctid, sessions idle in transaction, transaction ID age"
-    shown_in: [s03, s04, s05, s06]
+    purpose: "Postgres MVCC from Go with pgx: a read that does not wait for a write, xmin/xmax/ctid, sessions idle in transaction, transaction ID age, a withdrawal that retries on 40001, the HOT update share, and a pool that ends forgotten transactions"
+    shown_in: [s03, s04, s05, s06, s07]
 
 sources:
+  - title: "PostgreSQL 18 — CREATE TABLE, storage parameter fillfactor"
+    url: https://www.postgresql.org/docs/18/sql-createtable.html
+  - title: "pgx v5 — BeginTxFunc, TxOptions, ConnConfig.RuntimeParams"
+    url: https://pkg.go.dev/github.com/jackc/pgx/v5
   - title: "PostgreSQL 18 — 13.1 Introduction (MVCC)"
     url: https://www.postgresql.org/docs/18/mvcc-intro.html
   - title: "PostgreSQL 18 — 13.2 Transaction Isolation"
@@ -314,6 +328,18 @@ sources:
     url: https://github.com/jackc/pgx
 
 fact_check:
+  - claim: "At repeatable read, an UPDATE of a row that a concurrent transaction updated and committed after the snapshot fails with SQLSTATE 40001 (could not serialize access due to concurrent update); the application should retry the whole transaction"
+    source: https://www.postgresql.org/docs/18/transaction-iso.html
+  - claim: "At read committed, a second UPDATE waits for the first writer and then proceeds against the updated row, so an application that reads a balance and writes back a value it computed can lose an update"
+    source: https://www.postgresql.org/docs/18/transaction-iso.html
+  - claim: "pg_stat_user_tables counts all row updates (n_tup_upd) and HOT updates (n_tup_hot_upd)"
+    source: https://www.postgresql.org/docs/18/monitoring-stats.html
+  - claim: "A table's fillfactor below 100 leaves free space on each page for updates; changing it does not repack existing pages"
+    source: https://www.postgresql.org/docs/18/sql-createtable.html
+  - claim: "idle_in_transaction_session_timeout terminates a session idle inside an open transaction for longer than the setting; statement_timeout aborts any statement that runs longer"
+    source: https://www.postgresql.org/docs/18/runtime-config-client.html
+  - claim: "pgx v5: BeginTxFunc runs a function in a transaction with the given options and commits or rolls it back; RuntimeParams in the connection config are sent as session settings at connect"
+    source: https://pkg.go.dev/github.com/jackc/pgx/v5
   - claim: "Each statement sees a snapshot of the data; reading never blocks writing and writing never blocks reading"
     source: https://www.postgresql.org/docs/18/mvcc-intro.html
   - claim: "Read Committed is the default; each statement sees data committed before it began; Repeatable Read sees data as of the start of the transaction's first statement"
