@@ -1,10 +1,10 @@
 # The 22 Oct 2026 reach plan: search-first packaging for Postgres MVCC part 2 (Thursday 29 October).
 name: Postgres MVCC part 2
-title: "Postgres xmin and xmax: Why an UPDATE Writes a New Row"
+title: "Postgres UPDATE Internals: Why One Row Becomes Two"
 related: "Postgres MVCC part 1 (the Short posted Wednesday 28 October)"
-tags: "postgres xmin xmax, postgresql update, postgres mvcc, postgresql ctid, postgres dead tuples, postgresql vacuum"
+tags: "postgres update, postgresql mvcc, postgres mvcc, postgres internals, postgres xmin xmax, postgres vacuum, postgresql interview questions"
 description: |
-  Postgres xmin and xmax explained: an UPDATE is really an INSERT plus a DELETE. The old row version gets an xmax (the transaction that replaced it), the new one an xmin (the transaction that wrote it). SELECT xmin, xmax, ctid to see them: update the row and its ctid moves.
+  Postgres UPDATE internals: an UPDATE is really an INSERT plus a DELETE. The old row version gets an xmax (the transaction that replaced it), the new one an xmin (the transaction that wrote it). SELECT xmin, xmax, ctid to see them: update the row and its ctid moves.
 
   Postgres MVCC, part 2 of 4. Next: the idle transaction that stops the cleanup. The full deep dive is out Saturday 31 October.
 

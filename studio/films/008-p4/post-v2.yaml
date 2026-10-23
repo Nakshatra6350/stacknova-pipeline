@@ -2,7 +2,7 @@
 name: Postgres MVCC part 4
 title: "Postgres Transaction ID Wraparound: When Writes Stop"
 related: "the Postgres MVCC deep dive (posted Saturday 31 October)"
-tags: "transaction id wraparound, postgres xid wraparound, postgresql wraparound, datfrozenxid, postgres vacuum freeze, autovacuum"
+tags: "transaction id wraparound postgresql, postgresql wraparound, postgres vacuum, auto vacuum postgres, postgresql mvcc, postgres internals, postgresql interview questions"
 description: |
   Postgres transaction ID wraparound explained: transaction IDs are 32 bits and compared on a circle, so old rows must be frozen before the counter comes back around. If VACUUM can't freeze them in time, Postgres warns, then stops starting transactions that write. Watch age(datfrozenxid) for every database.
 

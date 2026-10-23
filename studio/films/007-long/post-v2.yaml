@@ -1,11 +1,11 @@
 # The 22 Oct 2026 reach plan for the HashMap deep dive (Tuesday 27 October): the kit's titles and the
 # description's opening paragraph, led by what people type ("how hashmap works internally in java",
-# "java hashmap internal working"). The rest of the kit (chapters, sources, tags) stays as it is.
+# "java hashmap internal working"); its tags and pinned question too (YouTube autocomplete, 23 Oct).
 name: HashMap deep dive
 titles:
   - "How HashMap Works Internally in Java (Buckets to Trees)"
-  - "Java HashMap Internal Working: Hash, Resize, Treeify"
-  - "HashMap Internal Working Interview Question, Line by Line"
+  - "HashMap Internal Working in Java 8, With Real Code"
+  - "HashMap Interview Questions: Internals, Line by Line"
   - "Hash Collision in HashMap: How Java 8 Stopped an Attack"
 lead: |
   How HashMap works internally in Java, from hashCode() to red-black tree buckets: the bit mix,
@@ -15,3 +15,5 @@ lead: |
   under 100,000 virtual threads, LinkedHashMap and an LRU cache in eight lines, and
   HashMap.newHashMap. Eight walkthroughs of real Java code, line by line.
 hashtags: "#java #hashmap #javainterview"
+tags: "how hashmap works internally in java, hashmap internal working in java, hashmap internal working in java 8, hashmap interview questions, java hashmap, hashcode and equals method in java, hash collision in hashmap, hashmap load factor, concurrenthashmap vs hashmap, lru cache java, linkedhashmap vs hashmap, java interview questions, java 25, data structures"
+pinned: "Four rules, four bugs: mutable keys, a HashMap shared by threads, iteration order, and sizing. Which one have you hit in production? 👇"

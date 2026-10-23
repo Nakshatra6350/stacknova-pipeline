@@ -1,17 +1,17 @@
 # The 22 Oct 2026 reach plan: search-first packaging for the 007 flagship reel (Tuesday 27 October).
 name: The 2011 hash flood
-title: "Hash Collision Attack: One Request Froze Servers (2011)"
+title: "Hash Collision in HashMap: One Request, 100% CPU (2011)"
 related: "the HashMap deep dive posted at 19:30 today"
-tags: "hash collision, hash collision in hashmap, hash flooding, hash dos attack, java 8 hashmap, java hashmap"
+tags: "hash collision in java, hash collision in hashmap, hash collision, hashmap in java 8, hashmap interview questions, hash dos attack, java hashmap"
 description: |
-  A hash collision attack: in December 2011, one web request with thousands of form fields that share one hashCode could keep a server's CPU at 100% for hours, because every field landed in the same HashMap bucket. The fix came in two parts: a cap on request parameters, and Java 8's tree buckets.
+  Hash collision in a Java HashMap, used as an attack: in December 2011, one web request with thousands of form fields that share one hashCode could keep a server's CPU at 100% for hours, because every field landed in the same HashMap bucket. The fix came in two parts: a cap on request parameters, and Java 8's tree buckets.
 
   The full HashMap deep dive is on the channel.
 
   #java #hashmap #systemdesign
 cover: {t: 40.0, title: "One request froze the server", series: "The 2011 hash flood"}
 caption: |
-  One web request. 100% CPU. For hours 🧨
+  One web request. 100% CPU. For hours: a HashMap hash collision attack 🧨
 
   December 2011: researchers showed that a single crafted request could freeze Java, PHP, Python and Ruby servers.
   1️⃣ The request carried thousands of form fields

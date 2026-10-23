@@ -1,10 +1,10 @@
 # The 22 Oct 2026 reach plan: search-first packaging for Postgres MVCC part 3 (Friday 30 October).
 name: Postgres MVCC part 3
-title: "Postgres Table Bloat: The Idle Transaction Blocking VACUUM"
+title: "Postgres VACUUM and Bloat: The Idle Transaction Problem"
 related: "Postgres MVCC part 2 (the Short posted Thursday 29 October)"
-tags: "postgres table bloat, postgres vacuum, idle in transaction, postgresql dead tuples, autovacuum not working, pg_stat_activity"
+tags: "postgres vacuum, auto vacuum postgres, postgres bloat, idle in transaction, postgresql mvcc, postgres internals, postgresql interview questions"
 description: |
-  Postgres table bloat explained: deleted rows stay as dead versions until no open snapshot can need them, so one session left idle in a transaction holds up VACUUM for the whole table. Find it in pg_stat_activity (state = 'idle in transaction') and set idle_in_transaction_session_timeout so Postgres ends it for you.
+  Postgres VACUUM and table bloat, explained: deleted rows stay as dead versions until no open snapshot can need them, so one session left idle in a transaction holds up VACUUM for the whole table. Find it in pg_stat_activity (state = 'idle in transaction') and set idle_in_transaction_session_timeout so Postgres ends it for you.
 
   Postgres MVCC, part 3 of 4. Next: the day a database stopped accepting writes. The full deep dive is out Saturday 31 October.
 

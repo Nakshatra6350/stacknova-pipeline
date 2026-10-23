@@ -1,10 +1,10 @@
 # The 22 Oct 2026 reach plan: search-first packaging for HashMap part 4 (Monday 26 October).
 name: HashMap part 4
-title: "HashMap Initial Capacity in Java: Why 100 Isn't Room for 100"
-related: "leave empty until the HashMap deep dive is out on Tuesday 27 October"
-tags: "hashmap initial capacity, hashmap load factor, hashmap resize, newhashmap java, java hashmap"
+title: "HashMap Load Factor in Java: Why 100 Isn't Room for 100"
+related: "HashMap part 3 (the Short posted Sunday 25 October)"
+tags: "hashmap load factor, hashmap internal working in java, hashmap interview questions, hashmap initial capacity, hashmap resize, newhashmap java 19, java hashmap"
 description: |
-  HashMap initial capacity in Java, explained: new HashMap<>(100) gives a capacity of 100, not room for 100 entries. Java rounds it up to 128 buckets and resizes at the 0.75 load factor, so entry 97 doubles the table. Since Java 19, HashMap.newHashMap(100) sizes it so 100 entries fit.
+  HashMap load factor and initial capacity in Java, explained: new HashMap<>(100) gives a capacity of 100, not room for 100 entries. Java rounds it up to 128 buckets and resizes at the 0.75 load factor, so entry 97 doubles the table. Since Java 19, HashMap.newHashMap(100) sizes it so 100 entries fit.
 
   Java HashMap internals, part 4 of 4. The full HashMap deep dive is out Tuesday 27 October.
 

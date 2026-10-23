@@ -66,6 +66,11 @@ def kit_v2(kit: str, post: dict[str, Any]) -> str:
             lines[last + 1 : last + 1] = ["", post["hashtags"]]
         else:
             lines[last] = post["hashtags"]
+    # the tags people search for and the pinned question, when the plan has its own
+    for head, key in (("TAGS (", "tags"), ("PINNED COMMENT:", "pinned")):
+        if post.get(key):
+            at = next(i for i, line in enumerate(lines) if line.startswith(head)) + 1
+            lines[at] = " ".join(post[key].split())
     return "\n".join(lines)
 
 

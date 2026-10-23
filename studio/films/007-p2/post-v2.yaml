@@ -1,10 +1,10 @@
 # The 22 Oct 2026 reach plan: search-first packaging for HashMap part 2 (Saturday 24 October).
 name: HashMap part 2
-title: "HashMap Treeify in Java 8: When a Bucket Becomes a Tree"
-related: "leave empty until the HashMap deep dive is out on Tuesday 27 October"
-tags: "hashmap in java 8, hashmap treeify, hashmap resize, red black tree, hash collision in hashmap, java hashmap internal working"
+title: "HashMap in Java 8: When a Bucket Becomes a Red-Black Tree"
+related: "HashMap part 1 (the Short posted Friday 23 October)"
+tags: "hashmap in java 8, hashmap internal working in java 8, how hashmap works internally in java, hashmap interview questions, hash collision in hashmap, red black tree, hashmap treeify, java hashmap"
 description: |
-  In Java 8 and later, a HashMap bucket holding 8 colliding keys can turn into a red-black tree, but only once the table has 64 buckets. Before that, the ninth key doubles the table instead, and every key checks one more bit of the hash it already stored to find its new bucket. No rehashing.
+  HashMap internal working in Java 8: a bucket holding 8 colliding keys can turn into a red-black tree, but only once the table has 64 buckets. Before that, the ninth key doubles the table instead, and every key checks one more bit of the hash it already stored to find its new bucket. No rehashing.
 
   Java HashMap internals, part 2 of 4. Next: the key that vanished. The full deep dive is out Tuesday 27 October.
 

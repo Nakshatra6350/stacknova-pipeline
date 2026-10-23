@@ -1,10 +1,10 @@
 # The 22 Oct 2026 reach plan for the Postgres MVCC deep dive (Saturday 31 October): the kit's titles
 # and the description's opening paragraph, led by what people type ("postgres mvcc", "how mvcc works
-# in postgresql", "postgres vacuum"). The rest of the kit (chapters, sources, tags) stays as it is.
+# in postgresql", "postgres vacuum"); its tags too (YouTube autocomplete, 23 Oct).
 name: Postgres MVCC deep dive
 titles:
   - "How Postgres MVCC Works (xmin, xmax, VACUUM, Wraparound)"
-  - "Postgres MVCC Explained: Why Readers Never Wait"
+  - "PostgreSQL Internals: MVCC, VACUUM and Isolation Levels"
   - "PostgreSQL MVCC Deep Dive: Snapshots to Wraparound, in Go"
   - "Postgres VACUUM and Table Bloat: MVCC, Line by Line"
 lead: |
@@ -15,3 +15,4 @@ lead: |
   measures HOT updates, and a connection pool that ends forgotten transactions. Seven walkthroughs
   of real code (Go with pgx, and SQL), line by line.
 hashtags: "#postgresql #database #golang"
+tags: "postgresql mvcc, postgres mvcc, postgres internals, postgres vacuum, auto vacuum postgres, postgres bloat, transaction id wraparound postgresql, postgres isolation levels, idle in transaction, postgresql interview questions, postgres update, pgx golang, database internals, system design"

@@ -1,17 +1,17 @@
 # The 22 Oct 2026 reach plan: search-first packaging for HashMap part 3 (Sunday 25 October).
 name: HashMap part 3
-title: "HashMap get() Returns null? Your hashCode Changed"
-related: "leave empty until the HashMap deep dive is out on Tuesday 27 October"
-tags: "hashcode and equals contract, hashcode and equals method in hashmap, hashmap get returns null, mutable key hashmap, java hashmap"
+title: "hashCode and equals in HashMap: Why get() Returns null"
+related: "HashMap part 2 (the Short posted Saturday 24 October)"
+tags: "hashcode and equals method in java, hashcode and equals contract, hashcode and equals method in hashmap, hashmap interview questions, java hashmap, hashmap get returns null, mutable key hashmap"
 description: |
-  Why does HashMap get() return null for a key you just put? If a field used by hashCode() changes after you put the key, HashMap looks in the wrong bucket: get(), containsKey() and remove() all miss an entry that is still in the map. A quiet memory leak. The fix: immutable keys, like a String or a record.
+  hashCode and equals in a HashMap: why does get() return null for a key you just put? If a field used by hashCode() changes after you put the key, HashMap looks in the wrong bucket: get(), containsKey() and remove() all miss an entry that is still in the map. A quiet memory leak. The fix: immutable keys, like a String or a record.
 
   Java HashMap internals, part 3 of 4. Next: why new HashMap<>(100) isn't room for 100. The full deep dive is out Tuesday 27 October.
 
   #java #hashmap #javainterview
 cover: {t: 19.0, title: "The key that vanished", series: "Java HashMap, part 3 of 4", part: 3, of: 4}
 caption: |
-  get() returned null. The entry is still in the map 👻
+  HashMap get() returned null. The entry is still in the map 👻
 
   1️⃣ HashMap stores each key's hash at the moment you put it
   2️⃣ Then you changed a field that hashCode() uses: her email
