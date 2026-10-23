@@ -7,7 +7,7 @@ slides:
     still: {timeline: studio/public/films/008-reel/timeline.json, t: e1+2.0, y: 0.4}
   - headline: 1. An UPDATE writes a version
     body: The old row stays; the new one is added beside it
-    still: {timeline: studio/public/films/008-p2/timeline.json, t: e1+2.0, y: 0.4}
+    still: {timeline: studio/public/films/008-p1/timeline.json, t: version+1.5, y: 0.7}
   - headline: 2. Two stamps per version
     body: "xmin: who wrote it. xmax: who replaced or deleted it"
     still: {timeline: studio/public/films/008-p2/timeline.json, t: e2>, y: 0.4}
@@ -19,7 +19,7 @@ slides:
     still: {timeline: studio/public/films/008-p1/timeline.json, t: e4+2.0, y: 0.4}
   - headline: 5. VACUUM cleans up
     body: Dead versions stay until no snapshot can see them
-    still: {timeline: studio/public/films/008-p2/timeline.json, t: vacuum+1.5, y: 0.4}
+    still: {timeline: studio/public/films/008-p2/timeline.json, t: vacuum+1.5, y: 0.72}
   - headline: 6. Idle = bloat
     body: One idle transaction holds every dead row in place
     still: {timeline: studio/public/films/008-p3/timeline.json, t: bloat+1.5, y: 0.4}

@@ -35,7 +35,7 @@ import render
 ROOT = Path(__file__).resolve().parents[2]
 LINGER = 0.5
 # The long videos already out (YouTube ids from the launch on 19 October 2026).
-LINKS = {"006-payment-system": "https://youtu.be/t2-cmCu12hk"}
+LINKS = {"design a payment system": "https://youtu.be/t2-cmCu12hk"}  # posted videos, by name
 
 
 def merge_short(out: list[Cue]) -> list[Cue]:
@@ -62,24 +62,42 @@ def merge_short(out: list[Cue]) -> list[Cue]:
     return out
 
 
+def balance(groups: list[list[dict[str, Any]]]) -> None:
+    """A group cut off by the line length can be a tail too short to read ("future."): it takes
+    words from the end of the group before it, while both still fit and that one stays readable."""
+    for n in range(1, len(groups)):
+        before, group = groups[n - 1], groups[n]
+        if before[-1].get("cut") is not True:
+            continue
+        while group[-1]["e"] - group[0]["s"] < MIN_SECONDS and len(before) > 1:
+            moved = [before[-1], *group]
+            if wrap(" ".join(x["w"] for x in moved)) is None:
+                break
+            if before[-2]["e"] - before[0]["s"] < MIN_SECONDS:
+                break
+            group[:] = moved
+            before.pop()
+
+
 def cues(lines: list[dict[str, Any]]) -> list[Cue]:
     """Sentence-level cues of at most two lines of 42 characters and 1 to 7 seconds."""
-    out: list[Cue] = []
+    groups: list[list[dict[str, Any]]] = []
     for line in lines:
         words: list[dict[str, Any]] = []
         for n, w in enumerate(line["words"]):
             text = " ".join(x["w"] for x in [*words, w])
             if words and (wrap(text) is None or w["e"] - words[0]["s"] > MAX_SECONDS):
-                out.append(
-                    Cue(words[0]["s"], words[-1]["e"], wrap(" ".join(x["w"] for x in words)) or ())
-                )
+                words[-1] = {**words[-1], "cut": True}  # the sentence goes on in the next group
+                groups.append(words)
                 words = []
             words.append(w)
             last = n == len(line["words"]) - 1
             ends = re.search(r"[.!?]$", w["w"]) and w["e"] - words[0]["s"] >= MIN_SECONDS
             if last or ends:
-                out.append(Cue(words[0]["s"], w["e"], wrap(" ".join(x["w"] for x in words)) or ()))
+                groups.append(words)
                 words = []
+    balance(groups)
+    out = [Cue(g[0]["s"], g[-1]["e"], wrap(" ".join(x["w"] for x in g)) or ()) for g in groups]
     out = merge_short(out)
     # each cue lingers a little after its last word, never past the next one
     done: list[Cue] = []
@@ -115,12 +133,14 @@ def main(film_id: str, episode_id: str, times: list[float]) -> None:
     ]
     chapter_lines = chapters(starts)
     description = long_description(episode, chapter_lines, None, None, episode["packaging"]["tags"])
-    previous = "006-payment-system"
-    description = description.replace("[LINK: ]", "").replace(
-        "Previous: design a payment system — ",
-        f"Previous: design a payment system — {LINKS[previous]}",
-    )
-    description = description.replace("— coming soon, subscribe", "— out Saturday, subscribe")
+    # the previous video by its link when it is known, else on the channel; the next one comes
+    # out on the day the end card names ("NEXT · TUESDAY")
+    lines = description.replace("[LINK: ]", "").split("\n")
+    for n, line in enumerate(lines):
+        if line.startswith("Previous: ") and line.endswith(" — "):
+            lines[n] = line + LINKS.get(line.removeprefix("Previous: ")[:-3], "on the channel")
+    day = timeline["film"]["end"]["kicker"].split("·")[-1].strip().capitalize()
+    description = "\n".join(lines).replace("— coming soon, subscribe", f"— out {day}, subscribe")
 
     with tempfile.TemporaryDirectory() as work:
         stills = Path(work)

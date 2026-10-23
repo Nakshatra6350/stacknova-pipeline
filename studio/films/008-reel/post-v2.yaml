@@ -9,7 +9,7 @@ description: |
   The full Postgres MVCC deep dive is on the channel.
 
   #postgresql #database #sql
-cover: {t: 45.0, title: "A 40-day VACUUM", series: "The Mandrill outage, 2019"}
+cover: {t: 37.5, title: "A 40-day VACUUM", series: "The Mandrill outage, 2019"}
 caption: |
   Emails stuck for about 40 hours. The database refused every write, and a VACUUM was estimated at 40 days 📉
 

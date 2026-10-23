@@ -9,7 +9,7 @@ description: |
   Postgres MVCC, part 4 of 4. The full deep dive is on the channel.
 
   #postgresql #database #sql
-cover: {t: 40.0, title: "Postgres stopped writing", series: "Postgres MVCC, part 4 of 4", part: 4, of: 4}
+cover: {t: 33.0, title: "Postgres stopped writing", series: "Postgres MVCC, part 4 of 4", part: 4, of: 4}
 caption: |
   Postgres can refuse every write with plenty of disk left. The cause is a 32-bit counter ⏳
 

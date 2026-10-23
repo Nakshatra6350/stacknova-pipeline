@@ -1,0 +1,17 @@
+# The Postgres MVCC deep dive's three thumbnails (Saturday 31 October), one per style, for YouTube's
+# Test & compare. Words follow the episode's thumbnail_texts, so they never repeat the title.
+words:
+  A: "Writes stopped"
+  B: "1 row, 2 versions"
+  C: "40 days to VACUUM?"
+stamp: {A: "40 h"}
+panel_timeline: studio/public/films/008-long/timeline.json
+panels:
+  A: {t: 8.0, zoom: 2.4, focus: "50% 52%"}
+  B: {t: 115.0, zoom: 2.3, focus: "49% 47%"}
+flow:
+  - {box: UPDATE}
+  - {note: ""}
+  - {box: dead rows}
+  - {note: "", cut: true}
+  - {box: STOP, bad: true}

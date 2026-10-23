@@ -83,8 +83,10 @@ export class FrameHud {
       if (/[.?!]$/.test(w.w) && chars > PAGE_CHARS * 0.4) { pages.push(page); page = []; chars = 0; }
     }
     if (page.length) pages.push(page);
-    const n = Math.max(0, pages.findIndex((p) => t < p[p.length - 1].e));
-    const shown = pages[n] ?? pages[pages.length - 1];
+    // once the last word is said, the last page stays up (not the first) until the line goes
+    const saying = pages.findIndex((p) => t < p[p.length - 1].e);
+    const n = saying < 0 ? pages.length - 1 : saying;
+    const shown = pages[n];
     const key = line.id + '|' + n + '|' + shown.map((w) => (t >= w.e ? 2 : t >= w.s ? 1 : 0)).join('');
     if (key === this.capKey) return;
     this.capKey = key;

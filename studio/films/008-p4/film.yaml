@@ -123,6 +123,7 @@ beats:
   - at: e3
     shot: {kind: look, at: "front:2:0.55:1.6", dist: 3.6, height: 0.5, angle: 6}
     hud: {step: 3}
+    prop: {id: dial, hide: true}
   - at: freeze
     world:
       - {relabel: "$250 · xmin 98#b1", text: "$250 · frozen"}
@@ -134,7 +135,7 @@ beats:
       - {scan: true}
   - at: e3.vacuums
     shot: {kind: look, prop: dial, dist: 1.7, height: 0.04}
-    prop: {id: dial, state: {frozen: 0.08}, dur: 1.2}
+    prop: {id: dial, place: [0, 2.0, -0.5], state: {frozen: 0.08}, dur: 1.2}
   - at: n3
     shot: {kind: nova, side: 0.4}
     nova: {face: confused}

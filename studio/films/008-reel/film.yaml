@@ -12,7 +12,7 @@ id: 008-reel
 format: short
 world: mvcc
 title: POSTGRES MVCC
-episode: EP 008 · THE MANDRILL OUTAGE
+episode: EP 008 · MANDRILL
 steps: [NO WRITES, WHY, 40 DAYS, THE FIX]
 end: {kicker: "FULL DEEP DIVE", head: "Postgres MVCC,\nall of it", cta: more}
 
@@ -121,7 +121,7 @@ beats:
     prop: {id: err, hide: true}
     engineer: {enter: true, face: focus}
   - at: e1.mandrill-0.3
-    shot: {kind: look, prop: when, dist: 1.6, height: 0.04}
+    shot: {kind: look, prop: when, dist: 2.2, height: 0.04}
     prop: {id: when, place: [0, 2.05, -0.5]}
   - at: n2
     shot: {kind: nova, side: 0.4}
@@ -144,7 +144,7 @@ beats:
     nova: {face: confused}
   # forty days
   - at: e4
-    shot: {kind: look, prop: days, dist: 1.6, height: 0.04}
+    shot: {kind: look, prop: days, dist: 1.9, height: 0.04}
     prop: {id: days, place: [0, 2.05, -0.5]}
     hud: {step: 2}
   - at: n4
