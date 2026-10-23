@@ -85,16 +85,26 @@ def slot(day: str, date: str, number: int, item: str) -> dict[str, Any]:
                          {"label": "Description", "text": post["description"].strip()}]
         if post.get("tags"):
             out["fields"].append({"label": "Tags (Show more → Tags)", "text": post["tags"]})
-    elif kind == "reel":
+    elif kind in ("reel", "carousel"):
+        gift = ud.gift_of(post)
         out["title"] = post["caption"].strip().splitlines()[0]
-        out["files"] = [f"{name}.mp4", f"{name} - cover.jpg"]
-        out["note"] = "Set the cover: Edit cover → Add from camera roll → the - cover.jpg file."
-        out["fields"] = [{"label": "Caption", "text": post["caption"].strip()}]
-    elif kind == "carousel":
-        slides = sorted(ud.release(film).iterdir())
-        out["title"] = post["caption"].strip().splitlines()[0]
-        out["files"] = [f"{name}/  ({len(slides)} slides, in order)"]
-        out["fields"] = [{"label": "Caption", "text": post["caption"].strip()}]
+        if kind == "reel":
+            out["files"] = [f"{name}.mp4", f"{name} - cover.jpg"]
+            out["note"] = "Set the cover: Edit cover → Add from camera roll → the - cover.jpg file."
+        else:
+            slides = len(list(ud.release(film).iterdir()))
+            out["files"] = [f"{name}/  ({slides} slides, in order)"]
+        out["fields"] = [{"label": "Caption", "text": ud.caption_with_gift(post["caption"], gift)}]
+        if gift:
+            # the comment-to-DM automation for this post: keyword, follow gate, email, the PDF
+            out["files"].append(f"{name} - free pack.pdf  (attach in the auto-DM)")
+            out["fields"] += [
+                {"label": "Auto-DM keyword", "text": gift["keyword"]},
+                {"label": "Auto-DM: reply under the comment", "text": gift["reply"]},
+                {"label": "Auto-DM: follow-gate message", "text": gift["gate"]},
+                {"label": "Auto-DM: ask for the email", "text": gift["ask"]},
+                {"label": "Auto-DM: message with the PDF", "text": gift["send"]},
+            ]
     else:
         kit = kit_sections(ud.kit_v2((ud.release(film) / "kit.txt").read_text(encoding="utf-8-sig"),
                                      post))

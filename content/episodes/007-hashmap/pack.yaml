@@ -1,0 +1,131 @@
+# The free pack for episode 007 (owner, 23 Oct 2026: free PDF for "follow + comment KEYWORD").
+# Built by studio/scripts/pack.py into out/release/packs/hashmap.pdf. Every claim here is in the
+# episode's fact_check; code is read from samples/ by line range at build time, so it stays the
+# tested code. Original writing only: nothing from the books folder.
+keyword: HASHMAP
+file: stacknova-hashmap-pack
+lang: java
+kicker: FREE PACK · JAVA
+title: HashMap Internals
+subtitle: How get() finds a key in one jump, why a map slows down, and the four bugs that bite in production.
+versions: Java 25. The internals here are the same since Java 8.
+inside:
+  - The lookup, step by step
+  - Resize and tree buckets, in numbers
+  - The core of HashMap, in Java
+  - 4 production rules, each a bug and its fix
+  - 12 interview questions, answered
+  - A 10-point checklist for code review
+
+sections:
+  - kind: steps
+    title: How get() finds a key
+    lead: Five steps, and only the last one can be slow.
+    steps:
+      - head: hashCode()
+        body: The key turns itself into an int. A String builds it from its characters, multiplying by 31 at every step. Equal keys must return equal hashCodes.
+      - head: Spread
+        body: "h ^ (h >>> 16) folds the top 16 bits into the bottom 16. A small table only looks at the low bits; without the fold, keys that differ only high up would always collide."
+      - head: Index
+        body: "hash & (n − 1) keeps the last bits: 4 bits for 16 buckets. user:42 spreads to a hash ending in 0111, so it lives in bucket 7. One AND, no search: O(1)."
+      - head: Chain
+        body: Keys that share a bucket form a chain. Every node stores its hash, so get() compares that int first and calls equals() only when the hashes match.
+      - head: Value
+        body: "Found it. With a good hashCode, chains stay short: under random hashes, the chance of a chain of 8 is about 0.00000006."
+
+  - kind: numbers
+    title: Growing, splitting, trees
+    lead: The numbers interviewers ask about, and what each one does.
+    rows:
+      - [16, "Default number of buckets. Always a power of two."]
+      - ["0.75", "Default load factor. The table doubles when size > capacity × 0.75: the 13th put on 16 buckets."]
+      - [1 bit, "A resize never calls hashCode() again. Each node checks one more bit of its stored hash: 0 stays at index j, 1 moves to j + oldCap."]
+      - [8, "Adding to a bucket that already holds 8 nodes turns it into a red-black tree…"]
+      - [64, "…but only when the table has 64 buckets or more. A smaller table doubles instead."]
+      - [6, "A tree split down to 6 nodes or fewer turns back into a chain."]
+      - [O(log n), "Tree buckets order keys by hash, then by compareTo when the keys are Comparable."]
+      - [2×, "A tree node is about twice the size of a chain node: trees are the exception, not the plan."]
+
+  - kind: code
+    title: The core of HashMap, in Java
+    lead: "A small map that finds keys exactly like java.util.HashMap: spread, index, chain and the one-bit split. It leaves out null keys, trees and removal, which the real one has."
+    from: samples/java/hashmap/MiniMap.java
+    lines: [33, 77]
+    notes:
+      - [35, "the spread: top bits into bottom"]
+      - [40, "the index: one AND, no division"]
+      - [42, "the stored hash first, equals() second"]
+      - [60, "load factor 0.75: time to double"]
+      - [72, "the one-bit split: stay at j, or move to j + oldCap"]
+
+  - kind: rules
+    title: 4 rules for HashMap in production
+    rules:
+      - head: "1 · A key must never change"
+        bug: {from: samples/java/hashmap/VanishingKey.java, lines: [29, 35]}
+        fix: {from: samples/java/hashmap/VanishingKey.java, lines: [26, 26]}
+        why: "The bucket was chosen from the hash at put time. Change a field that hashCode() uses and get() jumps to a different bucket: the entry is still in the map (size() is 1), but nothing can reach it. A quiet memory leak. A record's fields are final: with immutable values inside, like a String, its hash can never change."
+      - head: "2 · A HashMap is not for threads"
+        bug: {from: samples/java/hashmap/RaceCount.java, lines: [14, 20]}
+        fix: {code: "Map<String, Integer> counts = new ConcurrentHashMap<>();   // same code, every update counted"}
+        why: "merge() on a HashMap is read, add, write: two threads can read the same count and one update is lost. 100,000 tasks counted 95,078, 94,451 and 99,423 in three runs. ConcurrentHashMap runs merge() atomically per key: 100,000 every time. It puts into an empty bucket with a compare-and-swap and locks only the busy bucket."
+      - head: "3 · Never rely on HashMap's order"
+        bug: {code: "map.put(\"ana\", 1); map.put(\"tom\", 1); map.put(\"kai\", 1); map.put(\"zoe\", 1);\nmap.keySet();   // [zoe, kai, tom, ana]: bucket order, not yours"}
+        fix: {from: samples/java/hashmap/LruCache.java, lines: [12, 23]}
+        why: "HashMap iterates bucket by bucket, and that order can change when it resizes. LinkedHashMap also links its entries: in insertion order, or in access order. With access order and removeEldestEntry, it is a complete LRU cache."
+      - head: "4 · Size it for entries, not capacity"
+        bug: {from: samples/java/hashmap/Sizing.java, lines: [13, 13]}
+        fix: {from: samples/java/hashmap/Sizing.java, lines: [14, 14]}
+        why: "new HashMap<>(100) asks for a capacity of 100: Java rounds it up to 128 buckets, and entry 97 (more than 128 × 0.75 = 96) doubles the table. HashMap.newHashMap(100), since Java 19, sizes the table so 100 entries fit: 256 buckets, no resize."
+
+  - kind: qa
+    title: 12 interview questions, answered
+    items:
+      - q: What is the time complexity of get() and put()?
+        a: "O(1) on average, when hashCode() spreads keys well. A crowded bucket costs O(n) as a chain; since Java 8 it becomes a red-black tree, O(log n), fastest when keys are Comparable."
+      - q: Why must equal objects have equal hashCodes?
+        a: "The bucket comes from the hash. If two equal keys hashed differently, get() would look in a different bucket than put() used, and miss."
+      - q: Can two different keys have the same hashCode?
+        a: '"Aa" and "BB" both hash to 2112. They share a bucket and equals() tells them apart. Joining such pairs gives 2ⁿ strings with one hash: 14 pairs make 16,384.'
+      - q: Why is the capacity always a power of two?
+        a: "So the index is hash & (n − 1), one AND instead of a modulo, and so a resize can split every chain by checking a single bit."
+      - q: What does h ^ (h >>> 16) do?
+        a: "It mixes the high 16 bits into the low 16. Small tables index with the low bits only, so without it, hashes that differ only in the high bits would always collide."
+      - q: When does a HashMap resize, and what does it cost?
+        a: "When size exceeds capacity × load factor: the 13th entry of a 16-bucket map. The table doubles and every entry moves: O(n) once, spread over the puts that led to it."
+      - q: Does a resize call hashCode() again?
+        a: "No. Each node keeps the hash it got at put time. The resize checks one more bit of it: 0 stays at index j, 1 moves to j + oldCap."
+      - q: When does a bucket become a tree?
+        a: "When it already holds 8 nodes and the table has at least 64 buckets; with fewer buckets the table doubles instead. A tree split down to 6 nodes or fewer becomes a chain again."
+      - q: Why did Java 8 add tree buckets?
+        a: "Colliding keys made lookups O(n). In December 2011 one crafted request, full of form fields with the same hashCode, could keep a server's CPU at 100% for hours (oCERT-2011-003). JEP 180 turned crowded buckets into balanced trees."
+      - q: Is HashMap thread-safe? What do you use instead?
+        a: "No: concurrent structural changes need outside synchronization, and even merge() loses updates. Use ConcurrentHashMap: atomic merge() and compute() per key, a compare-and-swap into empty buckets, a lock on one busy bucket only."
+      - q: HashMap, LinkedHashMap or TreeMap?
+        a: "HashMap: fastest, no order guarantee. LinkedHashMap: insertion order, or access order for caches. TreeMap: sorted by key, O(log n) for get and put."
+      - q: How do you build an LRU cache in Java?
+        a: "Extend LinkedHashMap with accessOrder = true and override removeEldestEntry to return size() > max. Rule 3 has the whole class."
+
+  - kind: checklist
+    title: Code review checklist
+    items:
+      - "Map keys are immutable: String, Integer, an enum, or a record of immutable values."
+      - "equals() and hashCode() use the same fields."
+      - "No HashMap shared between threads without a lock. Shared? ConcurrentHashMap."
+      - "Counting? map.merge(key, 1, Integer::sum), on a ConcurrentHashMap when threads share it."
+      - "Nothing depends on HashMap's iteration order. Need order? LinkedHashMap or TreeMap."
+      - "Know the size up front? HashMap.newHashMap(n) (Java 19+), not new HashMap<>(n)."
+      - "A slow map? Check the key's hashCode() before anything else."
+      - "Keys from users (request parameters, JSON fields)? Cap how many you accept: servers like Tomcat have a setting for it (maxParameterCount)."
+      - "Comparable keys keep a crowded bucket fast: tree buckets sort by compareTo."
+      - "A cache needs a size limit: a bounded LinkedHashMap is the simplest LRU."
+
+end:
+  video: "How HashMap Works Internally in Java: the full deep dive with eight code walkthroughs, on YouTube @StackNovaDev."
+  next: A new free pack comes with every topic. Follow @stacknova.dev so you don't miss the next one.
+  more: Would you want a bigger pack, every Java collection with 40+ questions and exercises? Reply MORE in our DMs.
+
+# sources: the episode's own `sources` list, plus these for claims only the pack makes
+extra_sources:
+  - {title: "TreeMap (Java 25 API): log(n) get and put, sorted by key", url: "https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/TreeMap.html"}
+  - {title: "ConcurrentHashMap (Java 25 API): compute and merge are atomic", url: "https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/ConcurrentHashMap.html"}

@@ -22,6 +22,9 @@ publish an asset whose state is not `approved`. If you are unsure, do not publis
 Phase 1 = content only, on YouTube + Instagram. **No selling, no store links, no affiliate links,
 no paid guides/notes/projects** anywhere in code, descriptions or posts. Cadence: 2 deep dives/week
 (Tue + Sat) + 10 Shorts + 7 Reels + 3 carousels + daily stories (`config/schedule.yaml`).
+One exception (owner, 23 Oct 2026): from 2 Nov 2026 every Instagram post offers a **free** PDF pack
+for "follow + comment KEYWORD": an automated DM asks for an email and sends the PDF. Free only, never a price or store link;
+see `docs/PHASES.md`.
 
 ## 2. What the system does (one paragraph)
 

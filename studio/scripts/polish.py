@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from render import ENCODE, FPS, ffmpeg  # noqa: E402
 
 LINGER = 1.4  # seconds of the Reel's end card that stay
+GIFT_LINGER = 2.6  # a Reel offering a free pack: long enough to read its keyword
 FADE = 0.15  # the sound fades out over the last seconds of a cut
 
 
@@ -57,11 +58,13 @@ def cut(src: Path, out: Path, seconds: float, head: Path | None) -> None:
 
 
 def main(film_id: str, timeline: Path, head: Path | None) -> None:
-    end = float(yaml.safe_load(timeline.read_text(encoding="utf-8-sig"))["events"]["end"])
+    tl = yaml.safe_load(timeline.read_text(encoding="utf-8-sig"))
+    end = float(tl["events"]["end"])
+    linger = GIFT_LINGER if tl.get("film", {}).get("gift") else LINGER
     release = ROOT / "out" / "release"
     cut(release / f"{film_id}-short.mp4", release / "v2" / f"{film_id}-short.mp4", end, head)
-    cut(release / f"{film_id}-reel.mp4", release / "v2" / f"{film_id}-reel.mp4", end + LINGER, head)
-    print(f"{film_id}: Short ends at {end:.2f} s, Reel at {end + LINGER:.2f} s"
+    cut(release / f"{film_id}-reel.mp4", release / "v2" / f"{film_id}-reel.mp4", end + linger, head)
+    print(f"{film_id}: Short ends at {end:.2f} s, Reel at {end + linger:.2f} s"
           + (f", opening from {head.name}" if head else ""))
 
 

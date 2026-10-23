@@ -30,9 +30,12 @@ async function frame(tl: Timeline): Promise<{ draw: (t: number) => void; stage: 
   if ('film' in tl) {
     const film = (tl as FilmTimeline).film;
     const long = film.format === 'long';
+    // an Instagram Reel that offers a free pack ends on its keyword; the YouTube Short is unchanged
+    const gift = film.gift && (tl as FilmTimeline).variant !== 'short' ? film.gift.keyword : undefined;
     const hud = new FrameHud(host, film.title, film.episode, film.steps, {
-      end: film.end, format: film.format,
-      cta: long ? 'Subscribe for two deep dives a week' : film.end?.cta ? cta(tl, film.end.cta) : undefined,
+      end: gift ? { kicker: 'FREE PDF · IN YOUR DMS', head: `Comment ${gift}` } : film.end, format: film.format,
+      cta: long ? 'Subscribe for two deep dives a week' : gift ? `Follow, then comment ${gift}`
+        : film.end?.cta ? cta(tl, film.end.cta) : undefined,
     });
     const view = long ? VIEW_LONG : VIEW;
     const stage = new Stage(hud.view, view.width, view.height);

@@ -48,6 +48,62 @@ def release(name: str) -> Path:
     return v2 if PLAN and v2.exists() else RELEASE / name
 
 
+def gift_of(post: dict[str, Any]) -> dict[str, Any] | None:
+    """The free pack an Instagram post offers (owner, 23 Oct 2026): `gift: <episode id>` in its
+    post-v2.yaml names the episode whose pack.yaml (pack.py) a follower gets for "follow + comment
+    KEYWORD". Returns the keyword, the PDF to attach and the texts of the automated DM."""
+    if not post.get("gift"):
+        return None
+    pack = yaml.safe_load((ROOT / "content" / "episodes" / post["gift"] / "pack.yaml")
+                          .read_text(encoding="utf-8"))
+    kw, title = pack["keyword"], pack["title"]
+    return {
+        "keyword": kw,
+        "pdf": RELEASE / "packs" / f"{pack['file']}.pdf",
+        "top": f"💬 Follow @stacknova.dev and comment {kw}: the free {title} pack (PDF) "
+               "lands in your DMs.",
+        "bottom": f"📩 Comment {kw} for the free PDF. Follow first, so the DM can reach you.",
+        "reply": "Sent 📩 Check your DMs!",
+        "gate": f"Hey 👋 Your free {title} pack is ready. Follow @stacknova.dev first, "
+                "then tap the button below and it's yours.",
+        "ask": "Where should we send the next free pack when it drops? Reply with your email 📧 "
+               "(only new free packs, never spam; unsubscribe anytime).",
+        "send": f"Here's your free {title} pack 📘 The mechanism, the code, interview "
+                "questions with answers, and a checklist. Send it to a friend who's preparing 🙌",
+    }
+
+
+def caption_with_gift(caption: str, gift: dict[str, Any] | None) -> str:
+    """The caption with the pack's call to action under its first line and above its hashtags."""
+    parts = caption.strip().split("\n\n")
+    if not gift:
+        return "\n\n".join(parts)
+    tags = len(parts) - 1 if parts[-1].lstrip().startswith("#") else len(parts)
+    return "\n\n".join([parts[0], gift["top"], *parts[1:tags], gift["bottom"], *parts[tags:]])
+
+
+def pack_files(folder: Path, name: str, gift: dict[str, Any] | None) -> list[str]:
+    """Copies the free pack next to the post and returns its AUTO-DM block (nothing without one)."""
+    if not gift:
+        return []
+    pdf = f"{name} - free pack.pdf"
+    shutil.copy2(gift["pdf"], folder / pdf)
+    return ["", *auto_dm(gift, pdf)]
+
+
+def auto_dm(gift: dict[str, Any], pdf: str) -> list[str]:
+    """What to set in the comment-to-DM tool for this post (once, when posting it)."""
+    return [
+        "AUTO-DM (set in ReplyKaro when you post this):",
+        f"  Keyword in a comment:   {gift['keyword']}",
+        f"  Reply under the comment: {gift['reply']}",
+        f"  Follow gate (on):        {gift['gate']}",
+        f"  Ask for the email:       {gift['ask']}",
+        f"  Then send the PDF:       {pdf}",
+        f"  with the message:        {gift['send']}",
+    ]
+
+
 def kit_v2(kit: str, post: dict[str, Any]) -> str:
     """The kit with the plan's titles in place of the old ones and its opening paragraph."""
     lines = kit.splitlines()
@@ -127,8 +183,9 @@ def main(day: str, items: list[str]) -> None:
                 f"{slides[0].stem} to {slides[-1].stem}",
                 "",
                 "CAPTION:",
-                post["caption"].strip(),
+                caption_with_gift(post["caption"], gift_of(post)),
             ]
+            text += pack_files(folder, name, gift_of(post))
         else:
             shutil.copy2(release(f"{film}-{kind}.mp4"), folder / f"{name}.mp4")
             text += [f"FILE: {name}.mp4", ""]
@@ -154,7 +211,8 @@ def main(day: str, items: list[str]) -> None:
                 if post.get("tags"):
                     text += ["", "TAGS (Show more > Tags, comma separated):", post["tags"]]
             else:
-                text += ["CAPTION:", post["caption"].strip()]
+                text += ["CAPTION:", caption_with_gift(post["caption"], gift_of(post))]
+                text += pack_files(folder, name, gift_of(post))
         text.append("")
     out = folder / "00 WHAT TO POST.txt"
     out.write_text("\n".join(text), encoding="utf-8-sig")

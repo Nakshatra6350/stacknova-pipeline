@@ -1,0 +1,261 @@
+<!doctype html>
+<!--
+  The free PDF pack (owner, 23 Oct 2026), filled by studio/scripts/pack.py and printed to A5 pages.
+  window.draw(d) lays the pack out page by page: a section that does not fit carries on to a new page
+  ("continued"), and draw() returns whatever still overflows so the build can fail instead of
+  cutting text off. Two looks: style "dark" (the films' night palette) and "light" (paper).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  @page { size: A5; margin: 0; }
+  :root {
+    --violet: #7b5cff; --pink: #ff4d8d; --orange: #ff8a3d; --gold: #ffd24d;
+    --nova: linear-gradient(90deg, var(--pink), var(--orange) 55%, var(--gold));
+    --bar: linear-gradient(90deg, var(--violet), var(--pink) 55%, var(--orange));
+  }
+  .dark {
+    --bg: #07060f; --bg2: #120d26; --ink: #f4f1ff; --text: #d9d4f0; --muted: #a29bc4; --line: #2a2350;
+    --code-bg: #0e0b1f; --code-line: #262046; --kw: #f08ab8; --type: #86a8ff; --str: #ffd58a;
+    --num: #7ff0c8; --com: #7b8ca6; --plain: #e8f1fb; --bug: #ff7a88; --fix: #5fe3a8; --card: #110d24;
+  }
+  .light {
+    --bg: #fbfaff; --bg2: #f1edff; --ink: #14112b; --text: #2c2747; --muted: #6a6488; --line: #e1dbf7;
+    --code-bg: #f5f3ff; --code-line: #e6e0fb; --kw: #c2185b; --type: #3949ab; --str: #8d5a00;
+    --num: #00796b; --com: #8a86a3; --plain: #1d1a33; --bug: #d32f4b; --fix: #138a55; --card: #ffffff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #444; }
+  .page {
+    width: 148mm; height: 210mm; overflow: hidden; position: relative; display: flex; flex-direction: column;
+    background: var(--bg); color: var(--text); font: 500 8.6pt/1.45 Inter, sans-serif;
+    padding: 9mm 10mm 7mm; page-break-after: always; break-after: page;
+  }
+  .dark .page { background: radial-gradient(120% 60% at 100% 0%, #1b1240 0%, var(--bg) 55%); }
+  .light .page { background: radial-gradient(120% 50% at 100% 0%, #efe9ff 0%, var(--bg) 60%); }
+  .head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5mm; }
+  .brand { display: flex; align-items: center; gap: 2mm; font: 800 10pt/1 "Inter Display", Inter, sans-serif; color: var(--ink); }
+  .brand img { width: 6mm; height: 6mm; }
+  .nova { background: var(--nova); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .tag { font: 700 6.4pt/1 "JetBrains Mono", monospace; letter-spacing: .14em; color: var(--muted); }
+  .body { flex: 1; overflow: hidden; display: flex; flex-direction: column; gap: 3.2mm; }
+  .foot { display: flex; justify-content: space-between; margin-top: 3mm; padding-top: 2mm; border-top: 0.3mm solid var(--line);
+          font: 600 6.2pt/1 "JetBrains Mono", monospace; color: var(--muted); letter-spacing: .06em; }
+  h2 { font: 800 17pt/1.08 "Inter Display", Inter, sans-serif; color: var(--ink); }
+  h2 + .bar { width: 18mm; height: 1.2mm; border-radius: 1mm; background: var(--bar); margin-top: 2.2mm; }
+  .lead { color: var(--muted); font-size: 8.4pt; }
+  .cont { font: 700 6.6pt/1 "JetBrains Mono", monospace; color: var(--muted); letter-spacing: .12em; }
+
+  /* cover */
+  .cover .body { justify-content: center; gap: 5mm; }
+  .cover .kicker { font: 700 7.4pt/1 "JetBrains Mono", monospace; letter-spacing: .2em; color: var(--pink); }
+  .cover h1 { font: 800 33pt/1.0 "Inter Display", Inter, sans-serif; }
+  .cover .sub { font-size: 10.5pt; color: var(--ink); line-height: 1.4; }
+  .cover .inside { border: 0.3mm solid var(--line); background: var(--card); border-radius: 3mm; padding: 4mm 5mm; }
+  .cover .inside b { display: block; font: 700 6.6pt/1 "JetBrains Mono", monospace; letter-spacing: .16em; color: var(--muted); margin-bottom: 2.6mm; }
+  .cover .inside li { list-style: none; padding: 1mm 0 1mm 6mm; position: relative; color: var(--ink); font-weight: 600; }
+  .cover .inside li::before { content: ""; position: absolute; left: 0; top: 2.6mm; width: 2.4mm; height: 2.4mm; border-radius: 50%; background: var(--bar); }
+  .cover .ver { color: var(--muted); font-size: 7.6pt; }
+  .cover .share { font: 700 7pt/1.4 "JetBrains Mono", monospace; color: var(--muted); }
+
+  /* steps */
+  .step { display: grid; grid-template-columns: 8mm 1fr; gap: 3mm; align-items: start; }
+  .step .n { width: 7.4mm; height: 7.4mm; border-radius: 50%; background: var(--bar); color: #fff;
+             font: 800 10pt/7.4mm "Inter Display", Inter, sans-serif; text-align: center; }
+  .step h3, .rule h3 { font: 800 10.4pt/1.2 "Inter Display", Inter, sans-serif; color: var(--ink); margin-bottom: 0.8mm; }
+
+  /* numbers */
+  .num { display: grid; grid-template-columns: 22mm 1fr; gap: 3mm; align-items: baseline; padding: 1.6mm 0; border-bottom: 0.3mm solid var(--line); }
+  .num .v { font: 800 15pt/1 "Inter Display", Inter, sans-serif; background: var(--nova); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+  /* code */
+  .code { background: var(--code-bg); border: 0.3mm solid var(--code-line); border-radius: 2.4mm; padding: 2.6mm 0; }
+  .code .file { font: 700 6.2pt/1 "JetBrains Mono", monospace; color: var(--muted); padding: 0 3mm 2mm; letter-spacing: .08em; }
+  .ln { display: grid; grid-template-columns: 7mm 1fr; font: 500 6.5pt/1.42 "JetBrains Mono", monospace; color: var(--plain); white-space: pre; }
+  .ln > span { padding-right: 3mm; }
+  .code, .ln { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+  .ln i { font-style: normal; color: var(--com); text-align: right; padding-right: 2.4mm; opacity: .8; }
+  .ln.hl { background: rgba(255, 77, 141, .1); box-shadow: inset 0.8mm 0 0 var(--pink); }
+  .kw { color: var(--kw); } .ty { color: var(--type); } .st { color: var(--str); } .nu { color: var(--num); } .co { color: var(--com); }
+  .note { display: grid; grid-template-columns: 14mm 1fr; gap: 2mm; font-size: 8pt; }
+  .note b { font: 700 7pt/1.5 "JetBrains Mono", monospace; color: var(--pink); }
+
+  /* rules */
+  .rule { border: 0.3mm solid var(--line); background: var(--card); border-radius: 3mm; padding: 3.4mm 3.6mm; display: flex; flex-direction: column; gap: 2mm; }
+  .label { font: 800 6pt/1 "JetBrains Mono", monospace; letter-spacing: .16em; margin-bottom: 1mm; }
+  .label.bug { color: var(--bug); } .label.fix { color: var(--fix); }
+  .rule .code { padding: 1.8mm 0; }
+  .rule .why { font-size: 8.1pt; }
+
+  /* q&a */
+  .qa { display: grid; grid-template-columns: 6mm 1fr; gap: 2.4mm; }
+  .qa .q { font: 800 6.6pt/1 "JetBrains Mono", monospace; color: #fff; background: var(--pink); border-radius: 1.2mm; text-align: center; padding: 1.2mm 0; height: 4.4mm; }
+  .qa h4 { font: 800 9.2pt/1.3 "Inter Display", Inter, sans-serif; color: var(--ink); margin-bottom: 0.6mm; }
+
+  /* checklist */
+  .check { display: grid; grid-template-columns: 5mm 1fr; gap: 2.4mm; align-items: start; }
+  .check .box { width: 3.6mm; height: 3.6mm; border: 0.5mm solid var(--violet); border-radius: 0.8mm; margin-top: 0.6mm; }
+
+  /* end */
+  .end .body { justify-content: center; gap: 5mm; }
+  .end .big { font: 800 16pt/1.15 "Inter Display", Inter, sans-serif; color: var(--ink); }
+  .end .card { border: 0.3mm solid var(--line); background: var(--card); border-radius: 3mm; padding: 4mm; }
+  .end .card b { display: block; font: 700 6.6pt/1 "JetBrains Mono", monospace; letter-spacing: .16em; color: var(--pink); margin-bottom: 2mm; }
+  .sources { font-size: 6.2pt; line-height: 1.45; color: var(--muted); word-break: break-all; }
+  .sources li { list-style: none; margin-bottom: 0.8mm; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const KEYWORDS = {
+  java: 'abstract boolean break case catch class continue default do double else enum extends final finally float for if implements import instanceof int interface long new null package private protected public record return static super switch this throw throws true false try var void while yield',
+  go: 'break case chan const continue default defer else fallthrough for func go goto if import interface map package range return select struct switch type var nil true false err',
+  sql: 'select from where and or not null as on join left right inner group by order limit insert into update set delete create alter table index values returning begin commit rollback transaction isolation level repeatable read committed',
+};
+
+/** One line of code as HTML: comments, strings, numbers, keywords and types in their colours. */
+function paint(line, lang) {
+  const words = new Set((KEYWORDS[lang] || '').split(' '));
+  const comment = lang === 'sql' ? '--' : '//';
+  let out = '', i = 0;
+  while (i < line.length) {
+    if (line.startsWith(comment, i)) { out += `<span class="co">${esc(line.slice(i))}</span>`; break; }
+    const ch = line[i];
+    if (ch === '"' || ch === "'" || ch === '`') {
+      let j = i + 1;
+      while (j < line.length && line[j] !== ch) j += line[j] === '\\' ? 2 : 1;
+      out += `<span class="st">${esc(line.slice(i, j + 1))}</span>`; i = j + 1; continue;
+    }
+    const m = /^[A-Za-z_][A-Za-z0-9_]*/.exec(line.slice(i)) || /^\d[\d_.]*/.exec(line.slice(i));
+    if (m) {
+      const w = m[0];
+      const cls = /^\d/.test(w) ? 'nu' : words.has(lang === 'sql' ? w.toLowerCase() : w) ? 'kw' : /^[A-Z][a-z]/.test(w) ? 'ty' : '';
+      out += cls ? `<span class="${cls}">${esc(w)}</span>` : esc(w); i += w.length; continue;
+    }
+    out += esc(ch); i++;
+  }
+  return out;
+}
+
+async function loadFonts(list) {
+  for (const f of list) {
+    const face = new FontFace(f.family, `url("${f.url}")`, { weight: String(f.weight) });
+    document.fonts.add(await face.load());
+  }
+  await document.fonts.ready;
+}
+
+window.draw = async (d) => {
+  await loadFonts(d.fonts);
+  const root = document.getElementById('root');
+  root.className = d.style;
+  const overflow = [];
+  let pageNo = 0;
+  const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
+  const brand = `<div class="brand"><img src="${d.emblem}" alt=""><span>Stack<span class="nova">Nova</span></span></div>`;
+
+  function page(extra) {
+    pageNo += 1;
+    const p = el('div', `page ${extra || ''}`);
+    p.innerHTML = `<div class="head">${brand}<span class="tag">${esc(d.tag)}</span></div>`;
+    const body = el('div', 'body');
+    p.appendChild(body);
+    p.appendChild(el('div', 'foot', `<span>FREE PACK · SHARE IT WITH A FRIEND</span><span>${pageNo}</span>`));
+    root.appendChild(p);
+    return body;
+  }
+  const full = (body) => body.scrollHeight > body.clientHeight + 1;
+  function heading(body, s, cont) {
+    if (cont) body.appendChild(el('div', 'cont', `${esc(s.title.toUpperCase())} · CONTINUED`));
+    else {
+      body.appendChild(el('div', '', `<h2>${esc(s.title)}</h2><div class="bar"></div>`));
+      if (s.lead) body.appendChild(el('p', 'lead', esc(s.lead)));
+    }
+  }
+  /** Adds nodes to the section's page; one that does not fit starts a new page. */
+  function flow(s, nodes) {
+    let body = page();
+    heading(body, s, false);
+    const fitAll = (node) => [node, ...node.querySelectorAll('.code')].filter((n) => n.classList.contains('code')).forEach(fit);
+    for (const node of nodes) {
+      body.appendChild(node);
+      fitAll(node);
+      if (full(body)) {
+        body.removeChild(node);
+        body = page(); heading(body, s, true); body.appendChild(node);
+        if (full(body)) overflow.push(`${s.title}: one block is taller than a page`);
+      }
+    }
+  }
+  function codeBox(code, file, hl) {
+    const box = el('div', 'code');
+    if (file) box.appendChild(el('div', 'file', esc(file)));
+    for (const line of code.lines) {
+      const ln = el('div', `ln${hl && hl.includes(line.n) ? ' hl' : ''}`, `<i>${line.n ?? ''}</i><span>${paint(line.text, d.lang) || ' '}</span>`);
+      box.appendChild(ln);
+    }
+    return box;
+  }
+  /** A listing wider than the page is drawn smaller (down to 5.9pt), and only then wraps. */
+  function fit(box) {
+    let size = 6.5;
+    while (box.scrollWidth > box.clientWidth + 1 && size > 5.9) {
+      size -= 0.1;
+      box.querySelectorAll('.ln').forEach((ln) => { ln.style.fontSize = `${size}pt`; });
+    }
+    if (box.scrollWidth > box.clientWidth + 1) box.querySelectorAll('.ln span').forEach((s) => { s.style.whiteSpace = 'pre-wrap'; });
+  }
+
+  // cover
+  let body = page('cover');
+  body.innerHTML = `<div class="kicker">${esc(d.kicker)}</div><h1 class="nova">${esc(d.title)}</h1>
+    <p class="sub">${esc(d.subtitle)}</p>
+    <div class="inside"><b>INSIDE</b><ul>${d.inside.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>
+    <p class="ver">${esc(d.versions)}</p>
+    <p class="share">Found it useful? Send this PDF to a friend who is preparing for interviews.</p>`;
+  if (full(body)) overflow.push('cover');
+
+  for (const s of d.sections) {
+    if (s.kind === 'steps') {
+      flow(s, s.steps.map((st, i) => el('div', 'step', `<div class="n">${i + 1}</div><div><h3>${esc(st.head)}</h3><p>${esc(st.body)}</p></div>`)));
+    } else if (s.kind === 'numbers') {
+      flow(s, s.rows.map(([v, t]) => el('div', 'num', `<div class="v">${esc(v)}</div><div>${esc(t)}</div>`)));
+    } else if (s.kind === 'code') {
+      // the listing goes in pieces of a few lines, so a long one carries on to the next page
+      const notes = s.notes.map(([n, t]) => el('div', 'note', `<b>line ${n}</b><span>${esc(t)}</span>`));
+      const hl = s.notes.map(([n]) => n);
+      const pieces = [];
+      for (let i = 0; i < s.code.lines.length; i += 6) pieces.push(codeBox({ lines: s.code.lines.slice(i, i + 6) }, i === 0 ? s.code.file : '', hl));
+      pieces.forEach((p, i) => { if (i > 0) p.style.marginTop = '-3.2mm'; p.style.borderRadius = i === 0 ? '2.4mm 2.4mm 0 0' : i === pieces.length - 1 ? '0 0 2.4mm 2.4mm' : '0'; if (i > 0) p.style.borderTop = 'none'; if (i < pieces.length - 1) p.style.borderBottom = 'none'; if (i > 0) p.style.paddingTop = '0'; if (i < pieces.length - 1) p.style.paddingBottom = '0'; });
+      flow(s, [...pieces, ...notes]);
+    } else if (s.kind === 'rules') {
+      flow(s, s.rules.map((r) => {
+        const card = el('div', 'rule', `<h3>${esc(r.head)}</h3>`);
+        const bug = el('div', ''); bug.appendChild(el('div', 'label bug', 'BUG')); bug.appendChild(codeBox(r.bug));
+        const fix = el('div', ''); fix.appendChild(el('div', 'label fix', 'FIX')); fix.appendChild(codeBox(r.fix));
+        card.appendChild(bug); card.appendChild(fix); card.appendChild(el('p', 'why', esc(r.why)));
+        return card;
+      }));
+    } else if (s.kind === 'qa') {
+      flow(s, s.items.map((x, i) => el('div', 'qa', `<div class="q">Q${i + 1}</div><div><h4>${esc(x.q)}</h4><p>${esc(x.a)}</p></div>`)));
+    } else if (s.kind === 'checklist') {
+      flow(s, s.items.map((x) => el('div', 'check', `<div class="box"></div><p>${esc(x)}</p>`)));
+    }
+  }
+
+  // the last page: where to go next, and the sources
+  body = page('end');
+  body.innerHTML = `<p class="big">${esc(d.end.next)}</p>
+    <div class="card"><b>THE FULL DEEP DIVE</b><p>${esc(d.end.video)}</p></div>
+    ${d.end.more ? `<div class="card"><b>WANT MORE?</b><p>${esc(d.end.more)}</p></div>` : ''}`;
+  if (full(body)) overflow.push('last page');
+  flow({ title: 'Sources', lead: 'Every claim in this pack comes from one of these, or from the code above, run on Java 25.' },
+       d.sources.map((x) => el('p', 'sources', `${esc(x.title)}<br>${esc(x.url)}`)));
+  return { pages: pageNo, overflow };
+};
+</script>
+</body>
+</html>

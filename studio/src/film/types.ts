@@ -81,6 +81,8 @@ export interface FilmSpec {
   steps: string[];
   hook?: string;
   end?: { kicker: string; head: string; cta?: string };
+  /** The free pack a Reel offers (owner, 23 Oct 2026): its end card asks to follow and comment this. */
+  gift?: { keyword: string };
   props?: Record<string, PropSpec>;
   beats: Beat[];
 }
