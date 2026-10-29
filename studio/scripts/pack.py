@@ -39,14 +39,20 @@ def excerpt(episode: Path, ref: dict[str, Any]) -> dict[str, Any]:
 
 
 def data(episode_id: str, style: str) -> dict[str, Any]:
-    folder = ROOT / "content" / "episodes" / episode_id
+    # an episode id (content/episodes/<id>) or, for look v4, a folder such as content/v4/001-last-seat
+    folder = ROOT / episode_id if (ROOT / episode_id / "pack.yaml").exists() else ROOT / "content" / "episodes" / episode_id
     pack = yaml.safe_load((folder / "pack.yaml").read_text(encoding="utf-8"))
-    episode = yaml.safe_load((folder / "episode.yaml").read_text(encoding="utf-8"))
+    episode_file = folder / "episode.yaml"
+    episode = yaml.safe_load(episode_file.read_text(encoding="utf-8")) if episode_file.exists() else {}
     for section in pack["sections"]:
         if section["kind"] == "code":
             section["code"] = excerpt(folder, section)
         for rule in section.get("rules", []):
             rule["bug"], rule["fix"] = excerpt(folder, rule["bug"]), excerpt(folder, rule["fix"])
+        # listings inside text blocks, cards and the blocks after a section (look v4 guides)
+        for block in [*section.get("blocks", []), *section.get("after", []), *section.get("items", [])]:
+            if isinstance(block, dict) and ("from" in block or "code" in block):
+                block["listing"] = excerpt(folder, block)
     sources = [*episode.get("sources", []), *pack.get("extra_sources", [])]
     return {**pack, "style": style, "sources": sources, "tag": f"{pack['keyword']} PACK",
             "emblem": EMBLEM.as_uri(), "fonts": fonts()}

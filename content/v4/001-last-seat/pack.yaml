@@ -1,0 +1,599 @@
+# The free guide for "Behind the Button #1: The last seat" (keyword SEAT). Built by
+# studio/scripts/pack.py content/v4/001-last-seat into out/release/packs/. Every result comes from
+# samples/ run against PostgreSQL 16.13 on 29 Oct 2026 (go run . and go run ./scenarios, psql -f
+# samples/sql/scenarios.sql); code is cut from those files by line range. Owner, 29 Oct: the guide is
+# a whole resource, not just the fix: every idea the fixes use, practical scenarios and diagrams.
+keyword: SEAT
+file: stacknova-last-seat-guide
+lang: go
+kicker: "BEHIND THE BUTTON · FREE GUIDE #1"
+title: The Last Seat
+subtitle: Race conditions in SQL, from the bug to six fixes, with the Postgres internals that make each one work. Every result tested.
+versions: Tested on PostgreSQL 16.13, Go 1.24 and pgx v5.7.2 on 29 Oct 2026; the behaviour is the one the PostgreSQL 18 docs describe.
+inside:
+  - "Part 1 · The bug, step by step, and 5 other places it hides"
+  - "Part 2 · The building blocks: transactions, isolation levels, snapshots, row locks, error codes"
+  - "Part 3 · Six fixes in real Go + SQL, each tested on 1,000 seats"
+  - "Part 4 · Production: best available seat, two seats at once, 10-minute holds, big on-sales"
+  - "Part 5 · Interview kit: a 2-minute answer, 12 questions, a one-page cheat sheet"
+
+sections:
+  # ---------------------------------------------------------------- part 1
+  - kind: part
+    n: "1"
+    title: The bug
+    lead: Two people, one seat, the same millisecond. What actually happens, and why the same bug hides in code that has nothing to do with tickets.
+    items:
+      - What a race condition is
+      - The race, step by step
+      - "My test: 1,000 seats, every result"
+      - The code most of us write first
+      - 5 other places the same bug hides
+
+  - kind: text
+    title: What a race condition is
+    lead: A race condition is a bug where the result depends on timing, on which of two operations gets there first.
+    blocks:
+      - p: "Booking code usually does two things. It **reads** the seat (is it free?), then it **writes** the seat (it's yours). Each statement is correct on its own. The bug lives in the gap between them: another request can read the same free seat before the first one writes."
+      - p: "On your laptop the gap is a fraction of a millisecond, so you never see it. In production, with thousands of people tapping **Book** the moment sales open, two requests landing inside that gap is normal."
+      - callout: "This pattern is called **check-then-act** (or read-modify-write). When the second write silently replaces the first, the first one is a **lost update**."
+        label: NAMES TO KNOW
+      - callout: "Wherever code reads a value, decides, and then writes based on what it read, ask: what if another request does exactly the same thing in between?"
+        label: THE QUESTION THAT FINDS IT
+        tone: wait
+
+  - kind: timeline
+    title: The same millisecond
+    lead: "Ana and Bo tap **Book** on seat 42 together. Read top to bottom; the right column is what the row holds after each step."
+    lanes: [ANA, BO]
+    state: SEAT 42
+    events:
+      - {who: 0, text: "`SELECT holder` → NULL: free", state: "NULL"}
+      - {who: 1, text: "`SELECT holder` → NULL: free", tone: wait}
+      - {who: 0, text: "`UPDATE … holder = 'ana'`", tone: lock, state: "ana"}
+      - {who: 0, text: "Told **Booked**", tone: ok}
+      - {who: 1, text: "`UPDATE … holder = 'bo'`", tone: bad, state: "bo"}
+      - {who: 1, text: "Told **Booked**", tone: bad}
+    after:
+      - callout: "Two confirmations, one seat. The row says Bo, so Ana walks into the cinema with a ticket for a seat that isn't hers. Nothing crashed and nothing was logged as an error."
+        label: RESULT
+        tone: bad
+
+  - kind: numbers
+    title: "My test, every result"
+    lead: "1,000 seats. For each seat, two booking requests leave at the same instant. I count seats **sold twice**, and seats **sold to nobody**: a fix that turns everyone away is broken too."
+    rows:
+      - [999, "read, then write: 999 of 1,000 sold twice, in every run"]
+      - [999, "the same code inside `BEGIN … COMMIT`: 998 to 999"]
+      - [0, "Fix 1 · conditional `UPDATE`"]
+      - [0, "Fix 1b · a version number (optimistic locking)"]
+      - [0, "Fix 2 · `SELECT … FOR UPDATE` (pessimistic locking)"]
+      - [0, "Fix 3 · a unique constraint"]
+      - [0, "Fix 4 · `REPEATABLE READ`"]
+      - [0, "Fix 5 · `SERIALIZABLE`"]
+    after:
+      - p: "Every fix: 0 sold twice and 0 sold to nobody. At this size they all took 0.65 to 0.94 s for 1,000 seats on my laptop; what each one costs shows up under load, in Part 4."
+
+  - kind: code
+    title: How I tested it
+    lead: "The loop behind every number in this guide. Each seat gets two goroutines that wait on the same channel, so both requests leave at the same moment."
+    from: samples/go/main.go
+    lines: [181, 209]
+    notes:
+      - [191, "both requests wait here, then leave together"]
+      - [201, "both told yes: the seat was sold twice"]
+      - [204, "both told no: also a bug"]
+
+  - kind: code
+    title: The bug
+    lead: The version most of us write first. Each statement is fine; the gap between them is the bug.
+    from: samples/go/main.go
+    lines: [34, 44]
+    notes:
+      - [36, "read: at the same moment, both requests see NULL"]
+      - [42, "write: both write, and both return true"]
+
+  - kind: cards
+    title: 5 other places it hides
+    lead: "Same shape, different table: read a value, decide in code, write. Each fix below is one statement whose `WHERE` clause is the check (run on Postgres; the comment is its answer)."
+    lang: sql
+    items:
+      - head: The last item in stock
+        tag: SHOPS
+        body: "Two carts buy the last phone. Read-then-write sells stock you don't have."
+        from: samples/sql/scenarios.sql
+        lines: [12, 15]
+        foot: "`UPDATE 0` means sold out. A `CHECK (stock >= 0)` on the column is a second safety net."
+      - head: A wallet balance
+        tag: PAYMENTS
+        body: "Two payments of $40 from a $50 balance. Both read $50, both pass the check."
+        from: samples/sql/scenarios.sql
+        lines: [21, 24]
+        foot: "Never read the balance into code and write a new number back."
+      - head: A one-time coupon
+        tag: CHECKOUT
+        body: "Two orders use WELCOME10 at once. Both see it unused."
+        from: samples/sql/scenarios.sql
+        lines: [29, 32]
+      - head: A username
+        tag: SIGN-UP
+        body: "Two people register \"nova\" at once. Both see it free."
+        from: samples/sql/scenarios.sql
+        lines: [35, 40]
+        foot: "The `UNIQUE` constraint decides; `INSERT 0 0` means taken. No check query needed."
+      - head: A like counter
+        tag: SOCIAL
+        body: "Two requests read 10 likes, both write 11. One like is lost."
+        from: samples/sql/scenarios.sql
+        lines: [45, 47]
+        foot: "`likes + 1` is worked out by Postgres on the latest version of the row, under its lock, so no like is lost."
+      - head: "And one more: the double tap on Pay"
+        tag: NEXT GUIDE
+        body: "A network retry or an impatient double tap sends the same payment twice. Same family of bug, different fix: idempotency keys. That's the next guide in this collection."
+
+  # ---------------------------------------------------------------- part 2
+  - kind: part
+    n: "2"
+    title: The building blocks
+    lead: Every fix in this guide uses the same few database ideas. Learn them once and you can reason about any race.
+    items:
+      - "Transactions: what they do, and what they don't"
+      - Isolation levels and the 4 anomalies
+      - Why BEGIN … COMMIT didn't help
+      - "Snapshots: why readers never wait"
+      - "Row locks: who waits for whom"
+      - "Rows affected: how your code learns who won"
+      - Error codes worth knowing
+
+  - kind: text
+    title: "Transactions: all or nothing"
+    lead: A transaction groups statements so they succeed or fail together.
+    blocks:
+      - code: |-
+          BEGIN;
+          UPDATE seats SET holder = 'ana' WHERE id = 42;
+          INSERT INTO payments (seat_id, amount) VALUES (42, 12.50);
+          COMMIT;  -- both happen; on ROLLBACK or a crash, neither does
+        lang: sql
+      - p: "Without `BEGIN`, each statement is its own transaction and commits at once. The four promises, in one line each:"
+      - bullets:
+          - "**Atomic**: all of it or none of it."
+          - "**Consistent**: constraints (`PRIMARY KEY`, `UNIQUE`, `CHECK`) hold after every commit."
+          - "**Isolated**: how much a transaction sees of others running at the same time. Races live here, and it comes in levels."
+          - "**Durable**: once `COMMIT` returns, the change survives a crash."
+      - callout: "A transaction makes statements **atomic**. It does not make two transactions run **one at a time**. At Postgres's default level both can still read the same free seat: in my test, 998 to 999 seats were still sold twice inside `BEGIN … COMMIT`."
+        label: THE MISTAKE EVERYONE MAKES
+        tone: bad
+
+  - kind: table
+    title: Isolation levels
+    lead: "The SQL standard defines four levels by the anomalies each one allows. This is Postgres's version of the table (PostgreSQL 18 docs, Table 13.1)."
+    columns: [LEVEL, DIRTY READ, NON-REPEAT. READ, PHANTOM READ, SERIAL. ANOMALY]
+    widths: "23mm 1fr 1fr 1fr 1fr"
+    rows:
+      - ["Read uncommitted", {t: "Allowed, but not in PG", tone: ok}, {t: Possible, tone: bad}, {t: Possible, tone: bad}, {t: Possible, tone: bad}]
+      - ["Read committed (the default)", {t: Not possible, tone: ok}, {t: Possible, tone: bad}, {t: Possible, tone: bad}, {t: Possible, tone: bad}]
+      - ["Repeatable read", {t: Not possible, tone: ok}, {t: Not possible, tone: ok}, {t: "Allowed, but not in PG", tone: ok}, {t: Possible, tone: bad}]
+      - ["Serializable", {t: Not possible, tone: ok}, {t: Not possible, tone: ok}, {t: Not possible, tone: ok}, {t: Not possible, tone: ok}]
+    after:
+      - h: The four anomalies, in one line each
+      - bullets:
+          - "**Dirty read**: you see another transaction's change before it commits."
+          - "**Non-repeatable read**: you read a row twice and get different values, because someone committed in between."
+          - "**Phantom read**: you run the same search twice and get a different set of rows."
+          - "**Serialization anomaly**: a result that could not have happened if the transactions had run one after another. Our double booking is one: run one at a time, Bo would have seen the seat taken."
+      - callout: "Postgres's Read uncommitted behaves like Read committed, and its Repeatable read also prevents phantoms. Check your default with `SHOW default_transaction_isolation;`."
+        label: POSTGRES SPECIFICS
+
+  - kind: timeline
+    title: Why BEGIN … COMMIT didn't help
+    lead: "At Read committed, each statement sees the data committed **before that statement began**. Here is the transaction version, step by step."
+    lanes: [ANA, BO]
+    state: SEAT 42
+    events:
+      - {who: 0, text: "`BEGIN`; `SELECT` → NULL", state: "NULL"}
+      - {who: 1, text: "`BEGIN`; `SELECT` → NULL", tone: wait}
+      - {who: 0, text: "`UPDATE … 'ana'`: locks row 42", tone: lock, state: "ana (pending)"}
+      - {who: 1, text: "`UPDATE … 'bo'`: row locked, so it **waits**", tone: wait}
+      - {who: 0, text: "`COMMIT`", tone: ok, state: "ana"}
+      - {who: 1, text: "Re-checks `WHERE id = 42` on the new row: still true", tone: bad}
+      - {who: 1, text: "Writes 'bo', `COMMIT`. Both told **Booked**", tone: bad, state: "bo"}
+    after:
+      - p: "Step 4 is Postgres protecting you: two writers never change one row at the same time. But once Ana commits, Bo's UPDATE re-checks **only its own WHERE clause** on the new version of the row. `WHERE id = 42` is still true, so it overwrites Ana."
+      - callout: "Put the condition that matters (**the seat is still free**) into the UPDATE's WHERE clause, and this same re-check works for you. That is Fix 1."
+        label: THE KEY INSIGHT
+        tone: ok
+
+  - kind: text
+    title: "Snapshots: readers never wait"
+    lead: "Postgres keeps older versions of rows (MVCC, multiversion concurrency control). A reader sees a consistent snapshot without waiting: in the docs' words, reading never blocks writing and writing never blocks reading."
+    blocks:
+      - bullets:
+          - "A plain `SELECT` never waits for a row lock and never blocks a writer."
+          - "At **Read committed**, every statement takes a new snapshot."
+          - "At **Repeatable read** and **Serializable**, the whole transaction uses the snapshot taken at its first statement."
+      - callout: "That is why read-then-write races. The read waits for nothing, so two reads of a free seat succeed together. Only **writers and lockers** of the same row wait for each other."
+        label: WHY IT MATTERS HERE
+
+  - kind: table
+    title: "Row locks: who waits for whom"
+    lead: "Writes lock the rows they change until the transaction ends (COMMIT or ROLLBACK). A locking clause on SELECT takes the same kind of lock on purpose."
+    columns: [LOCK, TAKEN BY, BLOCKS]
+    widths: "27mm 1fr 1fr"
+    rows:
+      - ["FOR UPDATE", "`SELECT … FOR UPDATE`, `DELETE`, an `UPDATE` that changes a unique key column", "every other row lock, and any change"]
+      - ["FOR NO KEY UPDATE", "every other `UPDATE`", "the same, except `FOR KEY SHARE`"]
+      - ["FOR SHARE", "`SELECT … FOR SHARE`", "changes, `FOR UPDATE`, `FOR NO KEY UPDATE`"]
+      - ["FOR KEY SHARE", "`SELECT … FOR KEY SHARE`", "`DELETE`, key changes, `FOR UPDATE`"]
+      - ["(no lock)", "plain `SELECT`", {t: "nothing, and waits for nothing", tone: ok}]
+    after:
+      - bullets:
+          - "A row lock is held until the transaction ends, so a long transaction means a long queue behind it."
+          - "By default a waiter waits as long as it takes. `NOWAIT` fails at once; `SET lock_timeout = '2s'` caps the wait. Both give error `55P03` (tested)."
+          - "`SKIP LOCKED` steps over rows someone else holds. Part 4 puts it to work."
+      - callout: "For booking you need two rows of this table: **UPDATE** locks the row it changes, and **SELECT … FOR UPDATE** takes that lock before you decide."
+        label: WHAT YOU ACTUALLY NEED
+
+  - kind: table
+    title: "Rows affected: who won"
+    lead: "Every UPDATE, DELETE and INSERT reports how many rows it changed; Postgres sends it back as the command tag (`UPDATE 1`, `UPDATE 0`). With a conditional write, that number is the answer: **1** = you won, **0** = someone was first."
+    columns: [LANGUAGE, HOW YOU READ IT]
+    widths: "27mm 1fr"
+    rows:
+      - ["Go (pgx)", "`tag, err := db.Exec(…)`, then `tag.RowsAffected()`"]
+      - ["Java (JDBC)", "`int n = statement.executeUpdate();`"]
+      - ["Node.js (pg)", "`const res = await client.query(…)`, then `res.rowCount`"]
+      - ["Python (psycopg)", "`cur.execute(…)`, then `cur.rowcount`"]
+      - ["psql", "the line it prints: `UPDATE 1` or `UPDATE 0`"]
+    after:
+      - callout: "Skip this check and a perfectly correct conditional UPDATE still tells both people **Booked**: the query succeeds either way, it just changes 0 rows for the loser."
+        label: DON'T SKIP THE CHECK
+        tone: bad
+
+  - kind: table
+    title: Error codes worth knowing
+    lead: "Postgres tags every error with a 5-character SQLSTATE. Match on the code, never on the message text."
+    columns: [CODE, NAME, MEANS HERE, DO THIS]
+    widths: "11mm 27mm 1fr 1fr"
+    rows:
+      - ["23505", "unique_violation", "Someone already booked this seat (Fix 3)", "Answer 409 \"taken\", not 500"]
+      - ["40001", "serialization_failure", "Postgres refused your transaction to keep the result serial (Fixes 4, 5)", "Retry the whole transaction, a few times at most"]
+      - ["40P01", "deadlock_detected", "Two transactions waited on each other; Postgres cancelled yours", "Retry, and fix the lock order"]
+      - ["55P03", "lock_not_available", "`NOWAIT` or `lock_timeout` gave up waiting", "Tell the user to try again"]
+    join: true
+
+  # ---------------------------------------------------------------- part 3
+  - kind: part
+    n: "3"
+    title: Six fixes, tested
+    lead: "Each one ran against the same test: 1,000 seats, two requests per seat, both leaving at the same instant. Each sold every seat exactly once."
+    items:
+      - "Fix 1: one conditional UPDATE"
+      - "Fix 1b: a version number (optimistic locking)"
+      - "Fix 2: SELECT … FOR UPDATE (pessimistic locking)"
+      - "Fix 3: a unique constraint"
+      - "Fixes 4 and 5: REPEATABLE READ and SERIALIZABLE"
+      - Optimistic vs pessimistic, and which fix to use
+
+  - kind: code
+    title: "Fix 1: one conditional UPDATE"
+    lead: "Check and write in one statement. No transaction, no extra query, one round trip."
+    from: samples/go/main.go
+    lines: [49, 56]
+    notes:
+      - [51, "`AND holder IS NULL`: only a free seat can be taken"]
+      - [55, "1 row changed = you got the seat; 0 = someone was first"]
+
+  - kind: timeline
+    title: Fix 1, inside Postgres
+    lead: The same race as before. The only change is the WHERE clause.
+    lanes: [ANA, BO]
+    state: SEAT 42
+    join: true
+    events:
+      - {who: 0, text: "`UPDATE … AND holder IS NULL`: matches, locks the row", tone: lock, state: "ana (pending)"}
+      - {who: 1, text: "Same UPDATE: row locked, so it **waits**", tone: wait}
+      - {who: 0, text: "Commits: `UPDATE 1`, **Booked**", tone: ok, state: "ana"}
+      - {who: 1, text: "Re-checks `holder IS NULL` on the new row: false", tone: wait}
+      - {who: 1, text: "`UPDATE 0`: **Sorry, taken**", tone: ok}
+
+  - kind: code
+    title: "Fix 1b: a version number"
+    lead: "Read the row and its version, then write only if the version hasn't changed, and bump it. This is **optimistic locking**: nobody waits while you think; a conflict shows up as 0 rows."
+    from: samples/go/main.go
+    lines: [60, 73]
+    notes:
+      - [63, "read the seat and its version, with no lock"]
+      - [68, "write only if the version is still the one you read"]
+      - [72, "0 rows: someone changed the row since you read it"]
+    after:
+      - callout: "Use it when the read and the write are far apart: a form a user edits for a minute, or an object your code loads, changes and saves. On a conflict, reload and ask the user, or retry."
+        label: WHEN IT SHINES
+        tone: ok
+
+  - kind: code
+    title: "Fix 2: SELECT … FOR UPDATE"
+    lead: "Lock the row while you read it. The second request waits at its SELECT until the first commits, then reads the seat the first one took. This is **pessimistic locking**."
+    from: samples/go/main.go
+    lines: [97, 110]
+    notes:
+      - [101, "`FOR UPDATE`: the second request waits right here"]
+      - [102, "only a request that read NULL goes on"]
+      - [105, "the write; the lock is held until COMMIT"]
+    after:
+      - callout: "Use it when you must read the row and check things in code before writing: the price, the user's limit, the seat type. Keep the transaction short: everyone who wants that row waits while you hold it. No HTTP calls, emails or payment calls inside."
+        label: WHEN TO USE IT
+        tone: wait
+
+  - kind: code
+    title: "Fix 3: a unique constraint"
+    lead: "Store each booking as its own row, with the seat as the primary key: `bookings (seat_id int PRIMARY KEY, holder text NOT NULL)`. The database refuses a second booking for the same seat."
+    from: samples/go/main.go
+    lines: [114, 121]
+    notes:
+      - [115, "one INSERT, no read first"]
+      - [117, "`23505` is unique_violation: the seat is taken (answer 409, not 500)"]
+    after:
+      - p: "Two inserts for the same seat can't both commit. The second waits for the first, then fails with `23505` if the first committed, or goes ahead if it rolled back. It holds for every code path: this service, an admin script, a new service next year."
+      - callout: "`INSERT … ON CONFLICT (seat_id) DO NOTHING` returns `INSERT 0 0` instead of an error, if you'd rather check rows affected (like the username example in Part 1)."
+        label: NO ERROR NEEDED
+
+  - kind: code
+    title: "Fixes 4 and 5: stricter isolation"
+    lead: "Keep the read-then-write code and run it at a stricter level. One of the two transactions commits; the other gets error `40001` instead of overwriting."
+    from: samples/go/main.go
+    lines: [126, 147]
+    notes:
+      - [129, "the level: `pgx.RepeatableRead` or `pgx.Serializable`"]
+      - [142, "40001: Postgres refused this transaction"]
+    after:
+      - bullets:
+          - "**Repeatable read**: the whole transaction uses one snapshot. Bo's UPDATE waits for Ana, then fails with 'could not serialize access due to concurrent update'."
+          - "**Serializable**: Postgres also watches what you read, and fails a transaction whose result couldn't have happened one at a time, even when the two wrote different rows."
+      - callout: "Every caller must handle `40001` by retrying the whole transaction. Here a retry would read the seat as taken, so the code treats it as taken. Elsewhere, wrap the transaction in a retry loop with a limit."
+        label: THE PRICE
+        tone: wait
+
+  - kind: table
+    title: Optimistic vs pessimistic
+    join: true
+    columns: ["", OPTIMISTIC, PESSIMISTIC]
+    widths: "22mm 1fr 1fr"
+    rows:
+      - ["Idea", "Assume no conflict; detect it when you write", "Assume a conflict; lock before you decide"]
+      - ["In SQL", "`AND holder IS NULL` or `AND version = $3`", "`SELECT … FOR UPDATE`"]
+      - ["Others wait?", {t: "No", tone: ok}, {t: "Yes, until you commit", tone: wait}]
+      - ["On conflict", "0 rows changed: tell the user, or reload and retry", "The second request waits, then sees the new value"]
+      - ["Best when", "Conflicts are rare, or the read and the write are far apart", "You must check things in code, and the work is short"]
+      - ["Watch out for", "Forgetting to check rows affected", "Long transactions; lock order (deadlocks)"]
+
+  - kind: decide
+    title: Which fix to use
+    lead: All six sold every seat exactly once. Pick by the shape of your rule.
+    rows:
+      - {if: "One row moves from one state to another: free → taken, stock 1 → 0", use: "Fix 1: conditional UPDATE", why: "Simplest: one statement, one round trip, no transaction. Start here."}
+      - {if: "Your code loads a row, works on it for a while, then saves it", use: "Fix 1b: version number", why: "Nobody waits; a conflict shows up as 0 rows."}
+      - {if: "You must read the row and check things in code before writing", use: "Fix 2: FOR UPDATE", why: "Keep the transaction short."}
+      - {if: "The rule is \"at most one per …\": seat, email, order", use: "Fix 3: unique constraint", why: "Enforced for every writer, forever. Add it even when you use another fix."}
+      - {if: "Many rows decide the outcome together", use: "Fix 5: SERIALIZABLE", why: "Needs retry code at every call site."}
+
+  # ---------------------------------------------------------------- part 4
+  - kind: part
+    n: "4"
+    title: In production
+    lead: Real booking systems have problems the simple test doesn't. Each of these was tested too.
+    items:
+      - "Best available seat: 100 people, one query"
+      - "Two seats at once: the deadlock"
+      - Hold the seat for 10 minutes while they pay
+      - "A big on-sale, end to end"
+
+  - kind: text
+    title: Best available seat
+    lead: "The app picks the seat: \"give me the best free seat\". My test: 100 people tap at once for 100 seats; each request locks the lowest free seat, spends 10 ms on other work (a price check, say), then writes."
+    blocks:
+      - from: samples/go/scenarios/main.go
+        lines: [27, 32]
+        hl: [30, 31]
+      - p: "With plain `FOR UPDATE`, every request goes for the same lowest seat, so they queue on it one by one. Each waiter then re-checks, finds that seat taken and moves on to the next. With `SKIP LOCKED`, a request steps over seats others are holding and takes the next free one, so 50 connections work at once."
+
+  - kind: numbers
+    title: "Best available seat: results"
+    join: true
+    rows:
+      - ["1.5 s", "`FOR UPDATE`: 100 of 100 seated, 0 sold twice; everyone queued (1,476 to 1,506 ms, 4 runs)"]
+      - ["0.07 s", "`FOR UPDATE SKIP LOCKED`: 100 of 100 seated, 0 sold twice (63 to 86 ms, 4 runs)"]
+    after:
+      - callout: "The docs' warning: skipping locked rows gives an inconsistent view of the data. Use it for queue-like work (any free seat, the next job to run), never for reading data you report on."
+        label: WHEN TO USE SKIP LOCKED
+        tone: wait
+
+  - kind: timeline
+    title: "Two seats at once: a deadlock"
+    lead: "Ana and Bo both want seats 7 and 8. Ana's request locks 7, then 8. Bo's locks 8, then 7."
+    lanes: [ANA, BO]
+    state: LOCKS
+    events:
+      - {who: 0, text: "Locks seat 7", tone: lock, state: "7 Ana"}
+      - {who: 1, text: "Locks seat 8", tone: lock, state: "7 Ana · 8 Bo"}
+      - {who: 0, text: "Wants seat 8: **waits for Bo**", tone: wait}
+      - {who: 1, text: "Wants seat 7: **waits for Ana**", tone: wait}
+      - {who: null, text: "A cycle: neither can ever go on. After `deadlock_timeout` (1 s by default) Postgres cancels one of them with `40P01`", tone: bad, state: "7 Ana"}
+      - {who: 0, text: "Gets seat 8 and books both", tone: ok, state: "7 Ana · 8 Ana"}
+    after:
+      - p: "My test, 100 pairs: **99 deadlocks**, each a frozen second for someone (103.5 s in total). No seat was sold twice, but 99 people got an error."
+      - p: "The fix is one line: everyone locks in the same order. Same test, sorted: **0 deadlocks**, 2.5 to 2.8 s for all 100 pairs."
+      - from: samples/go/scenarios/main.go
+        lines: [60, 62]
+        hl: [61]
+      - callout: "Lock rows in one fixed order everywhere (by id). Which transaction Postgres cancels is unpredictable, so keep a retry for 40P01 too, as the docs advise."
+        label: THE RULE
+        tone: ok
+
+  - kind: text
+    title: Hold the seat while they pay
+    lead: "Real apps don't sell on tap. They hold the seat for a few minutes while the person pays, then confirm. Both steps are conditional UPDATEs."
+    blocks:
+      - from: samples/sql/scenarios.sql
+        lines: [53, 56]
+        lang: sql
+      - from: samples/sql/scenarios.sql
+        lines: [65, 68]
+        lang: sql
+      - h: Tested, in this order
+      - bullets:
+          - "Ana holds seat 42: `UPDATE 1`"
+          - "Bo tries while Ana's hold is running: `UPDATE 0`"
+          - "Ana's 10 minutes run out, unpaid. Bo tries again: `UPDATE 1`"
+          - "Ana's payment arrives late. Confirm: `UPDATE 0`, so the app refunds Ana"
+          - "Bo pays and confirms: `UPDATE 1`"
+      - callout: "Expired holds free themselves: `held_until < now()` in the WHERE clause makes a timed-out seat bookable again. A cleanup job is only for tidiness, not for correctness."
+        label: NO TIMER NEEDED
+        tone: ok
+
+  - kind: flowchart
+    title: "A big on-sale, end to end"
+    lead: "When Ticketmaster opened the Eras Tour presale in November 2022, it reported 3.5 billion system requests. At that scale the database can't see every tap. A common design:"
+    nodes:
+      - {head: Waiting room, body: "Let people in at the rate the system can serve; everyone else sees their place in the queue."}
+      - {head: Limits per user, body: "Cap requests per person and device, so scripts and refresh-spam don't crowd out real fans."}
+      - {head: "Hold: conditional UPDATE", body: "`… AND (holder IS NULL OR held_until < now())`: exactly one hold per seat."}
+      - {head: Payment, body: "Outside any transaction or lock. Send an idempotency key so a retried payment isn't charged twice (the next guide)."}
+      - {head: "Confirm: conditional UPDATE", body: "`… AND holder = $me AND held_until > now()`. 0 rows means the hold expired: refund."}
+      - {head: "Safety net: unique constraint", body: "One booking row per seat, so even a bug somewhere else can't sell it twice.", tone: ok}
+
+  # ---------------------------------------------------------------- part 5
+  - kind: part
+    n: "5"
+    title: Interview kit
+    lead: "\"Design a ticket booking system\" (BookMyShow, Ticketmaster) is a classic system design question, and this race is its heart."
+    items:
+      - A 2-minute answer
+      - 12 questions, with answers
+      - 8 mistakes to catch in a code review
+      - A checklist and a one-page cheat sheet
+
+  - kind: steps
+    title: Your 2-minute answer
+    lead: When the interviewer asks "two users book the same seat, what happens?", walk through this.
+    steps:
+      - head: Name the problem
+        body: "Check-then-act: two requests can both read the seat as free before either writes. The second write is a lost update."
+      - head: Say why a transaction isn't enough
+        body: "Postgres defaults to Read committed: each statement sees what was committed when it began, so both reads see free."
+      - head: Give the fix
+        body: "One conditional UPDATE, `WHERE id = $1 AND holder IS NULL`, then check rows affected. Postgres locks the row, the loser waits, re-checks the WHERE clause and changes 0 rows."
+      - head: Add a safety net
+        body: "A unique constraint on bookings(seat_id). Map error 23505 to 409 \"taken\"."
+      - head: Scale it
+        body: "Holds with an expiry, payment outside any lock with an idempotency key, SKIP LOCKED for \"best available\", a waiting room for spikes."
+      - head: Show the trade-offs
+        body: "Optimistic vs pessimistic, retries for SERIALIZABLE, lock ordering against deadlocks."
+
+  - kind: qa
+    title: 12 interview questions
+    items:
+      - q: What is a race condition?
+        a: "A bug where the result depends on timing. Here, two bookings both read \"free\" before either one writes, and both succeed."
+      - q: Why doesn't a transaction fix read-then-write?
+        a: "At Read committed, Postgres's default, each statement sees what was committed before it began. Both reads see NULL; the second UPDATE waits, then still matches `id = 42` and overwrites. My test: 998 to 999 of 1,000 still sold twice."
+      - q: How does the conditional UPDATE work inside Postgres?
+        a: "The first UPDATE locks the row. The second waits for it to commit, re-evaluates its WHERE clause on the updated row, no longer matches, and changes 0 rows."
+      - q: Why must you check rows affected?
+        a: "A conditional UPDATE doesn't fail when it loses; it changes 0 rows. Only the count tells your code whether to say Booked."
+      - q: Optimistic vs pessimistic locking?
+        a: "Pessimistic locks before deciding (`SELECT … FOR UPDATE`): others wait. Optimistic writes only if the row is still as you read it (`holder IS NULL`, or a version number) and treats 0 rows changed as a conflict."
+      - q: When is SELECT … FOR UPDATE the right tool?
+        a: "When code must read the row, check several things and then write, as one decision. Hold the lock briefly: no network calls inside the transaction."
+      - q: Why a unique constraint when the code already checks?
+        a: "Code checks can race and can be skipped by another writer. A constraint is enforced by the database on every insert; the loser gets error 23505."
+      - q: Repeatable read vs serializable in Postgres?
+        a: "Both run the whole transaction on one snapshot and fail the loser of a write conflict with 40001. Serializable also tracks reads, so it catches anomalies where two transactions write different rows based on what they read. Both need retries."
+      - q: What is a deadlock, and how do you avoid it?
+        a: "Two transactions each hold a lock the other needs. Postgres detects it (after deadlock_timeout, 1 s by default) and cancels one with 40P01. Lock rows in the same order everywhere, and retry the rare one that still happens."
+      - q: When would you use SKIP LOCKED?
+        a: "When any free row will do: the best available seat, the next job in a queue. Requests skip rows others hold instead of queueing. My test: 63 to 86 ms instead of about 1.5 s for 100 people. Not for reports: it skips data."
+      - q: Can a lock in Redis or in app memory solve this instead?
+        a: "An in-memory lock protects one server only; with two app servers it does nothing. A distributed lock adds a second system that can expire or fail mid-request. When the seat lives in one database, let the database decide."
+      - q: How would you design ticket booking for a big on-sale?
+        a: "Make the final write safe with a conditional UPDATE plus a unique constraint, hold seats with an expiry while people pay, and keep most traffic away from the database: a waiting room, per-user limits, payment outside any lock."
+
+  - kind: text
+    title: 8 mistakes to catch in a review
+    blocks:
+      - bullets:
+          - "**Reading, deciding in code, writing in another statement**, with nothing to stop a second request in between."
+          - "**Wrapping it in BEGIN … COMMIT and calling it safe.** At Read committed it isn't."
+          - "**Running a conditional UPDATE and ignoring rows affected.**"
+          - "**Returning 500 for 23505 or 40001.** They mean \"taken\" and \"try again\", not \"we crashed\"."
+          - "**Calling a payment API or sending email while holding a row lock.** Everyone behind you waits for the network."
+          - "**Retrying 40001 or 40P01 forever, or never.** Retry a few times, then fail cleanly."
+          - "**Locking the same rows in different orders in different code paths.** That's how deadlocks are born."
+          - "**Testing with one user.** The race needs two. Fire concurrent requests in your tests."
+
+  - kind: checklist
+    title: Checklist for booking code
+    items:
+      - "Never decide on a value read in an earlier statement without a lock or a conditional write."
+      - "After a conditional UPDATE, check rows affected: 0 means another request won."
+      - "Enforce \"one per\" rules with a unique constraint, not only in code."
+      - "Map 23505 to \"already taken\" (409), never to a 500."
+      - "Keep FOR UPDATE transactions short: no network calls while holding a lock."
+      - "Lock several rows in one fixed order (by id)."
+      - "Using Repeatable read or Serializable? Retry on 40001, with a limit."
+      - "Remember Postgres's default is Read committed: BEGIN alone doesn't serialize your logic."
+      - "Where a person is waiting, cap lock waits with `lock_timeout` or `NOWAIT`."
+      - "Test it: fire two requests at the same instant, a thousand times, and count."
+
+  - kind: table
+    title: Cheat sheet
+    lead: Screenshot this page.
+    columns: [YOU NEED TO, SQL, THEN CHECK]
+    widths: "30mm 1fr 25mm"
+    rows:
+      - ["Take something once", "`UPDATE … WHERE id = $1 AND holder IS NULL`", "1 row = yours"]
+      - ["Save without lost updates", "`… SET version = version + 1 WHERE id = $1 AND version = $2`", "1 row = saved"]
+      - ["Never sell below zero", "`SET stock = stock - 1 WHERE id = $1 AND stock >= 1`", "1 row = sold"]
+      - ["Count likes, views, votes", "`SET likes = likes + 1`", "nothing"]
+      - ["At most one per …", "`UNIQUE` or `PRIMARY KEY`; `ON CONFLICT DO NOTHING`", "23505, or 0 rows"]
+      - ["Check in code, then write", "`SELECT … FOR UPDATE` in a short transaction", "keep it short"]
+      - ["Any free one, fast", "`… LIMIT 1 FOR UPDATE SKIP LOCKED`", "no row = none left"]
+      - ["Hold, then confirm", "`… AND (holder IS NULL OR held_until < now())`", "1 row = held"]
+      - ["Lock several rows", "lock them in id order", "retry on 40P01"]
+      - ["Not wait forever", "`NOWAIT` or `SET lock_timeout = '2s'`", "55P03"]
+      - ["Complex rules", "`SERIALIZABLE`", "retry on 40001"]
+
+  - kind: table
+    title: Collect the series
+    lead: "Every Behind the Button video comes with its own free guide like this one. Comment the keyword shown in each video to get it, and build the whole set."
+    columns: ["#", COMING UP]
+    widths: "8mm 1fr"
+    rows:
+      - [{t: "1", tone: ok}, {t: "The last seat: race conditions in SQL (this guide)", tone: ok}]
+      - ["2", "You tapped Pay twice, charged once: idempotency keys"]
+      - ["3", "Why your OTP dies in 30 seconds: how TOTP works"]
+      - ["4", "The view counter that broke at 2,147,483,647: integer overflow"]
+      - ["5", "\"Username taken\" in 1 ms among a billion: unique indexes and Bloom filters"]
+      - ["6", "Why \"typing…\" shows up instantly: WebSockets and presence"]
+      - ["7", "The reset link that only works once: single-use tokens"]
+
+end:
+  video: "Behind the Button #1, The last seat: on Instagram @stacknova.dev and YouTube @StackNovaDev."
+  next: "This is guide #1 of the Behind the Button collection. Follow, and comment the keyword on the next video to get guide #2."
+  more: "Test your own booking code the way this guide did: fire two requests at the same instant, a thousand times, and count the seats sold twice."
+
+sources_lead: Every claim in this guide comes from one of these, or from the tests in it (PostgreSQL 16.13, 29 Oct 2026).
+extra_sources:
+  - {title: "PostgreSQL 18 — 13.1 Introduction (MVCC: reading never blocks writing and writing never blocks reading)", url: "https://www.postgresql.org/docs/18/mvcc-intro.html"}
+  - {title: "PostgreSQL 18 — 13.2 Transaction Isolation (Table 13.1; Read Committed is the default; a second UPDATE waits and re-evaluates WHERE; Repeatable Read and Serializable fail with 40001)", url: "https://www.postgresql.org/docs/18/transaction-iso.html"}
+  - {title: "PostgreSQL 18 — 13.3 Explicit Locking (row-level lock modes, held until transaction end; deadlocks, consistent lock order, retry)", url: "https://www.postgresql.org/docs/18/explicit-locking.html"}
+  - {title: "PostgreSQL 18 — SELECT, the locking clause (NOWAIT, SKIP LOCKED, its inconsistent view and queue-like use)", url: "https://www.postgresql.org/docs/18/sql-select.html"}
+  - {title: "PostgreSQL 18 — 63.5 Index Uniqueness Checks (a second insert waits for the first, then conflicts if it committed)", url: "https://www.postgresql.org/docs/18/index-unique-checks.html"}
+  - {title: "PostgreSQL 18 — 19.11 Client Connection Defaults (lock_timeout; 0, no limit, by default)", url: "https://www.postgresql.org/docs/18/runtime-config-client.html"}
+  - {title: "PostgreSQL 18 — 19.12 Lock Management (deadlock_timeout, 1 s by default)", url: "https://www.postgresql.org/docs/18/runtime-config-locks.html"}
+  - {title: "PostgreSQL 18 — Appendix A, error codes (23505, 40001, 40P01, 55P03)", url: "https://www.postgresql.org/docs/18/errcodes-appendix.html"}
+  - {title: "pgx v5 — BeginFunc, BeginTxFunc, TxOptions, CommandTag.RowsAffected", url: "https://pkg.go.dev/github.com/jackc/pgx/v5"}
+  - {title: "Java SE 25 — PreparedStatement.executeUpdate returns the row count", url: "https://docs.oracle.com/en/java/javase/25/docs/api/java.sql/java/sql/PreparedStatement.html"}
+  - {title: "node-postgres — result.rowCount", url: "https://node-postgres.com/apis/result"}
+  - {title: "Psycopg 3 — Cursor.rowcount", url: "https://www.psycopg.org/psycopg3/docs/api/cursors.html"}
+  - {title: "Ticketmaster on the Eras Tour presale, Nov 2022: 3.5 billion system requests (NBC Chicago)", url: "https://nbcchicago.com/news/local/ticketmaster-breaks-down-what-happened-during-taylor-swift-presale-snafu/2999756"}

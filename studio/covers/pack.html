@@ -73,7 +73,7 @@
   .code { background: var(--code-bg); border: 0.3mm solid var(--code-line); border-radius: 2.4mm; padding: 2.6mm 0; }
   .code .file { font: 700 6.2pt/1 "JetBrains Mono", monospace; color: var(--muted); padding: 0 3mm 2mm; letter-spacing: .08em; }
   .ln { display: grid; grid-template-columns: 7mm 1fr; font: 500 6.5pt/1.42 "JetBrains Mono", monospace; color: var(--plain); white-space: pre; }
-  .ln > span { padding-right: 3mm; }
+  .ln > span { padding-right: 3mm; tab-size: 4; }
   .code, .ln { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
   .ln i { font-style: normal; color: var(--com); text-align: right; padding-right: 2.4mm; opacity: .8; }
   .ln.hl { background: rgba(255, 77, 141, .1); box-shadow: inset 0.8mm 0 0 var(--pink); }
@@ -104,12 +104,72 @@
   .end .card b { display: block; font: 700 6.6pt/1 "JetBrains Mono", monospace; letter-spacing: .16em; color: var(--pink); margin-bottom: 2mm; }
   .sources { font-size: 6.2pt; line-height: 1.45; color: var(--muted); word-break: break-all; }
   .sources li { list-style: none; margin-bottom: 0.8mm; }
+
+  /* look v4 guides: inline code, parts, text blocks, timelines, tables, cards, flowcharts, decisions */
+  .dark { --ok: #5fe3a8; --bad: #ff7a88; --wait: #ffc061; --lock: #a58bff; }
+  .light { --ok: #138a55; --bad: #d32f4b; --wait: #a66300; --lock: #5b3fd6; }
+  .page b { color: var(--ink); }
+  .ic { font: 600 0.9em/1 "JetBrains Mono", monospace; color: var(--ink); background: var(--code-bg); border: 0.25mm solid var(--code-line);
+        border-radius: 0.8mm; padding: 0.1mm 0.7mm; font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+  .gap { height: 2mm; }
+  .part .body { justify-content: center; gap: 4mm; }
+  .part .pn { font: 800 64pt/0.9 "Inter Display", Inter, sans-serif; background: var(--nova); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .part .kicker { font: 700 7.4pt/1 "JetBrains Mono", monospace; letter-spacing: .2em; color: var(--pink); }
+  .part h2 { font-size: 24pt; }
+  .blk-h { font: 800 10.4pt/1.2 "Inter Display", Inter, sans-serif; color: var(--ink); margin-top: 1mm; }
+  .callout { border-left: 1mm solid var(--violet); background: var(--card); border-radius: 0 2.4mm 2.4mm 0; padding: 2.6mm 3.4mm; }
+  .callout .lb { display: block; font: 800 6pt/1 "JetBrains Mono", monospace; letter-spacing: .16em; color: var(--violet); margin-bottom: 1.4mm; }
+  .callout.ok { border-color: var(--ok); } .callout.ok .lb { color: var(--ok); }
+  .callout.bad { border-color: var(--bad); } .callout.bad .lb { color: var(--bad); }
+  .callout.wait { border-color: var(--wait); } .callout.wait .lb { color: var(--wait); }
+  .bullets li { list-style: none; position: relative; padding-left: 4.6mm; margin-bottom: 1.2mm; }
+  .bullets li::before { content: ""; position: absolute; left: 0.6mm; top: 1.9mm; width: 1.6mm; height: 1.6mm; border-radius: 50%; background: var(--pink); }
+  .tl { display: grid; grid-template-columns: 4.6mm 1fr 1fr 21mm; column-gap: 2mm; align-items: center; margin-top: -1.8mm; }
+  .tl.head { margin-top: 0; padding-bottom: 1.6mm; border-bottom: 0.3mm solid var(--line); }
+  .tl .who { display: inline-block; font: 800 6.6pt/1 "JetBrains Mono", monospace; letter-spacing: .1em; color: #fff; border-radius: 1mm; padding: 1.1mm 2mm; }
+  .tl .who.a { background: var(--violet); } .tl .who.b { background: var(--pink); }
+  .tl .stl { font: 800 5.8pt/1.2 "JetBrains Mono", monospace; letter-spacing: .1em; color: var(--muted); text-align: center; }
+  .tl .t { width: 4.6mm; height: 4.6mm; border-radius: 50%; border: 0.3mm solid var(--line); font: 700 6pt/4.2mm "JetBrains Mono", monospace; color: var(--muted); text-align: center; }
+  .tl .lane { align-self: stretch; background: linear-gradient(var(--line), var(--line)) center / 0.3mm 100% no-repeat; min-height: 6mm; }
+  .tl .ev { border: 0.3mm solid var(--line); background: var(--card); border-radius: 1.6mm; padding: 1.4mm 2mm; font-size: 7.5pt; line-height: 1.35; color: var(--ink); }
+  .tl .ev.both { grid-column: 2 / 4; text-align: center; border-style: dashed; }
+  .tl .ev.ok { box-shadow: inset 0.9mm 0 0 var(--ok); } .tl .ev.bad { box-shadow: inset 0.9mm 0 0 var(--bad); }
+  .tl .ev.wait { box-shadow: inset 0.9mm 0 0 var(--wait); } .tl .ev.lock { box-shadow: inset 0.9mm 0 0 var(--lock); }
+  .tl .st { font: 600 6.5pt/1.3 "JetBrains Mono", monospace; color: var(--muted); text-align: center; padding: 1mm 0; border-radius: 1mm; }
+  .tl .st.changed { color: var(--ink); background: rgba(255, 77, 141, .14); }
+  .tr { display: grid; gap: 2mm; padding: 1.5mm 2mm; border-bottom: 0.3mm solid var(--line); font-size: 7.5pt; line-height: 1.35; margin-top: -3.2mm; }
+  .tr.th { margin-top: 0; background: var(--card); border-radius: 1.6mm 1.6mm 0 0; font: 800 6pt/1.3 "JetBrains Mono", monospace; letter-spacing: .08em; color: var(--muted); }
+  .cont + .tr, .cont + .tl { margin-top: 0; }
+  .tr:not(.th) .c0 { font-weight: 700; color: var(--ink); }
+  .ok-t { color: var(--ok); font-weight: 700; } .bad-t { color: var(--bad); font-weight: 700; } .wait-t { color: var(--wait); font-weight: 700; }
+  .card2 { border: 0.3mm solid var(--line); background: var(--card); border-radius: 3mm; padding: 3mm 3.4mm; display: flex; flex-direction: column; gap: 1.8mm; }
+  .card2 .ch { display: flex; justify-content: space-between; align-items: baseline; gap: 2mm; }
+  .card2 h3 { font: 800 10pt/1.2 "Inter Display", Inter, sans-serif; color: var(--ink); }
+  .card2 .ctag { font: 800 5.8pt/1 "JetBrains Mono", monospace; letter-spacing: .14em; color: var(--pink); white-space: nowrap; }
+  .card2 .cf { color: var(--muted); font-size: 7.8pt; }
+  .card2 .code { padding: 1.8mm 0; }
+  .fnode { position: relative; border: 0.3mm solid var(--line); background: var(--card); border-radius: 2.4mm; padding: 2.4mm 3.2mm;
+           display: grid; grid-template-columns: 7mm 1fr; gap: 2.4mm; align-items: start; }
+  .fnode .fi { width: 6.4mm; height: 6.4mm; border-radius: 1.6mm; background: var(--bar); color: #fff; font: 800 8.4pt/6.4mm "Inter Display", Inter, sans-serif; text-align: center; }
+  .fnode h3 { font: 800 9.6pt/1.25 "Inter Display", Inter, sans-serif; color: var(--ink); margin-bottom: 0.6mm; }
+  .fnode.next::before { content: ""; position: absolute; left: 6.2mm; top: -3.2mm; width: 0.5mm; height: 3.2mm; background: var(--violet); }
+  .fnode.next::after { content: ""; position: absolute; left: 5.35mm; top: -1.3mm; border: 1.1mm solid transparent; border-top-color: var(--violet); }
+  .fnode.bad { border-color: var(--bad); } .fnode.ok { border-color: var(--ok); }
+  .dec { display: grid; grid-template-columns: 1fr 4mm 30mm; gap: 2mm; align-items: center; padding: 2mm 0; border-bottom: 0.3mm solid var(--line); }
+  .dec .if b { font: 800 6pt/1 "JetBrains Mono", monospace; letter-spacing: .14em; color: var(--pink); margin-right: 1.6mm; }
+  .dec .ar { height: 0.5mm; background: var(--violet); position: relative; }
+  .dec .ar::after { content: ""; position: absolute; right: -1mm; top: -1mm; border: 1.25mm solid transparent; border-left-color: var(--violet); border-right: 0; }
+  .dec .use { background: var(--bar); color: #fff; border-radius: 1.6mm; padding: 1.4mm 2mm; font: 800 7.4pt/1.25 "Inter Display", Inter, sans-serif; text-align: center; }
+  .dec .use .ic { color: #fff; background: rgba(0, 0, 0, .18); border-color: transparent; }
+  .dec .why { grid-column: 1 / -1; color: var(--muted); font-size: 7.6pt; }
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script>
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+/** Text with `inline code` and **bold**. */
+const rich = (s) => esc(s).replace(/`([^`]+)`/g, '<code class="ic">$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
 const KEYWORDS = {
   java: 'abstract boolean break case catch class continue default do double else enum extends final finally float for if implements import instanceof int interface long new null package private protected public record return static super switch this throw throws true false try var void while yield',
   go: 'break case chan const continue default defer else fallthrough for func go goto if import interface map package range return select struct switch type var nil true false err',
@@ -172,14 +232,24 @@ window.draw = async (d) => {
     if (cont) body.appendChild(el('div', 'cont', `${esc(s.title.toUpperCase())} · CONTINUED`));
     else {
       body.appendChild(el('div', '', `<h2>${esc(s.title)}</h2><div class="bar"></div>`));
-      if (s.lead) body.appendChild(el('p', 'lead', esc(s.lead)));
+      if (s.lead) body.appendChild(el('p', 'lead', rich(s.lead)));
     }
   }
-  /** Adds nodes to the section's page; one that does not fit starts a new page. */
+  const fitAll = (node) => [node, ...node.querySelectorAll('.code')].filter((n) => n.classList.contains('code')).forEach(fit);
+  let current = null; // the page the last section ended on
+  /** Adds nodes to the section's page; one that does not fit starts a new page. A section with
+   *  `join` carries on below the previous one when its heading and first block still fit there. */
   function flow(s, nodes) {
-    let body = page();
-    heading(body, s, false);
-    const fitAll = (node) => [node, ...node.querySelectorAll('.code')].filter((n) => n.classList.contains('code')).forEach(fit);
+    let body = null;
+    if (s.join && current) {
+      const mark = current.childNodes.length;
+      current.appendChild(el('div', 'gap'));
+      heading(current, s, false);
+      if (nodes.length) { current.appendChild(nodes[0]); fitAll(nodes[0]); }
+      if (full(current)) { while (current.childNodes.length > mark) current.removeChild(current.lastChild); }
+      else { body = current; nodes = nodes.slice(1); }
+    }
+    if (!body) { body = page(); heading(body, s, false); }
     for (const node of nodes) {
       body.appendChild(node);
       fitAll(node);
@@ -189,15 +259,58 @@ window.draw = async (d) => {
         if (full(body)) overflow.push(`${s.title}: one block is taller than a page`);
       }
     }
+    current = body;
   }
-  function codeBox(code, file, hl) {
+  function codeBox(code, file, hl, lang) {
     const box = el('div', 'code');
     if (file) box.appendChild(el('div', 'file', esc(file)));
     for (const line of code.lines) {
-      const ln = el('div', `ln${hl && hl.includes(line.n) ? ' hl' : ''}`, `<i>${line.n ?? ''}</i><span>${paint(line.text, d.lang) || ' '}</span>`);
+      const ln = el('div', `ln${hl && hl.includes(line.n) ? ' hl' : ''}`, `<i>${line.n ?? ''}</i><span>${paint(line.text, lang || d.lang) || ' '}</span>`);
       box.appendChild(ln);
     }
     return box;
+  }
+  /** Free-form blocks: a paragraph, a small heading, a callout, bullets or a short listing. */
+  function blocks(list) {
+    return list.map((b) => {
+      if (b.p) return el('p', '', rich(b.p));
+      if (b.h) return el('h3', 'blk-h', rich(b.h));
+      if (b.callout) return el('div', `callout ${b.tone || ''}`, `${b.label ? `<b class="lb">${esc(b.label)}</b>` : ''}<p>${rich(b.callout)}</p>`);
+      if (b.bullets) return el('ul', 'bullets', b.bullets.map((x) => `<li>${rich(x)}</li>`).join(''));
+      if (b.listing) return codeBox(b.listing, b.listing.file || '', b.hl || [], b.lang);
+      throw new Error(`unknown block: ${JSON.stringify(b)}`);
+    });
+  }
+  /** A two-lane sequence diagram: who did what, in order, and the row's value after each step. */
+  function timeline(s) {
+    const nodes = [el('div', 'tl head', `<span></span><span><i class="who a">${esc(s.lanes[0])}</i></span>`
+      + `<span><i class="who b">${esc(s.lanes[1])}</i></span><span class="stl">${esc(s.state || '')}</span>`)];
+    let prev = '';
+    s.events.forEach((e, i) => {
+      const ev = `<div class="ev ${e.tone || ''}${e.who == null ? ' both' : ''}">${rich(e.text)}</div>`;
+      const lanes = e.who == null ? ev : e.who === 0 ? `${ev}<div class="lane"></div>` : `<div class="lane"></div>${ev}`;
+      const changed = e.state !== undefined && e.state !== prev;
+      if (e.state !== undefined) prev = e.state;
+      nodes.push(el('div', 'tl', `<span class="t">${i + 1}</span>${lanes}<span class="st${changed ? ' changed' : ''}">${esc(prev)}</span>`));
+    });
+    return nodes;
+  }
+  function table(s) {
+    const cols = s.widths || `repeat(${s.columns.length}, 1fr)`;
+    const cell = (c, i) => {
+      const o = c !== null && typeof c === 'object' ? c : { t: c };
+      return `<div class="c${i}${o.tone ? ` ${o.tone}-t` : ''}">${rich(o.t)}</div>`;
+    };
+    const row = (cells, cls) => { const r = el('div', `tr ${cls}`, cells.map(cell).join('')); r.style.gridTemplateColumns = cols; return r; };
+    return [row(s.columns, 'th'), ...s.rows.map((r) => row(r, ''))];
+  }
+  function partPage(s) {
+    const b = page('part');
+    b.innerHTML = `<div class="pn">${esc(s.n)}</div><div class="kicker">PART ${esc(s.n)}</div><h2>${esc(s.title)}</h2><div class="bar"></div>`
+      + `${s.lead ? `<p class="lead">${rich(s.lead)}</p>` : ''}`
+      + `${s.items ? `<ul class="bullets">${s.items.map((x) => `<li>${rich(x)}</li>`).join('')}</ul>` : ''}`;
+    if (full(b)) overflow.push(`part ${s.n}`);
+    current = null;
   }
   /** A listing wider than the page is drawn smaller (down to 5.9pt), and only then wraps. */
   function fit(box) {
@@ -218,32 +331,57 @@ window.draw = async (d) => {
     <p class="share">Found it useful? Send this PDF to a friend who is preparing for interviews.</p>`;
   if (full(body)) overflow.push('cover');
 
-  for (const s of d.sections) {
+  function nodesOf(s) {
     if (s.kind === 'steps') {
-      flow(s, s.steps.map((st, i) => el('div', 'step', `<div class="n">${i + 1}</div><div><h3>${esc(st.head)}</h3><p>${esc(st.body)}</p></div>`)));
+      return s.steps.map((st, i) => el('div', 'step', `<div class="n">${i + 1}</div><div><h3>${rich(st.head)}</h3><p>${rich(st.body)}</p></div>`));
     } else if (s.kind === 'numbers') {
-      flow(s, s.rows.map(([v, t]) => el('div', 'num', `<div class="v">${esc(v)}</div><div>${esc(t)}</div>`)));
+      return s.rows.map(([v, t]) => el('div', 'num', `<div class="v">${esc(v)}</div><div>${rich(t)}</div>`));
     } else if (s.kind === 'code') {
       // the listing goes in pieces of a few lines, so a long one carries on to the next page
-      const notes = s.notes.map(([n, t]) => el('div', 'note', `<b>line ${n}</b><span>${esc(t)}</span>`));
-      const hl = s.notes.map(([n]) => n);
+      const notes = (s.notes || []).map(([n, t]) => el('div', 'note', `<b>line ${n}</b><span>${rich(t)}</span>`));
+      const hl = (s.notes || []).map(([n]) => n);
       const pieces = [];
-      for (let i = 0; i < s.code.lines.length; i += 6) pieces.push(codeBox({ lines: s.code.lines.slice(i, i + 6) }, i === 0 ? s.code.file : '', hl));
+      for (let i = 0; i < s.code.lines.length; i += 6) pieces.push(codeBox({ lines: s.code.lines.slice(i, i + 6) }, i === 0 ? s.code.file : '', hl, s.lang));
       pieces.forEach((p, i) => { if (i > 0) p.style.marginTop = '-3.2mm'; p.style.borderRadius = i === 0 ? '2.4mm 2.4mm 0 0' : i === pieces.length - 1 ? '0 0 2.4mm 2.4mm' : '0'; if (i > 0) p.style.borderTop = 'none'; if (i < pieces.length - 1) p.style.borderBottom = 'none'; if (i > 0) p.style.paddingTop = '0'; if (i < pieces.length - 1) p.style.paddingBottom = '0'; });
-      flow(s, [...pieces, ...notes]);
+      return [...pieces, ...notes];
     } else if (s.kind === 'rules') {
-      flow(s, s.rules.map((r) => {
-        const card = el('div', 'rule', `<h3>${esc(r.head)}</h3>`);
+      return s.rules.map((r) => {
+        const card = el('div', 'rule', `<h3>${rich(r.head)}</h3>`);
         const bug = el('div', ''); bug.appendChild(el('div', 'label bug', 'BUG')); bug.appendChild(codeBox(r.bug));
         const fix = el('div', ''); fix.appendChild(el('div', 'label fix', 'FIX')); fix.appendChild(codeBox(r.fix));
-        card.appendChild(bug); card.appendChild(fix); card.appendChild(el('p', 'why', esc(r.why)));
+        card.appendChild(bug); card.appendChild(fix); card.appendChild(el('p', 'why', rich(r.why)));
         return card;
-      }));
+      });
     } else if (s.kind === 'qa') {
-      flow(s, s.items.map((x, i) => el('div', 'qa', `<div class="q">Q${i + 1}</div><div><h4>${esc(x.q)}</h4><p>${esc(x.a)}</p></div>`)));
+      return s.items.map((x, i) => el('div', 'qa', `<div class="q">Q${i + 1}</div><div><h4>${rich(x.q)}</h4><p>${rich(x.a)}</p></div>`));
     } else if (s.kind === 'checklist') {
-      flow(s, s.items.map((x) => el('div', 'check', `<div class="box"></div><p>${esc(x)}</p>`)));
+      return s.items.map((x) => el('div', 'check', `<div class="box"></div><p>${rich(x)}</p>`));
+    } else if (s.kind === 'text') {
+      return blocks(s.blocks);
+    } else if (s.kind === 'timeline') {
+      return timeline(s);
+    } else if (s.kind === 'table') {
+      return table(s);
+    } else if (s.kind === 'cards') {
+      return s.items.map((x) => {
+        const c = el('div', 'card2', `<div class="ch"><h3>${rich(x.head)}</h3>${x.tag ? `<span class="ctag">${esc(x.tag)}</span>` : ''}</div>`
+          + `${x.body ? `<p>${rich(x.body)}</p>` : ''}`);
+        if (x.listing) c.appendChild(codeBox(x.listing, '', x.hl || [], x.lang || s.lang));
+        if (x.foot) c.appendChild(el('p', 'cf', rich(x.foot)));
+        return c;
+      });
+    } else if (s.kind === 'flowchart') {
+      return s.nodes.map((x, i) => el('div', `fnode${i ? ' next' : ''} ${x.tone || ''}`,
+        `<div class="fi">${i + 1}</div><div><h3>${rich(x.head)}</h3>${x.body ? `<p>${rich(x.body)}</p>` : ''}</div>`));
+    } else if (s.kind === 'decide') {
+      return s.rows.map((x) => el('div', 'dec', `<div class="if"><b>IF</b>${rich(x.if)}</div><div class="ar"></div>`
+        + `<div class="use">${rich(x.use)}</div>${x.why ? `<p class="why">${rich(x.why)}</p>` : ''}`));
     }
+    throw new Error(`unknown section kind: ${s.kind}`);
+  }
+  for (const s of d.sections) {
+    if (s.kind === 'part') partPage(s);
+    else flow(s, [...nodesOf(s), ...blocks(s.after || [])]);
   }
 
   // the last page: where to go next, and the sources
@@ -252,7 +390,7 @@ window.draw = async (d) => {
     <div class="card"><b>THE FULL DEEP DIVE</b><p>${esc(d.end.video)}</p></div>
     ${d.end.more ? `<div class="card"><b>WANT MORE?</b><p>${esc(d.end.more)}</p></div>` : ''}`;
   if (full(body)) overflow.push('last page');
-  flow({ title: 'Sources', lead: 'Every claim in this pack comes from one of these, or from the code above, run on Java 25.' },
+  flow({ title: 'Sources', lead: d.sources_lead || 'Every claim in this pack comes from one of these, or from the code in it, run as shown.' },
        d.sources.map((x) => el('p', 'sources', `${esc(x.title)}<br>${esc(x.url)}`)));
   return { pages: pageNo, overflow };
 };
