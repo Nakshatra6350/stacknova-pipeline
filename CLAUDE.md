@@ -150,6 +150,7 @@ Project skills in `.claude/skills/` load automatically. Use them:
 | Adding or updating skills | `add-skill` (uses `skill-creator` for our own) |
 | Paid guide PDFs (**Phase 2 only**) | `pdf` from the document-skills plugin |
 | Building milestones | Superpowers plugin workflow if installed: brainstorm → plan → TDD → verify |
+| Research, positioning, scripts, testing for a new video style (look v4) | ECC: `market-research`, `competitive-platform-analysis`, `marketing-campaign`, `content-engine`, `brand-voice`, `search-first`, `verification-loop`, `eval-harness`, `e2e-testing`; all 311 ECC skills wait unloaded in `vendor/ecc/` |
 
 If a skill you need isn't installed, say so and give the owner the exact command from `docs/SKILLS.md`.
 `manim-composer` and `manimce-best-practices` are still vendored but no longer apply: scenes are not

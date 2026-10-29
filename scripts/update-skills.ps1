@@ -5,7 +5,8 @@ $ErrorActionPreference = "Stop"
 
 $sources = @(
   @{ Repo = "https://github.com/anthropics/skills.git";        Skills = @("skill-creator", "frontend-design", "webapp-testing"); Sub = "skills"; License = $null },
-  @{ Repo = "https://github.com/adithya-s-k/manim_skill.git";  Skills = @("manim-composer", "manimce-best-practices");             Sub = "skills"; License = "LICENSE" }
+  @{ Repo = "https://github.com/adithya-s-k/manim_skill.git";  Skills = @("manim-composer", "manimce-best-practices");             Sub = "skills"; License = "LICENSE" },
+  @{ Repo = "https://github.com/affaan-m/ECC.git";             Skills = @("market-research", "competitive-platform-analysis", "marketing-campaign", "content-engine", "brand-voice", "search-first", "verification-loop", "eval-harness", "e2e-testing"); Sub = "skills"; License = "LICENSE"; KeepAll = "vendor/ecc" }
 )
 
 $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("skills-" + [guid]::NewGuid())
@@ -15,6 +16,14 @@ try {
     $dir = Join-Path $tmp ([System.IO.Path]::GetFileNameWithoutExtension($s.Repo))
     git clone --depth 1 $s.Repo $dir | Out-Null
     $commit = (git -C $dir rev-parse --short HEAD).Trim()
+    if ($s.KeepAll) {
+      # every skill of the repo, kept unloaded (vendor/ecc/README.md); only $s.Skills are switched on
+      $all = Join-Path $s.KeepAll "skills"
+      if (Test-Path $all) { Remove-Item $all -Recurse -Force }
+      Copy-Item (Join-Path $dir $s.Sub) $all -Recurse
+      Copy-Item (Join-Path $dir $s.License) (Join-Path $s.KeepAll "LICENSE")
+      Write-Host "kept all skills of $($s.Repo) @ $commit in $all"
+    }
     foreach ($name in $s.Skills) {
       $src = Join-Path (Join-Path $dir $s.Sub) $name
       $dst = Join-Path ".claude/skills" $name

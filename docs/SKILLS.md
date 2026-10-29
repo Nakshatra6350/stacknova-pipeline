@@ -21,6 +21,22 @@ Run `/skills` inside Claude Code to see what's loaded; run `/reload-skills` afte
 | `frontend-design` | [anthropics/skills](https://github.com/anthropics/skills) @ 683bc88 | Apache-2.0 | The page scenes are drawn on (`src/channel_os/scenes/web/`), and HTML/CSS templates for thumbnails, carousel slides, guide covers |
 | `webapp-testing` | same | Apache-2.0 | Playwright scripts — we use Playwright to draw scenes frame by frame and to render thumbnails/carousels to images |
 | `skill-creator` | same | Apache-2.0 | Creating and testing new skills of our own |
+| `market-research` | [affaan-m/ECC](https://github.com/affaan-m/ECC) @ 25278e7 | MIT | Sourced research on creators, formats and audiences, ending in a decision (look v4, 29 Oct 2026) |
+| `competitive-platform-analysis` | same | MIT | Picking and tiering the creators to study (direct, adjacent, aspirational) before comparing them |
+| `marketing-campaign` | same | MIT | Positioning, the angle, short-form scripts and the posting calendar |
+| `content-engine` | same | MIT | Platform-native scripts and captions for Reels, Shorts and YouTube from one source |
+| `brand-voice` | same | MIT | A reusable voice profile so every script sounds like the channel, not generic AI copy |
+| `search-first` | same | MIT | Looking for an existing tool or library before building one (e.g. a free voice or video tool) |
+| `verification-loop` | same | MIT | Build, lint, tests and diff review before saying work is done |
+| `eval-harness` | same | MIT | Pass/fail criteria for a pilot video before making it, graded after |
+| `e2e-testing` | same | MIT | Playwright patterns for anything rendered in a browser |
+
+**All 311 ECC skills** are kept in `vendor/ecc/skills/` (owner, 29 Oct 2026: keep every one, use
+only what a job needs). They are not loaded; to switch one on, copy it into `.claude/skills/` with
+`add-skill`. Not switched on, on purpose: `videodb` (needs an API key; sends video to a cloud
+service), `social-publisher` and `crosspost` (publish on their own, against CLAUDE.md rule 1),
+`deep-research` (needs paid firecrawl/exa tools), `seo` (websites, not videos). `remotion-video-creation`,
+`video-editing` and the `motion-*` skills wait for the owner's approval of a new video style.
 
 ## 2. Install once as plugins (run these inside Claude Code)
 
