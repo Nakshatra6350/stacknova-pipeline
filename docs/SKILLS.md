@@ -30,13 +30,14 @@ Run `/skills` inside Claude Code to see what's loaded; run `/reload-skills` afte
 | `verification-loop` | same | MIT | Build, lint, tests and diff review before saying work is done |
 | `eval-harness` | same | MIT | Pass/fail criteria for a pilot video before making it, graded after |
 | `e2e-testing` | same | MIT | Playwright patterns for anything rendered in a browser |
+| `remotion-video-creation` | same | MIT | Look v4 video (`studio-v4/`, Remotion 4, owner approved the format 29 Oct 2026): animations, captions, sequencing, timing |
 
 **All 311 ECC skills** are kept in `vendor/ecc/skills/` (owner, 29 Oct 2026: keep every one, use
 only what a job needs). They are not loaded; to switch one on, copy it into `.claude/skills/` with
 `add-skill`. Not switched on, on purpose: `videodb` (needs an API key; sends video to a cloud
 service), `social-publisher` and `crosspost` (publish on their own, against CLAUDE.md rule 1),
-`deep-research` (needs paid firecrawl/exa tools), `seo` (websites, not videos). `remotion-video-creation`,
-`video-editing` and the `motion-*` skills wait for the owner's approval of a new video style.
+`deep-research` (needs paid firecrawl/exa tools), `seo` (websites, not videos). `video-editing` and the
+`motion-*` skills stay off until a job needs them.
 
 ## 2. Install once as plugins (run these inside Claude Code)
 
@@ -54,7 +55,7 @@ For the night agent (cloud), the vendored project skills are what it can rely on
 
 | Skill | Why not |
 |---|---|
-| Remotion skills (remotion-dev/skills) | Excellent for React-based video and captions, but our scenes are plain HTML/CSS/JS with no framework and no build step, driven from Python; adding React and a bundler for the same result doubles maintenance. Revisit only if we move to Remotion. |
+| Remotion skills (remotion-dev/skills) | Not added for looks v1–v3 (plain HTML scenes driven from Python). Look v4 does move to Remotion (`studio-v4/`), and uses ECC's `remotion-video-creation` instead. |
 | `manimgl-best-practices` | We do not use Manim of either kind any more. |
 | Generic "YouTube growth" skills from unknown authors | Unverified advice and unknown scripts; our reach rules live in `docs/REACH_PLAYBOOK.md`. |
 

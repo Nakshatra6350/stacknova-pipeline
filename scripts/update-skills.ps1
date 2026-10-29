@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 $sources = @(
   @{ Repo = "https://github.com/anthropics/skills.git";        Skills = @("skill-creator", "frontend-design", "webapp-testing"); Sub = "skills"; License = $null },
   @{ Repo = "https://github.com/adithya-s-k/manim_skill.git";  Skills = @("manim-composer", "manimce-best-practices");             Sub = "skills"; License = "LICENSE" },
-  @{ Repo = "https://github.com/affaan-m/ECC.git";             Skills = @("market-research", "competitive-platform-analysis", "marketing-campaign", "content-engine", "brand-voice", "search-first", "verification-loop", "eval-harness", "e2e-testing"); Sub = "skills"; License = "LICENSE"; KeepAll = "vendor/ecc" }
+  @{ Repo = "https://github.com/affaan-m/ECC.git";             Skills = @("market-research", "competitive-platform-analysis", "marketing-campaign", "content-engine", "brand-voice", "search-first", "verification-loop", "eval-harness", "e2e-testing", "remotion-video-creation"); Sub = "skills"; License = "LICENSE"; KeepAll = "vendor/ecc" }
 )
 
 $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("skills-" + [guid]::NewGuid())

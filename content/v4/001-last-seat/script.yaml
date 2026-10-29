@@ -1,0 +1,33 @@
+# Look v4 pilot (owner approved the "Behind the Button" format, 29 Oct 2026): the last seat.
+# One whole topic in about a minute: the everyday moment, the bug, the mechanism, the real code,
+# the proof (a real run, samples/go), the real-world scale, the fix, and the call to action.
+# `scene` names the visual each line plays over (studio-v4); `say` is spoken, `show` (when present)
+# is the on-screen caption text.
+id: 001-last-seat
+keyword: SEAT
+title: "Two People Book the Last Seat at Once. Who Gets It?"
+youtube_title: "Race Condition in SQL: Who Gets the Last Seat?"
+lines:
+  - {id: l1, scene: hook, say: "Two people. One seat. The exact same millisecond. Who gets it?"}
+  - {id: l2, scene: stakes, say: "With the code most of us write, both do. I tested it: nine hundred ninety-nine out of a thousand seats, sold twice.",
+     show: "With the code most of us write, both do. I tested it: 999 out of 1,000 seats, sold twice."}
+  - {id: l3, scene: race, say: "Here's why. Each request reads the seat first. Both see it's free. Both write their name. Both get a confirmation."}
+  - {id: l4, scene: code-bug, say: "This is the bug. A select, then an update. Two statements, and a gap between them."}
+  - {id: l5, scene: code-fix, say: "The fix is one statement: update the seat only where the holder is still empty, then check that exactly one row changed.",
+     show: "The fix is one statement: update the seat only where the holder is still empty, then check that exactly 1 row changed."}
+  - {id: l6, scene: lock, say: "Postgres locks the row for the first update. The second one waits, re-checks the condition on the new row, and matches nothing. Zero rows. That request lost the seat.",
+     show: "Postgres locks the row for the first update. The second one waits, re-checks the condition on the new row, and matches nothing. 0 rows. That request lost the seat."}
+  - {id: l7, scene: proof, say: "Same test, one line changed: zero seats sold twice.", show: "Same test, one line changed: 0 seats sold twice."}
+  - {id: l8, scene: scale, say: "When Ticketmaster opened the Eras Tour presale, it saw three and a half billion requests. At that scale, the same millisecond happens all the time.",
+     show: "When Ticketmaster opened the Eras Tour presale, it saw 3.5 billion requests. At that scale, the same millisecond happens all the time."}
+  - {id: l9, scene: cta, say: "Comment SEAT for the free guide: three fixes, in real code. Because next time, it's two people. One seat."}
+
+fact_check:
+  - claim: "Two requests that read a free seat at the same moment and then write it both report success: 999, 998 and 999 of 1,000 seats were sold twice in three runs; the conditional UPDATE sold 0 twice in three runs"
+    source: "derived from code sample samples/go (PostgreSQL 16.13, Read Committed, 29 Oct 2026)"
+  - claim: "In Read Committed, a second UPDATE on a row being updated waits for the first to commit, then re-evaluates its WHERE condition against the updated version of the row and skips it if it no longer matches"
+    source: "https://www.postgresql.org/docs/18/transaction-iso.html#XACT-READ-COMMITTED"
+  - claim: "Ticketmaster said the November 2022 Eras Tour presale drew 3.5 billion total system requests, four times its previous peak"
+    source: "https://nbcchicago.com/news/local/ticketmaster-breaks-down-what-happened-during-taylor-swift-presale-snafu/2999756"
+  - claim: "pgx returns the number of rows an UPDATE changed (CommandTag.RowsAffected)"
+    source: "https://pkg.go.dev/github.com/jackc/pgx/v5/pgconn#CommandTag.RowsAffected"
