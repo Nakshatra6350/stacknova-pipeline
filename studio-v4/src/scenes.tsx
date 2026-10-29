@@ -15,8 +15,8 @@ const Big: React.FC<{ children: React.ReactNode; size?: number; color?: string; 
   );
 
 /** The hook (and the loop's last frame): 2 people, 1 seat, the same millisecond. */
-export const HookTitle: React.FC<{ hot?: number }> = ({ hot = -1 }) => (
-  <div style={{ position: "absolute", left: 60, top: 200 }}>
+export const HookTitle: React.FC<{ hot?: number; top?: number }> = ({ hot = -1, top = 200 }) => (
+  <div style={{ position: "absolute", left: 60, top }}>
     {["2 people.", "1 seat.", "Same millisecond."].map((t, n) => (
       <Big key={t} size={n === 2 ? 112 : 150} color={hot === n ? C.yellow : C.text}
            style={{ marginBottom: 14, transform: `scale(${hot === n ? 1.04 : 1})`, transformOrigin: "left center" }}>{t}</Big>
@@ -273,11 +273,9 @@ export const Scale: React.FC<SceneProps> = ({ line }) => {
 };
 
 /** The call to action, then the hook again, so the loop starts where it ended. */
-export const Cta: React.FC<SceneProps & { keyword: string }> = ({ line, keyword }) => {
+export const Cta: React.FC<SceneProps & { keyword: string; variant: string }> = ({ line, keyword, variant }) => {
   const frame = useCurrentFrame();
-  const comment = at(line, "comment"), guide = at(line, "guide"), back = at(line, "because");
-  const typed = keyword.slice(0, Math.max(0, Math.floor((frame - comment - 4) / 3)));
-  const dm = pop(frame, guide);
+  const back = at(line, "because");
   if (frame >= back) {
     const hot = frame >= at(line, "one", 1) ? 1 : frame >= at(line, "two") ? 0 : -1;
     return (
@@ -288,6 +286,25 @@ export const Cta: React.FC<SceneProps & { keyword: string }> = ({ line, keyword 
       </>
     );
   }
+  if (variant === "youtube") {
+    // YouTube has no comment-to-DM: the Short asks to follow instead
+    const every = at(line, "every");
+    return (
+      <div style={{ position: "absolute", left: 60, top: 230 }}>
+        <Big size={150}>Follow</Big>
+        <Big size={96} color={C.yellow}>@StackNovaDev</Big>
+        <div style={{ opacity: ramp(frame, every, 8), marginTop: 40, display: "flex", gap: 18 }}>
+          {["one button", "the backend behind it", "every day"].map((t) => (
+            <div key={t} style={{ font: `700 30px "${FONT.ui}"`, color: C.text, border: `3px solid ${C.border}`,
+                                  background: C.surface, borderRadius: 999, padding: "12px 22px" }}>{t}</div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  const comment = at(line, "comment"), guide = at(line, "guide");
+  const typed = keyword.slice(0, Math.max(0, Math.floor((frame - comment - 4) / 3)));
+  const dm = pop(frame, guide);
   return (
     <>
       <div style={{ position: "absolute", left: 60, top: 210 }}>

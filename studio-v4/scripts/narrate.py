@@ -1,11 +1,13 @@
 r"""Narration and timeline for a look v4 video (Kokoro, free, Apache-2.0).
 
-    python studio-v4/scripts/narrate.py ID MODEL_DIR [--voice=am_michael] [--speed=1.08]
+    python studio-v4/scripts/narrate.py ID MODEL_DIR [--voice=am_puck] [--speed=1.08] [--variant=youtube]
 
 Reads content/v4/<ID>/script.yaml, speaks each line on its own (so every scene starts exactly
 when its line starts), joins them with short pauses and writes studio-v4/public/<ID>/:
 narration.wav and timeline.json (each line's scene, start, end and caption words). Word times
 inside a line are spread by how long each word takes to say: good enough for phrase captions.
+--variant=youtube speaks a line's `say_youtube` (and shows `show_youtube`) where it has one, into
+narration-youtube.wav and timeline-youtube.json: the Short ends on a follow, not a comment keyword.
 MODEL_DIR holds kokoro-v1.0.onnx and voices-v1.0.bin.
 """
 
@@ -33,7 +35,7 @@ def weight(word: str) -> float:
     return max(len(bare), 2) + 1.5
 
 
-def main(episode: str, model: Path, voice: str, speed: float) -> None:
+def main(episode: str, model: Path, voice: str, speed: float, variant: str = "") -> None:
     script = yaml.safe_load((ROOT / "content" / "v4" / episode / "script.yaml").read_text(encoding="utf-8"))
     lang = "en-gb" if voice.startswith("b") else "en-us"
     kokoro = Kokoro(str(model / "kokoro-v1.0.onnx"), str(model / "voices-v1.0.bin"))
@@ -42,6 +44,8 @@ def main(episode: str, model: Path, voice: str, speed: float) -> None:
     clock = LEAD
     lines = []
     for line in script["lines"]:
+        if variant and f"say_{variant}" in line:
+            line = {**line, "say": line[f"say_{variant}"], "show": line.get(f"show_{variant}", line[f"say_{variant}"])}
         audio, rate = kokoro.create(line["say"], voice=voice, speed=speed, lang=lang)
         audio = np.trim_zeros(np.asarray(audio, dtype=np.float32), "fb")
         start, length = clock, len(audio) / rate
@@ -59,14 +63,16 @@ def main(episode: str, model: Path, voice: str, speed: float) -> None:
         print(f"{line['id']:>3} {line['scene']:<9} {start:6.2f} s  {length:5.2f} s")
     out = ROOT / "studio-v4" / "public" / episode
     out.mkdir(parents=True, exist_ok=True)
-    sf.write(out / "narration.wav", np.concatenate(pieces), rate)
-    timeline = {"id": episode, "keyword": script["keyword"], "voice": voice,
+    suffix = f"-{variant}" if variant else ""
+    sf.write(out / f"narration{suffix}.wav", np.concatenate(pieces), rate)
+    timeline = {"id": episode, "keyword": script["keyword"], "voice": voice, "variant": variant or "reel",
                 "duration": round(clock, 3), "lines": lines}
-    (out / "timeline.json").write_text(json.dumps(timeline, indent=1), encoding="utf-8")
+    (out / f"timeline{suffix}.json").write_text(json.dumps(timeline, indent=1), encoding="utf-8")
     print(f"{episode}: {clock:.2f} s in {voice}")
 
 
 if __name__ == "__main__":
     opts = dict(a[2:].split("=", 1) for a in sys.argv[1:] if a.startswith("--"))
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    main(args[0], Path(args[1]), opts.get("voice", "am_michael"), float(opts.get("speed", "1.08")))
+    main(args[0], Path(args[1]), opts.get("voice", "am_puck"), float(opts.get("speed", "1.08")),
+         opts.get("variant", ""))

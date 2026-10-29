@@ -20,7 +20,9 @@ lines:
   - {id: l7, scene: proof, say: "Same test, one line changed: zero seats sold twice.", show: "Same test, one line changed: 0 seats sold twice."}
   - {id: l8, scene: scale, say: "When Ticketmaster opened the Eras Tour presale, it saw three and a half billion requests. At that scale, the same millisecond happens all the time.",
      show: "When Ticketmaster opened the Eras Tour presale, it saw 3.5 billion requests. At that scale, the same millisecond happens all the time."}
-  - {id: l9, scene: cta, say: "Comment SEAT for the free guide: three fixes, in real code. Because next time, it's two people. One seat."}
+  - {id: l9, scene: cta, say: "Comment SEAT for the free guide: three fixes, in real code. Because next time, it's two people. One seat.",
+     # YouTube has no comment-to-DM, so the Short ends on a follow
+     say_youtube: "Follow for one of these every day. Because next time, it's two people. One seat."}
 
 fact_check:
   - claim: "Two requests that read a free seat at the same moment and then write it both report success: 999, 998 and 999 of 1,000 seats were sold twice in three runs; the conditional UPDATE sold 0 twice in three runs"
