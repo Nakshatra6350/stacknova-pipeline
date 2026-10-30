@@ -206,7 +206,8 @@ function paint(code: string): React.ReactNode[] {
   return out;
 }
 
-export type CodeLine = { text: string; hl?: "red" | "green" | "amber"; dim?: boolean; strike?: boolean };
+// `sql` paints the whole line as string text: the middle lines of a SQL string that spans lines
+export type CodeLine = { text: string; hl?: "red" | "green" | "amber"; dim?: boolean; strike?: boolean; sql?: boolean };
 export const Editor: React.FC<{ file: string; lines: CodeLine[]; x?: number; y?: number; width?: number; note?: string; enter?: number }> =
   ({ file, lines, x = 40, y = 240, width = 1000, note, enter = 1 }) => (
     <div style={{ position: "absolute", left: x, top: y, width, borderRadius: 26, background: "#0d1117",
@@ -225,7 +226,7 @@ export const Editor: React.FC<{ file: string; lines: CodeLine[]; x?: number; y?:
                                 background: l.hl ? `${{ red: C.red, green: C.green, amber: C.amber }[l.hl]}26` : "transparent",
                                 boxShadow: l.hl ? `inset 8px 0 0 ${{ red: C.red, green: C.green, amber: C.amber }[l.hl]}` : "none" }}>
             <span style={{ width: 46, color: "#4b5566", textAlign: "right", marginRight: 22 }}>{n + 1}</span>
-            <span>{paint(l.text)}</span>
+            <span>{l.sql ? <span style={{ color: C.amber }}>{l.text}</span> : paint(l.text)}</span>
           </div>
         ))}
       </div>
@@ -234,15 +235,15 @@ export const Editor: React.FC<{ file: string; lines: CodeLine[]; x?: number; y?:
   );
 
 /** A terminal that types each command, then prints its output, from the given frames on. */
-export const Terminal: React.FC<{ steps: { cmd: string; out: string; color: string; at: number }[]; y?: number }> =
-  ({ steps, y = 300 }) => {
+export const Terminal: React.FC<{ steps: { cmd: string; out: string; color: string; at: number }[]; y?: number; title?: string }> =
+  ({ steps, y = 300, title = "~/last-seat · postgres 16" }) => {
     const frame = useCurrentFrame();
     return (
       <div style={{ position: "absolute", left: 40, top: y, width: 1000, borderRadius: 26, background: "#05070a",
                     border: `3px solid ${C.border}`, boxShadow: "0 30px 70px rgba(0,0,0,.6)", overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 22px", background: C.raised }}>
           {[C.red, C.amber, C.green].map((c) => <div key={c} style={{ width: 18, height: 18, borderRadius: 9, background: c }} />)}
-          <span style={{ marginLeft: 16, font: `700 24px "${FONT.mono}"`, color: C.muted }}>~/last-seat · postgres 16</span>
+          <span style={{ marginLeft: 16, font: `700 24px "${FONT.mono}"`, color: C.muted }}>{title}</span>
         </div>
         <div style={{ padding: "26px 28px", font: `500 33px/1.55 "${FONT.mono}"`, minHeight: 420, whiteSpace: "pre-wrap" }}>
           {steps.map((s, n) => {

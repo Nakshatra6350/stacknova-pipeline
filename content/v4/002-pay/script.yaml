@@ -1,0 +1,41 @@
+# Behind the Button #2 (look v4): you tapped Pay twice. Idempotency keys, in about a minute: the
+# everyday moment, the bug, why it happens, the real code, the proof (a real run, samples/go), the
+# real-world practice (Stripe), the fix, and the call to action.
+# `scene` names the visual each line plays over (studio-v4); `say` is spoken, `show` (when present)
+# is the on-screen caption text. "idem-potency" and "pay" are spelled for the voice (Kokoro reads
+# "idempotency" as AID-m-potency and "PAY" letter by letter); `show` keeps the real spelling.
+id: 002-pay
+keyword: PAY
+title: "You Tapped Pay Twice. Were You Charged Twice?"
+youtube_title: "Idempotency Keys: Why Tapping Pay Twice Charges You Once"
+lines:
+  - {id: l1, scene: hook, say: "You tap Pay. It spins. You tap again. Were you charged twice?"}
+  - {id: l2, scene: stakes, say: "Without one small fix, yes. I tested it: a thousand checkouts where the reply got lost. All thousand, charged twice.",
+     show: "Without one small fix, yes. I tested it: 1,000 checkouts where the reply got lost. All 1,000, charged twice."}
+  - {id: l3, scene: lost, say: "Here's why. Your first tap worked: the card was charged. Only the reply got lost. So the app sent it again, and the server charged again."}
+  - {id: l4, scene: code-bug, say: "This is the bug. The server charges every request it gets. It can't tell a retry from a new payment."}
+  - {id: l5, scene: key, say: "The fix is an idem-potency key: one random ID the app makes for each checkout, and sends with every retry.",
+     show: "The fix is an idempotency key: one random ID the app makes for each checkout, and sends with every retry."}
+  - {id: l6, scene: code-fix, say: "The server inserts the key before it charges. A unique constraint lets only one insert win. Zero rows changed means a retry: skip the charge, send back the first receipt.",
+     show: "The server inserts the key before it charges. A unique constraint lets only one insert win. 0 rows changed means a retry: skip the charge, send back the first receipt."}
+  - {id: l7, scene: proof, say: "Same test, with a key: zero people charged twice.", show: "Same test, with a key: 0 people charged twice."}
+  - {id: l8, scene: stripe, say: "Stripe works the same way: retry with the same idem-potency key header, and you get the first response back, not a second charge.",
+     show: "Stripe works the same way: retry with the same Idempotency-Key header, and you get the first response back, not a second charge."}
+  - {id: l9, scene: cta, say: "Comment pay for the free guide: nine cases, each one tested, in real code. Because next time, it'll spin, and you'll tap again.",
+     show: "Comment PAY for the free guide: nine cases, each one tested, in real code. Because next time, it'll spin, and you'll tap again.",
+     # YouTube has no comment-to-DM, so the Short ends on a follow
+     say_youtube: "Follow for one of these every day. Because next time, it'll spin, and you'll tap again."}
+
+fact_check:
+  - claim: "When the reply to a payment is lost and the app sends it again, a server without a key charges again: 1,000 of 1,000 shoppers were charged twice in three runs; with an idempotency key, 0 in three runs"
+    source: "derived from code sample samples/go, modes lost-reply-no-key and lost-reply-key (PostgreSQL 16.13, 30 Oct 2026)"
+  - claim: "A key claimed with INSERT … ON CONFLICT DO NOTHING under a primary key lets only one of two simultaneous taps charge (0 charged twice in three runs); looking the key up with SELECT first lets both charge (1,000 of 1,000 in three runs)"
+    source: "derived from code sample samples/go, modes double-tap-key and double-tap-check-first"
+  - claim: "INSERT … ON CONFLICT DO NOTHING skips the row when it would violate a unique constraint, and the command tag reports how many rows were inserted"
+    source: "https://www.postgresql.org/docs/18/sql-insert.html"
+  - claim: "Stripe saves the status code and body of the first request made with an idempotency key, and retries with the same key return the saved response"
+    source: "https://docs.stripe.com/api/idempotent_requests"
+  - claim: "POST is not an idempotent method; a client should not automatically retry a non-idempotent request unless it knows the request is idempotent"
+    source: "https://www.rfc-editor.org/rfc/rfc9110#section-9.2.2"
+  - claim: "pgx returns the number of rows a statement changed (CommandTag.RowsAffected)"
+    source: "https://pkg.go.dev/github.com/jackc/pgx/v5/pgconn#CommandTag.RowsAffected"

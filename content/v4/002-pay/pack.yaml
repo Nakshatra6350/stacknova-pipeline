@@ -1,0 +1,551 @@
+# The free guide for "Behind the Button #2: You tapped Pay twice" (keyword PAY). Built by
+# studio/scripts/pack.py content/v4/002-pay into out/release/packs/. Every result comes from
+# samples/ run against PostgreSQL 16.13 on 30 Oct 2026 (go run . -mode=..., three runs of each, and
+# psql -f samples/sql/keys.sql); code is cut from those files by line range. Like guide #1, it is a
+# whole resource (owner, 29 Oct): every idea the fix uses, practical scenarios and diagrams.
+keyword: PAY
+file: stacknova-double-charge-guide
+lang: go
+kicker: "BEHIND THE BUTTON · FREE GUIDE #2"
+title: The Double Charge
+subtitle: Idempotency keys, from the lost reply to a payment server that charges once, with the database ideas behind every step. Every result tested.
+versions: Tested on PostgreSQL 16.13, Go 1.24 and pgx v5.7.2 on 30 Oct 2026; the behaviour is the one the PostgreSQL 18 docs, RFC 9110 and Stripe's API docs describe.
+inside:
+  - "Part 1 · The bug, step by step, and where retries come from"
+  - "Part 2 · The building blocks: idempotent methods, the key, unique constraints, status codes"
+  - "Part 3 · The fix in real Go + SQL, step by step, tested on 1,000 checkouts"
+  - "Part 4 · Production: per-account keys, crashes, keys all the way down, webhooks"
+  - "Part 5 · Interview kit: a 2-minute answer, 12 questions, a one-page cheat sheet"
+
+sections:
+  # ---------------------------------------------------------------- part 1
+  - kind: part
+    n: "1"
+    title: The bug
+    lead: You tap Pay, it spins, you tap again. What actually happens, and why a retry is the most ordinary thing in the world.
+    items:
+      - What "idempotent" means
+      - The lost reply, step by step
+      - "My test: 9 cases, every result"
+      - The code most of us write first
+      - Where retries come from
+
+  - kind: text
+    title: What "idempotent" means
+    lead: "An operation is **idempotent** when doing it twice has the same effect as doing it once."
+    blocks:
+      - p: "Pressing a lift's call button five times still brings one lift. Setting an order's status to \"paid\" twice leaves it paid. But **charging a card** twice takes the money twice. Payments are not idempotent by nature, and retries happen all the time."
+      - from: samples/sql/keys.sql
+        lines: [13, 17]
+        lang: sql
+      - p: "Setting a value is idempotent; changing a value by an amount is not. Each statement above ran twice: the order is still `paid`, the wallet lost $40 twice."
+      - callout: "An **idempotency key** makes an action that isn't idempotent behave like one. The client names the action once; the server does it at most once per name, and answers every repeat with the first result."
+        label: THE IDEA
+        tone: ok
+
+  - kind: timeline
+    title: The lost reply
+    lead: "The checkout from the video, step by step. Nothing crashes. One reply goes missing."
+    lanes: [APP, SERVER]
+    state: CHARGES
+    events:
+      - {who: 0, text: "Tap **Pay**: `POST /pay`", state: "0"}
+      - {who: 1, text: "Charges the card $49.99", tone: ok, state: "1"}
+      - {who: 1, text: "Answers `200 Paid`", tone: ok}
+      - {who: 0, text: "The reply never arrives: Wi-Fi to mobile data, a tunnel, a proxy timeout", tone: bad}
+      - {who: 0, text: "No answer, so it sends `POST /pay` again", tone: wait}
+      - {who: 1, text: "A new request, so it charges again", tone: bad, state: "2"}
+      - {who: 0, text: "Shows **Paid** once. The statement shows two charges", tone: bad}
+    after:
+      - callout: "The app never learned that the first payment worked. To the server, the retry is a brand-new payment: the same bytes, and nothing to tell them apart."
+        label: WHY
+        tone: bad
+
+  - kind: numbers
+    title: "My test: 9 cases, every result"
+    lead: "1,000 shoppers buy headphones for $49.99: a real HTTP server, a Postgres table standing in for the card network, and an app that retries every 100 ms. I count shoppers **charged twice**. Three runs of each; where results varied, the range is shown."
+    rows:
+      - [1000, "Reply lost, no key: every shopper charged twice"]
+      - [0, "Reply lost, with an idempotency key"]
+      - [1000, "Two taps at once, key looked up with `SELECT` first: 998 to 1,000"]
+      - [0, "Two taps at once, key claimed with `INSERT … ON CONFLICT`"]
+      - [0, "Same key, new amount: all 1,000 refused with `422`"]
+      - [999, "Keys shared by all accounts: 999 shown someone else's receipt"]
+      - [0, "The same keys, one set per account: 0 wrong receipts"]
+      - [1000, "Server dies after charging; recovery charges again"]
+      - [0, "The same, with the key passed on to the card network"]
+    after:
+      - p: "Every fix: 0 charged twice, 0 shoppers left without a charge and 0 apps that gave up. Part 3 builds the fix; Part 4 covers the last four cases."
+
+  - kind: code
+    title: How I tested it
+    lead: "Each shopper runs this. The key is made once per checkout, and every attempt sends the same one."
+    from: samples/go/main.go
+    lines: [373, 392]
+    notes:
+      - [375, "one random key per checkout: `crypto/rand.Text()`, at least 128 bits"]
+      - [385, "attempt 1: the server charges, the test drops the reply"]
+      - [386, "then the app retries until it gets an answer"]
+
+  - kind: code
+    title: The bug
+    lead: "The version most of us write first. Every request that arrives is a new payment, retries included."
+    from: samples/go/main.go
+    lines: [100, 114]
+    notes:
+      - [102, "the charge finishes even if the phone hangs up mid-request"]
+      - [108, "charges every request: the retry too"]
+
+  - kind: cards
+    title: Where retries come from
+    lead: "You don't need an impatient user. Each of these sends the same request twice."
+    items:
+      - head: The person
+        tag: APP
+        body: "A spinner that takes too long, a double tap, Back and Pay again. Disabling the button helps, but it can't stop a retry from anywhere else."
+      - head: The app's own retry
+        tag: CLIENT
+        body: "A timeout or a dropped connection, then \"try again\". RFC 9110: a client should not automatically retry a non-idempotent request such as `POST` unless it knows the request is idempotent. A key is how it knows."
+      - head: Clients that guess
+        tag: NETWORK
+        body: "RFC 9110 notes that some clients retry a `POST` when the connection closed before any part of the reply arrived. That is exactly the lost reply."
+      - head: Queues
+        tag: SQS
+        body: "Amazon SQS standard queues deliver at least once. AWS's docs say you might get a message again, and to design consumers to be idempotent."
+      - head: Webhooks
+        tag: STRIPE
+        body: "Stripe retries undelivered events for up to three days in live mode, and says an endpoint might receive the same event more than once."
+      - head: Your own jobs
+        tag: WORKERS
+        body: "A job that crashes halfway and runs again; a deploy that restarts a worker in the middle of a task."
+
+  # ---------------------------------------------------------------- part 2
+  - kind: part
+    n: "2"
+    title: The building blocks
+    lead: The fix is a handful of ideas from HTTP and the database. Learn them once and you can make any endpoint safe to retry.
+    items:
+      - Safe and idempotent HTTP methods
+      - "Anatomy of an idempotency key"
+      - Making a key in 6 languages
+      - "Unique constraints decide"
+      - "What the server answers: 200, 409, 422, 400"
+      - "Fingerprints: same key, same request?"
+
+  - kind: table
+    title: "HTTP methods: safe and idempotent"
+    lead: "RFC 9110 defines both words. **Safe**: the request only reads. **Idempotent**: sending it twice has the same intended effect as sending it once."
+    columns: [METHOD, SAFE, IDEMPOTENT, A RETRY IS]
+    widths: "22mm 16mm 22mm 1fr"
+    rows:
+      - ["GET", {t: "Yes", tone: ok}, {t: "Yes", tone: ok}, "harmless"]
+      - ["HEAD, OPTIONS", {t: "Yes", tone: ok}, {t: "Yes", tone: ok}, "harmless"]
+      - ["PUT", {t: "No", tone: wait}, {t: "Yes", tone: ok}, "harmless: the same full replacement"]
+      - ["DELETE", {t: "No", tone: wait}, {t: "Yes", tone: ok}, "harmless: it's already gone"]
+      - ["POST", {t: "No", tone: bad}, {t: "No", tone: bad}, "a second payment, order or message"]
+      - ["PATCH", {t: "No", tone: bad}, {t: "No (RFC 5789)", tone: bad}, "depends on the patch"]
+    after:
+      - p: "Idempotent is about the effect on the server, not the reply. RFC 9110 says repeating the request has the same intended effect, though the response might differ: a second `DELETE` can get `404` where the first got `200`."
+      - callout: "Payments, orders, sign-ups and messages are `POST`s. An idempotency key is how one `POST` becomes safe to send again."
+        label: WHY KEYS EXIST
+        tone: ok
+
+  - kind: text
+    title: Anatomy of an idempotency key
+    lead: "Six decisions, and what Stripe's API docs and the IETF draft say about each."
+    blocks:
+      - bullets:
+          - "**Who makes it**: the client, before the first attempt. The server can't: to the server, a retry and a new payment look the same."
+          - "**When**: once per thing the person means to do, such as one checkout. The same checkout sends the same key on every retry and every tap; a new checkout gets a new key."
+          - "**What**: random and unguessable. The IETF draft recommends a UUID or a similar random id. Stripe suggests V4 UUIDs, allows up to 255 characters, and says to keep personal data such as email addresses out of keys."
+          - "**Where**: an `Idempotency-Key` request header, the name both Stripe and the IETF draft use."
+          - "**Scope**: one account (and one endpoint). Two users' keys never meet; Part 4 shows what happens when they do."
+          - "**How long**: longer than any retry can take. Stripe may remove keys once they're at least 24 hours old, and treats a key reused after that as a new request."
+      - callout: "The `Idempotency-Key` header is an IETF draft (draft-ietf-httpapi-idempotency-key-header-08, 22 October 2026), not an RFC yet. Stripe's API already uses the same header name."
+        label: STATUS
+        tone: wait
+
+  - kind: table
+    title: Making a key in 6 languages
+    lead: "Each language ships a random id generator. Make the key when the checkout screen opens, keep it with the pending order, and send it on every attempt."
+    columns: [LANGUAGE, ONE KEY PER CHECKOUT]
+    widths: "28mm 1fr"
+    rows:
+      - ["Go 1.24+", "`rand.Text()` from `crypto/rand`: 26 base32 characters, at least 128 bits"]
+      - ["JavaScript", "`crypto.randomUUID()`, in browsers and Node.js"]
+      - ["Java", "`UUID.randomUUID().toString()`"]
+      - ["Kotlin", "`UUID.randomUUID().toString()` (`java.util.UUID`)"]
+      - ["Swift", "`UUID().uuidString`"]
+      - ["Python", "`str(uuid.uuid4())`"]
+    after:
+      - callout: "A key made inside the retry loop is a new key on every attempt, and the server sees a new payment each time. Make it once, outside the loop."
+        label: WHERE IT GOES WRONG
+        tone: bad
+
+  - kind: text
+    title: Unique constraints decide
+    lead: "Two requests with the same key can arrive in the same millisecond: the same race as the last seat. A primary key settles it inside Postgres."
+    blocks:
+      - from: samples/sql/keys.sql
+        lines: [20, 37]
+        lang: sql
+      - p: "`ON CONFLICT DO NOTHING` turns the duplicate into **0 rows** instead of an error. `INSERT 0 1` means you own the key and should charge; `INSERT 0 0` means someone used it first. A key from another account is another key."
+      - p: "If two inserts of the same key run at the same moment, the second **waits** for the first transaction to end. If the first commits, the second inserts nothing (PostgreSQL docs, Index Uniqueness Checks)."
+      - callout: "Never look the key up with `SELECT` and then charge. The gap between the two is the last-seat bug again: in my test it charged 998 to 1,000 of 1,000 shoppers twice."
+        label: THE TRAP
+        tone: bad
+
+  - kind: table
+    title: What the server answers
+    lead: "Every request lands in one of five cases. The status codes are the IETF draft's; the replay is what Stripe does."
+    columns: [THE KEY ROW, MEANS, ANSWER]
+    widths: "34mm 1fr 30mm"
+    rows:
+      - ["None yet: `INSERT 0 1`", "A new payment, and this request owns the key", {t: "Charge, save the reply, 200", tone: ok}]
+      - ["Same request, reply saved", "A retry of a finished payment", {t: "The saved reply, again", tone: ok}]
+      - ["Same request, no reply yet", "A retry while the first is still running", {t: "409: try again soon", tone: wait}]
+      - ["Different request", "The key was reused for another payment", {t: "422: fix the request", tone: bad}]
+      - ["No key sent", "The client didn't send one", {t: "400: a key is required", tone: bad}]
+    after:
+      - p: "Stripe saves the status code and body of the first request once the endpoint starts executing, and returns them to every retry with the same key, `500` errors included. A request that failed validation, or clashed with one still running, isn't saved, so it can be retried."
+      - p: "The IETF draft adds a rule for clients: after a `400` or `422`, fix the request before retrying. Only a `409` needs no fix, just patience."
+
+  - kind: text
+    title: "Fingerprints: same key, same request?"
+    lead: "The server stores a fingerprint of the first request and compares every later one against it."
+    blocks:
+      - p: "My server hashes the request body with SHA-256. The IETF draft lists other ways: a checksum of selected fields, a field-by-field match, or a request signature."
+      - bullets:
+          - "**Why**: a bug that reuses a key for a different cart would otherwise get the first cart's receipt, and pay nothing for the second."
+          - "**Tested**: the same key with $59.99 instead of $49.99. All 1,000 refused with `422`; 0 charged again."
+          - "**Careful**: hash what matters, in a fixed form. Two JSON encoders can write the same object with its fields in a different order."
+
+  # ---------------------------------------------------------------- part 3
+  - kind: part
+    n: "3"
+    title: The fix, step by step
+    lead: "One handler, three steps: claim the key, answer repeats from the row, then charge and save the reply. Tested on 1,000 lost replies and 1,000 double taps."
+    items:
+      - "Step 1: claim the key"
+      - "Step 2: seen before? Answer from the row"
+      - "Step 3: charge, then save the reply"
+      - "Two taps at once, inside Postgres"
+      - Why look-up-first fails
+      - "The app's side: retry with the same key"
+
+  - kind: code
+    title: "Step 1: claim the key"
+    lead: "Before anything else, insert the key. Exactly one request with this key can win."
+    from: samples/go/main.go
+    lines: [160, 180]
+    notes:
+      - [165, "no key: 400, as the IETF draft says"]
+      - [168, "the key's owner: the logged-in account"]
+      - [173, "claim the key; the primary key lets only one insert win"]
+      - [175, "a duplicate is 0 rows, not an error"]
+
+  - kind: code
+    title: "Step 2: seen before? Answer from the row"
+    lead: "0 rows means this key was used before. The row says which of three cases it is."
+    from: samples/go/main.go
+    lines: [181, 199]
+    notes:
+      - [191, "a different request with this key: 422"]
+      - [193, "no reply yet: the first is still running, 409"]
+      - [196, "finished: the first reply, byte for byte"]
+
+  - kind: code
+    title: "Step 3: charge, then save the reply"
+    lead: "Only the request that claimed the key gets this far."
+    from: samples/go/main.go
+    lines: [200, 225]
+    notes:
+      - [201, "pass a key on to the card network (Part 4)"]
+      - [205, "the one and only charge for this key"]
+      - [210, "test only: pretend the server died here (Part 4)"]
+      - [217, "save the reply so every retry can get it"]
+
+  - kind: timeline
+    title: Two taps at once, inside Postgres
+    lead: "Both taps carry the same key and reach the server in the same millisecond."
+    lanes: [TAP 1, TAP 2]
+    state: KEY ROW
+    events:
+      - {who: 0, text: "`INSERT` the key: `INSERT 0 1`", tone: lock, state: "no reply"}
+      - {who: 1, text: "`INSERT` the same key: `INSERT 0 0`", tone: wait}
+      - {who: 1, text: "Reads the row: no reply yet. Answers `409`", tone: wait}
+      - {who: 0, text: "Charges $49.99", tone: ok}
+      - {who: 0, text: "Saves the reply, answers `200`", tone: ok, state: "reply saved"}
+      - {who: 1, text: "Asks again 100 ms later: the same reply", tone: ok}
+    after:
+      - callout: "1,000 double taps: 1,000 charges, 0 charged twice, in all three runs. 940 to 985 `409` answers per run, each followed by the same receipt on the next try."
+        label: TESTED
+        tone: ok
+
+  - kind: code
+    title: Why look-up-first fails
+    lead: "The same idea in the order most people write it: look the key up, charge, then save the key."
+    from: samples/go/main.go
+    lines: [126, 148]
+    notes:
+      - [127, "both taps look at the same moment: no row yet"]
+      - [138, "so both charge"]
+      - [147, "the second insert does nothing, but the money is already gone"]
+    after:
+      - callout: "998 to 1,000 of 1,000 shoppers charged twice. Claim first, then charge."
+        label: RESULT
+        tone: bad
+
+  - kind: code
+    title: "The app's side: retry with the same key"
+    lead: "With a key, retrying is safe, so the app can keep trying until it gets an answer."
+    from: samples/go/main.go
+    lines: [349, 368]
+    notes:
+      - [354, "up to 60 attempts, 100 ms apart"]
+      - [358, "no reply, or 502: try again"]
+      - [359, "409: the first is still running, so ask again"]
+    after:
+      - bullets:
+          - "**Back off**: a real app waits longer after each failure (exponential backoff, with some randomness), so thousands of phones don't retry in step."
+          - "**Stop on 4xx**: a `400` or `422` won't work on retry; the IETF draft says the client must fix the request first."
+          - "**Keep the key**: store it with the pending order, so an app that restarts retries with the same key."
+
+  # ---------------------------------------------------------------- part 4
+  - kind: part
+    n: "4"
+    title: In production
+    lead: "The handler is only the middle of the story. Real payment systems also face shared keys, crashes, providers and webhooks. Each case here was tested too."
+    items:
+      - Keys belong to one account
+      - The server dies after charging
+      - Keys all the way down
+      - How long to keep keys
+      - Queues and webhooks
+      - "A payment, end to end"
+
+  - kind: text
+    title: Keys belong to one account
+    lead: "My test: each phone numbers its checkouts from 1, so every shopper's first key is `checkout-1`. One version of the server stores keys without the account."
+    blocks:
+      - bullets:
+          - "**One key space for everyone**: 1 shopper charged. The other **999 were told \"Paid\" with someone else's receipt**, and never charged."
+          - "**Scoped to the account**: 1,000 charged once, 0 wrong receipts."
+      - from: samples/go/main.go
+        lines: [49, 57]
+        hl: [56]
+        lang: sql
+      - p: "Take the account from the login session, never from the request. With `(account_id, key)` as the primary key, a reused or guessed key can only ever reach its own account's payments."
+      - callout: "Anything the client names (idempotency keys, cache keys, locks, saved replies) belongs to an account. A shared space leaks one user's data to another."
+        label: THE RULE
+        tone: ok
+
+  - kind: timeline
+    title: The server dies after charging
+    lead: "The worst moment: the card is charged, the reply isn't saved yet, and the process dies."
+    lanes: [SERVER, RECOVERY JOB]
+    state: CHARGES
+    events:
+      - {who: 0, text: "Claims the key: a row with no reply", tone: lock, state: "0"}
+      - {who: 0, text: "Charges the card", tone: ok, state: "1"}
+      - {who: 0, text: "Dies before saving the reply", tone: bad}
+      - {who: 0, text: "The app's retries get `409`: still running", tone: wait}
+      - {who: 1, text: "Finds the row: no reply, older than any request takes", tone: lock}
+      - {who: 1, text: "Charges again: the card network can't tell", tone: bad, state: "2"}
+    after:
+      - callout: "Tested: 1,000 crashes after charging, 1,000 shoppers charged twice by the recovery job. The fix is on the next page."
+        label: RESULT
+        tone: bad
+
+  - kind: text
+    title: Keys all the way down
+    lead: "Give the card network a key too, so asking it twice is safe. My card network keeps one unique `network_key` per charge, like Stripe's `Idempotency-Key`."
+    blocks:
+      - from: samples/go/main.go
+        lines: [78, 89]
+        hl: [85, 86]
+      - p: "The server sends `account/key`, the same on its first try and on every recovery. Asked again, the network answers with the first charge."
+      - from: samples/go/main.go
+        lines: [234, 238]
+        hl: [238]
+      - p: "10 recovery workers share the stuck rows. `FOR UPDATE SKIP LOCKED` hands each worker different rows, so none of them wait: the queue pattern from guide #1."
+      - bullets:
+          - "**Tested**: 1,000 crashes after charging, recovered by 10 workers: 1,000 charges, 0 charged twice, in all three runs."
+          - "**A stuck row means \"maybe charged\"**: ask the provider with the same key instead of guessing either way."
+      - callout: "Every hop that can be retried needs its own idempotency: app → your server (your key table), your server → payment provider (their key), queue → consumer (event ids)."
+        label: THE PATTERN
+        tone: ok
+
+  - kind: text
+    title: How long to keep keys
+    lead: "Forever costs storage; too short brings double charges back."
+    blocks:
+      - from: samples/sql/keys.sql
+        lines: [54, 58]
+        lang: sql
+      - bullets:
+          - "**Stripe**: keys may be removed once they're at least 24 hours old; a key reused after that is a new request."
+          - "**Rule of thumb**: keep keys longer than your longest retry window, including apps that come back online hours later."
+          - "**Keep the reply, not just the key**: a retry needs the original status and body to answer."
+          - "**Index the cleanup**: on a big table, `created_at` needs its own index so the nightly `DELETE` doesn't scan everything."
+
+  - kind: text
+    title: Queues and webhooks
+    lead: "Messages arrive more than once too. AWS: an SQS message may come again, so make consumers idempotent. Stripe: an endpoint might receive the same event more than once."
+    blocks:
+      - from: samples/sql/keys.sql
+        lines: [61, 72]
+        lang: sql
+      - p: "Record the event id **in the same transaction** as the effect, and check the rows: `INSERT 0 0` means the event was handled already, so skip it and acknowledge. If the transaction fails, neither the record nor the effect stays, and the next delivery tries again."
+      - callout: "Stripe's advice is the same: log the event IDs you've processed and skip ones already logged. Events can also arrive out of order, so don't rely on order."
+        label: ALSO
+        tone: wait
+
+  - kind: flowchart
+    title: "A payment, end to end"
+    lead: "Putting it together. Every arrow can fail and be retried; every step stays safe."
+    nodes:
+      - {head: "App: make the key", body: "One random key when checkout opens. Every attempt sends it in `Idempotency-Key`."}
+      - {head: "Server: claim it", body: "`INSERT … ON CONFLICT DO NOTHING` on `(account_id, key)`. 0 rows: answer from the row with 200, 409 or 422."}
+      - {head: "Server → provider", body: "Charge with a key of your own, the same on every retry. No row locks held during the call."}
+      - {head: "Server: save the reply", body: "Status and body in the key row, so every retry gets them."}
+      - {head: "Recovery job", body: "Rows stuck without a reply: ask the provider again with the same key. `SKIP LOCKED` spreads the work."}
+      - {head: "Webhooks and queues", body: "The event id as a primary key, in the same transaction as the effect.", tone: ok}
+
+  # ---------------------------------------------------------------- part 5
+  - kind: part
+    n: "5"
+    title: Interview kit
+    lead: "\"Design a payment system\" and \"how do you avoid charging twice?\" are classic system design questions. Idempotency is the heart of the answer."
+    items:
+      - A 2-minute answer
+      - 12 questions, with answers
+      - 8 mistakes to catch in a code review
+      - A checklist and a one-page cheat sheet
+
+  - kind: steps
+    title: Your 2-minute answer
+    lead: "When the interviewer asks \"how do you make sure a payment is never charged twice?\", walk through this."
+    steps:
+      - head: Name the problem
+        body: "Retries. A timeout means \"maybe\": the charge may have happened and only the reply was lost. `POST` isn't idempotent, so a blind retry is a second payment."
+      - head: Give the fix
+        body: "An idempotency key: the client makes one random key per payment and sends it with every attempt."
+      - head: Make it race-proof
+        body: "Claim the key with an insert under a unique constraint on `(account_id, key)` before charging. 0 rows means seen before."
+      - head: Answer the repeats
+        body: "Save the status and body and replay them. `409` while the first is running, `422` if the key comes with a different request."
+      - head: Cover crashes
+        body: "Pass a key to the payment provider too, and finish rows stuck without a reply by asking again with the same key."
+      - head: Show the limits
+        body: "Keys expire after a window (Stripe: at least 24 hours), queue and webhook events are deduplicated by id, and clients back off."
+
+  - kind: qa
+    title: 12 interview questions
+    items:
+      - q: What does idempotent mean?
+        a: "Doing it twice has the same effect as doing it once. Setting a status is idempotent; adding to a balance isn't."
+      - q: Which HTTP methods are idempotent?
+        a: "GET, HEAD, OPTIONS, PUT and DELETE (RFC 9110). POST and PATCH are not, which is why payments need a key."
+      - q: Who makes the idempotency key, and when?
+        a: "The client, once per action the person means to do, before the first attempt. The server can't: to it, a retry and a new payment look the same."
+      - q: Can the order id be the key?
+        a: "Yes, if the order is created before payment and each order is paid once. What can't be a key is anything that repeats, such as a per-device counter: in my test that showed 999 of 1,000 shoppers someone else's receipt."
+      - q: Why claim the key with INSERT instead of checking with SELECT?
+        a: "SELECT-then-act leaves a gap: two taps both see no key and both charge (998 to 1,000 of 1,000 in my test). A unique constraint lets only one insert win."
+      - q: What should a retry get while the first request is still running?
+        a: "`409 Conflict`, and the client asks again later. The IETF draft says so; Stripe answers with the error `idempotency_key_in_use`."
+      - q: What if the same key comes with a different amount?
+        a: "Refuse it: `422` in the IETF draft, and Stripe errors when the parameters differ. Compare a fingerprint of the first request."
+      - q: Should a retry get the first response even if it was an error?
+        a: "Stripe replays the saved response, `500` included, for requests that started executing. Validation failures and clashes with a running request aren't saved, so they can be retried."
+      - q: The server crashed after charging but before saving. Now what?
+        a: "The key row has no reply. A recovery job asks the provider again with the same provider key, and the provider answers with the first charge. Without that key, recovery charges twice: 1,000 of 1,000 in my test."
+      - q: How long do you keep keys?
+        a: "Longer than any retry can take. Stripe may remove keys once they're at least 24 hours old; after that, the same key is a new request."
+      - q: Why scope keys by account?
+        a: "Otherwise one user's key can match another's. With keys shared by every account, 999 of 1,000 shoppers in my test were shown someone else's receipt and never charged."
+      - q: How do you make a webhook or queue consumer idempotent?
+        a: "Insert the event id under a primary key in the same transaction as the effect; 0 rows means already handled. AWS and Stripe both say duplicates happen."
+
+  - kind: text
+    title: 8 mistakes to catch in a review
+    blocks:
+      - bullets:
+          - "**Retrying a POST without a key**, in the app, an SDK or a proxy."
+          - "**A new key per attempt**, made inside the retry loop. Every retry looks like a new payment."
+          - "**Looking the key up with SELECT, then charging.** Two taps at once both charge."
+          - "**Saving the key only after the charge.** A crash in between leaves no trace."
+          - "**Keys without the account.** One user's retry gets answered with another user's receipt."
+          - "**Ignoring the request body.** The same key with a different amount gets the old receipt."
+          - "**Calling the payment provider without its own key.** Your recovery job becomes a second charge."
+          - "**Holding a transaction or row lock across the provider call.** Everyone behind you waits on the network."
+
+  - kind: checklist
+    title: Checklist for payment endpoints
+    items:
+      - "Every POST that moves money, creates an order or sends a message takes an `Idempotency-Key`."
+      - "The client makes the key once per action and sends it on every attempt."
+      - "Keys are random (a UUID v4, `crypto/rand`) and never contain personal data."
+      - "The key table's primary key is `(account_id, key)`, with the account from the session."
+      - "Claim the key with `INSERT … ON CONFLICT DO NOTHING` before charging, and check the rows."
+      - "Store a fingerprint of the request; answer a mismatch with `422`."
+      - "Answer a retry of a running request with `409`; replay the saved status and body when it's done."
+      - "Pass your own key to the payment provider."
+      - "A recovery job finishes rows stuck without a reply, asking the provider again with the same key."
+      - "Expire keys after a published window, and test it all: drop the first reply a thousand times and count the charges."
+
+  - kind: table
+    title: Cheat sheet
+    lead: Screenshot this page.
+    columns: [YOU NEED TO, DO THIS, THEN]
+    widths: "26mm 1fr 24mm"
+    rows:
+      - ["Make a key", "`crypto.randomUUID()`, `rand.Text()`: once per checkout", "same key on retry"]
+      - ["Claim it", "`INSERT INTO idempotency_keys … ON CONFLICT DO NOTHING`", "1 row = charge"]
+      - ["Seen before?", "`SELECT request_hash, response … WHERE account_id = $1 AND key = $2`", "compare"]
+      - ["Still running", "answer `409`", "client asks again"]
+      - ["Different request", "answer `422`", "client fixes it"]
+      - ["Finished", "replay the saved status and body", "byte for byte"]
+      - ["Call the provider", "send your own `Idempotency-Key`", "same on recovery"]
+      - ["Stuck rows", "`… WHERE response IS NULL … FOR UPDATE SKIP LOCKED`", "re-ask, same key"]
+      - ["Expire keys", "`DELETE … WHERE created_at < now() - interval '24 hours'`", "window > retries"]
+      - ["Handle events", "`INSERT INTO processed_events … ON CONFLICT DO NOTHING`", "0 rows = skip"]
+
+  - kind: table
+    title: Collect the series
+    lead: "Every Behind the Button video comes with its own free guide like this one. Comment the keyword shown in each video to get it, and build the whole set."
+    columns: ["#", THE GUIDES]
+    widths: "8mm 1fr"
+    rows:
+      - ["1", "The last seat: race conditions in SQL (comment SEAT on that video)"]
+      - [{t: "2", tone: ok}, {t: "You tapped Pay twice: idempotency keys (this guide)", tone: ok}]
+      - ["3", "Why your OTP dies in 30 seconds: how TOTP works"]
+      - ["4", "The view counter that broke at 2,147,483,647: integer overflow"]
+      - ["5", "\"Username taken\" in 1 ms among a billion: unique indexes and Bloom filters"]
+      - ["6", "Why \"typing…\" shows up instantly: WebSockets and presence"]
+      - ["7", "The reset link that only works once: single-use tokens"]
+
+end:
+  video: "Behind the Button #2, You tapped Pay twice: on Instagram @stacknova.dev and YouTube @StackNovaDev."
+  next: "This is guide #2 of the Behind the Button collection. Missed #1? Comment SEAT on the last-seat video. Follow, and comment the keyword on the next video to get guide #3."
+  more: "Test your own payment code the way this guide did: drop the first reply on purpose, a thousand times, and count the charges."
+
+sources_lead: Every claim in this guide comes from one of these, or from the tests in it (PostgreSQL 16.13, 30 Oct 2026).
+extra_sources:
+  - {title: "Stripe API — Idempotent requests (saved status and body, 500s included; V4 UUIDs; up to 255 characters; keys removed after at least 24 hours; parameters compared; all POST requests accept keys)", url: "https://docs.stripe.com/api/idempotent_requests"}
+  - {title: "Stripe — Error codes (idempotency_key_in_use: duplicate requests made at the same time)", url: "https://docs.stripe.com/error-codes"}
+  - {title: "Stripe — Webhooks (duplicate events, retries for up to three days in live mode, order not guaranteed, log processed event IDs)", url: "https://docs.stripe.com/webhooks"}
+  - {title: "IETF — The Idempotency-Key HTTP Header Field, draft-ietf-httpapi-idempotency-key-header-08, 22 Oct 2026 (UUID keys, expiry policy, fingerprints, 400 / 409 / 422)", url: "https://datatracker.ietf.org/doc/draft-ietf-httpapi-idempotency-key-header/"}
+  - {title: "RFC 9110 — HTTP Semantics, 9.2.1 Safe Methods and 9.2.2 Idempotent Methods (automatic retries of non-idempotent requests)", url: "https://www.rfc-editor.org/rfc/rfc9110#section-9.2.2"}
+  - {title: "RFC 5789 — PATCH Method for HTTP (PATCH is neither safe nor idempotent)", url: "https://www.rfc-editor.org/rfc/rfc5789"}
+  - {title: "PostgreSQL 18 — INSERT, ON CONFLICT DO NOTHING / DO UPDATE", url: "https://www.postgresql.org/docs/18/sql-insert.html"}
+  - {title: "PostgreSQL 18 — 63.5 Index Uniqueness Checks (a second insert waits for the first, then conflicts if it committed)", url: "https://www.postgresql.org/docs/18/index-unique-checks.html"}
+  - {title: "PostgreSQL 18 — SELECT, the locking clause (FOR UPDATE SKIP LOCKED)", url: "https://www.postgresql.org/docs/18/sql-select.html"}
+  - {title: "Amazon SQS — At-least-once delivery (a message may arrive again; design idempotent consumers)", url: "https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/standard-queues-at-least-once-delivery.html"}
+  - {title: "Go — crypto/rand.Text (at least 128 bits of randomness) and context.WithoutCancel", url: "https://pkg.go.dev/crypto/rand#Text"}
+  - {title: "pgx v5 — CommandTag.RowsAffected, BeginFunc", url: "https://pkg.go.dev/github.com/jackc/pgx/v5"}
+  - {title: "MDN — Crypto.randomUUID()", url: "https://developer.mozilla.org/en-US/docs/Web/API/Crypto/randomUUID"}
+  - {title: "Java SE 25 — java.util.UUID.randomUUID", url: "https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/UUID.html"}
+  - {title: "Python — uuid.uuid4", url: "https://docs.python.org/3/library/uuid.html"}
+  - {title: "Apple — Foundation UUID (uuidString)", url: "https://developer.apple.com/documentation/foundation/uuid"}

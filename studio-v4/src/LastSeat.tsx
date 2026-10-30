@@ -37,7 +37,7 @@ function scene(line: Line, tl: Timeline) {
 }
 
 /** Every scene slides in over 6 frames and pushes in slowly while it plays, so nothing sits still. */
-const Shot: React.FC<{ len: number; first: boolean; children: React.ReactNode }> = ({ len, first, children }) => {
+export const Shot: React.FC<{ len: number; first: boolean; children: React.ReactNode }> = ({ len, first, children }) => {
   const frame = useCurrentFrame();
   const enter = first ? 1 : interpolate(frame, [0, 6], [0, 1], clamp);
   const push = interpolate(frame, [0, len], [1, 1.035], clamp);
