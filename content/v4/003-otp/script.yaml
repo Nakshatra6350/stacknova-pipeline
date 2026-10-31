@@ -1,0 +1,45 @@
+# Behind the Button #3 (look v4): why your OTP dies in 30 seconds. TOTP, in about a minute: the
+# everyday moment (a code that works in airplane mode), how two machines agree without talking, the
+# real code, why 30 seconds, the bug (a real run, samples/go), the fix, the real case (Retool, 2023),
+# and the call to action. `scene` names the visual each line plays over (studio-v4); `say` is spoken,
+# `show` (when present) is the on-screen caption text.
+id: 003-otp
+keyword: OTP
+title: "Why Your OTP Dies in 30 Seconds"
+youtube_title: "How Google Authenticator Works Without Internet (TOTP)"
+lines:
+  - {id: l1, scene: hook, say: "Airplane mode. No signal. This code still logs you in. How?"}
+  - {id: l2, scene: stakes, say: "Your phone never talks to the server. Yet every thirty seconds, both land on the same six digits.",
+     show: "Your phone never talks to the server. Yet every 30 seconds, both land on the same 6 digits."}
+  - {id: l3, scene: secret, say: "You scanned a QR code once. Both sides saved one secret. After that, all they share is the time."}
+  - {id: l4, scene: code, say: "The whole code: take the time, divide by thirty. Mix in the secret. Cut it to six digits.",
+     show: "The whole code: take the time, divide by 30. Mix in the secret. Cut it to 6 digits."}
+  - {id: l5, scene: dies, say: "That division is why it dies: every thirty seconds, every digit changes.",
+     show: "That division is why it dies: every 30 seconds, every digit changes."}
+  - {id: l6, scene: bug, say: "But the simple version has a bug. I tested it: a thousand codes, sent again by someone else. A thousand got in.",
+     show: "But the simple version has a bug. I tested it: 1,000 codes, sent again by someone else. 1,000 got in."}
+  - {id: l7, scene: fix, say: "A code must work once. One update saves the last step used. Zero rows changed means it's spent.",
+     show: "A code must work once. One UPDATE saves the last step used. 0 rows changed means it's spent."}
+  - {id: l8, scene: proof, say: "Same test: zero got in.", show: "Same test: 0 got in."}
+  - {id: l9, scene: retool, say: "And guard that secret. In twenty twenty-three, attackers took one employee's Google account, and the synced codes came with it. Twenty-seven Retool customers were hit.",
+     show: "And guard that secret. In 2023, attackers took one employee's Google account, and the synced codes came with it. 27 Retool customers were hit."}
+  - {id: l10, scene: cta, say: "Comment OTP for the free guide: eleven cases, each one tested, in real code. Because next time you're in airplane mode, it'll still work.",
+     show: "Comment OTP for the free guide: 11 cases, each one tested, in real code. Because next time you're in airplane mode, it'll still work.",
+     # YouTube has no comment-to-DM, so the Short ends on a follow
+     say_youtube: "Follow for one of these every day. Because next time you're in airplane mode, it'll still work."}
+
+fact_check:
+  - claim: "A TOTP code is computed from a shared secret and the current time, with no network between the app and the server: HOTP(K, T), T = (time - T0) / X"
+    source: "https://www.rfc-editor.org/rfc/rfc6238#section-4"
+  - claim: "Our code matches 28 of 28 official test values (RFC 6238 Appendix B, RFC 4226 Appendix D) and pyotp 2.9.0 on 1,000 random secrets"
+    source: "derived from code sample samples/go, mode rfc, and samples/crosscheck.py (31 Oct 2026)"
+  - claim: "The default time step is 30 seconds, chosen as a balance between security and usability"
+    source: "https://www.rfc-editor.org/rfc/rfc6238#section-5.2"
+  - claim: "The QR code holds the secret in a key URI: otpauth://totp/...?secret=BASE32"
+    source: "https://github.com/google/google-authenticator/wiki/Key-Uri-Format"
+  - claim: "A verifier must not accept a second attempt of an OTP after a successful validation"
+    source: "https://www.rfc-editor.org/rfc/rfc6238#section-5.2"
+  - claim: "A code sent again by someone else got in 1,000 of 1,000 times without a used-step check, and 0 of 1,000 with one conditional UPDATE, in three runs each"
+    source: "derived from code sample samples/go, modes replay-naive and replay-once (PostgreSQL 16.13, 31 Oct 2026)"
+  - claim: "On 27 Aug 2023 attackers phished a Retool employee; because Google Authenticator's cloud sync was on, access to the Google account gave them the MFA codes; Retool notified 27 cloud customers of unauthorized access"
+    source: "https://retool.com/blog/mfa-isnt-mfa"

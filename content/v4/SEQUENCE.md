@@ -15,6 +15,10 @@ claim is fact-checked and every code demo is run before its video is made.
 | Fri 6 Nov | Why "typing…" shows up instantly | WebSockets, presence, heartbeats | Node: a typing indicator over a socket | — | TYPING |
 | Sat 7 Nov | The password-reset link that only works once | single-use tokens, hashing, expiry | Go: store the hash, not the token | — | RESET |
 
+What actually happened: the owner started early, so the dates above moved up. SEAT went out on 29 Oct,
+PAY on 30 Oct, and OTP is posted on Sat 31 Oct. At one a day, the rest follow: VIEWS Sun 1 Nov, NAME Mon 2 Nov,
+TYPING Tue 3 Nov, RESET Wed 4 Nov.
+
 Next week's candidates: 10,000 PS5s and no oversell (atomic stock), the nearest driver in
 milliseconds (geohash), stories that vanish after 24 h (TTL), the 2021 Facebook outage (BGP, DNS),
 why Netflix doesn't buffer (adaptive bitrate).

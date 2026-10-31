@@ -1,0 +1,703 @@
+# The free guide for "Behind the Button #3: Why your OTP dies in 30 seconds" (keyword OTP). Built by
+# studio/scripts/pack.py content/v4/003-otp into out/release/packs/. Every result comes from samples/
+# run on 31 Oct 2026 (go run . -mode=..., three runs of each, on PostgreSQL 16.13; psql -f
+# samples/sql/otp.sql; samples/crosscheck.py against pyotp); code is cut from those files by line
+# range. Like guides #1 and #2, it is a whole resource (owner, 29 Oct): every idea the fix uses,
+# practical scenarios and diagrams.
+keyword: OTP
+file: stacknova-30-second-code-guide
+lang: go
+kicker: "BEHIND THE BUTTON · FREE GUIDE #3"
+title: The 30-Second Code
+subtitle: How authenticator codes work with no internet, from the QR code to a login server that accepts each code once. SMS codes too. Every result tested.
+versions: Tested on Go 1.24, PostgreSQL 16.13 and pgx v5.7.2 on 31 Oct 2026, and checked against the official test values of RFC 6238 and RFC 4226 and the pyotp 2.9.0 library.
+inside:
+  - "Part 1 · The moment: two kinds of OTP, one login step by step, every test result"
+  - "Part 2 · The building blocks: hashes, HMAC, the QR code, time steps, one code by hand"
+  - "Part 3 · The login server in real Go + SQL: clocks, replays, races"
+  - "Part 4 · Production: guessing, storing secrets, recovery, SMS, phishing"
+  - "Part 5 · Interview kit: a 2-minute answer, 12 questions, a one-page cheat sheet"
+
+sections:
+  # ---------------------------------------------------------------- part 1
+  - kind: part
+    n: "1"
+    title: The moment
+    lead: Your phone is in airplane mode, and the code still logs you in. Before the maths, here is what actually happens.
+    items:
+      - Two kinds of OTP
+      - One login, step by step
+      - Scan it yourself
+      - "My test: 11 cases, every result"
+      - The login server most of us write first
+
+  - kind: table
+    title: Two kinds of OTP
+    lead: "\"OTP\" means one-time password. Two very different systems share the name, and this guide covers both. The video is about the first."
+    columns: ["", AUTHENTICATOR APP (TOTP), CODE BY SMS]
+    widths: "22mm 1fr 1fr"
+    rows:
+      - ["Who makes the code", "Both sides, each on its own", "The server, then it sends it"]
+      - ["Phone needs signal", {t: "No: airplane mode is fine", tone: ok}, {t: "Yes: it has to receive a text", tone: wait}]
+      - ["What the server stores", "A secret, for years", "One code, for minutes"]
+      - ["How long a code lasts", "30 seconds, by default", "Your choice"]
+      - ["Costs per login", {t: "Nothing", tone: ok}, {t: "One text message", tone: wait}]
+      - ["Main risks", "A stolen secret; phishing", "SIM swaps; phishing; texts read by other apps"]
+    after:
+      - p: "**TOTP** stands for Time-based One-Time Password, defined in RFC 6238 (2011). It is what apps such as Google Authenticator generate when you add an account with a QR code."
+      - callout: "Your bank's SMS code that lasts a few minutes is the second kind. Part 4 builds that one too, because most of the same mistakes apply."
+        label: WHICH ONE IS MINE?
+        tone: wait
+
+  - kind: timeline
+    title: One login, step by step
+    lead: "Follow the arrows that are not there. After the QR code, the phone and the server never exchange a single message."
+    lanes: [YOUR PHONE, THE SERVER]
+    state: SECRET ON
+    events:
+      - {who: 1, text: "Makes a random 20-byte secret for your account", state: "server"}
+      - {who: 1, text: "Shows it to you once, as a QR code", tone: wait}
+      - {who: 0, text: "You scan it. The app saves the secret", tone: lock, state: "both"}
+      - {who: null, text: "Days later. Your phone goes into airplane mode"}
+      - {who: 0, text: "14:40:12: secret + the time → `070226`", tone: ok}
+      - {who: 1, text: "You type it on the website. The server takes secret + **its own** clock → `070226`", tone: ok}
+      - {who: 1, text: "They match: you're in", tone: ok}
+    after:
+      - callout: "A code is not sent to you, and it is not looked up. Both sides **calculate** it. The only thing that crosses between them is what you typed."
+        label: THE IDEA
+        tone: ok
+      - p: "So the server has to trust only two things: that you hold the secret, and that your clock is about right. That is also where everything in this guide can go wrong."
+
+  - kind: text
+    title: Scan it yourself
+    lead: "This is a real QR code with a demo secret, the same one as in the video. Add it to an authenticator app, then run the program: the digits should match, as long as both clocks are right."
+    blocks:
+      - svg: samples/demo-qr.svg
+      - code: |
+          $ go run . -mode=now
+          uri     otpauth://totp/StackNova:demo?issuer=StackNova&secret=STACKNOVABEHIND...
+          step    59781920
+          code    070226
+        lang: sql
+      - callout: "The demo secret is public, so never protect anything with it. Delete it from your app when you're done. A real secret is random, and is shown once."
+        label: CAREFUL
+        tone: bad
+
+  - kind: numbers
+    title: "My test: 11 cases, every result"
+    lead: "A real TOTP in Go, a real login server over HTTP, and Postgres holding the accounts. 1,000 accounts per case, three runs each; where results varied, the range is shown. **Lower is better**, apart from the first two."
+    rows:
+      - ["28/28", "Official test values matched (RFC 6238, RFC 4226), and 1,000 of 1,000 codes matched the pyotp library"]
+      - [1000, "Codes accepted from a phone program that opens no network connection at all"]
+      - ["248-276", "Honest people refused if only this step's code is accepted: they were still typing"]
+      - [0, "Refused when the step before and after are accepted too"]
+      - [1000, "Someone sends your code again within seconds: all got in"]
+      - [0, "The same, with each code spent once"]
+      - ["406-732", "Both at once, last step looked up first: both got in"]
+      - [0, "Both at once, spent with one conditional `UPDATE`"]
+      - [1000, "Phone clock ahead, server saves its own step: the code works again"]
+      - [0, "The same, saving the code's step"]
+      - ["45-62", "Of 10,000 logins, one used-code list for everyone: told \"already used\" on a code they never used"]
+      - [0, "One list per account"]
+      - [1000, "100 guesses a second with no limit: every account broken, half within 40 minutes"]
+      - ["1-4", "5 wrong tries, then a 15-minute lock: broken in 24 hours"]
+      - ["0-2", "Code login disabled after 100 wrong tries"]
+      - [1000, "Secrets from `math/rand` and the clock: worked out from 2 codes each"]
+      - [0, "Secrets from `crypto/rand`, under the same attack"]
+      - [1000, "The table leaks, secrets stored as they are: all logged in"]
+      - [0, "The table leaks, secrets encrypted"]
+      - [1000, "Someone copies their own encrypted secret onto your row: all got in"]
+      - [0, "Secrets encrypted for one account only"]
+    after:
+      - p: "Parts 3 and 4 build each fix. To run them: `DATABASE_URL=postgres://... go run . -mode=replay-naive`, with the list of modes at the top of `main.go`."
+
+  - kind: code
+    title: The login server most of us write first
+    lead: "It works, and every code it accepts is right. That is the bug: a right code stays right for up to 90 seconds, for anyone."
+    from: samples/go/server.go
+    lines: [76, 95]
+    notes:
+      - [85, "the secret for this account"]
+      - [90, "accepts this step's code, or the step before or after"]
+      - [94, "nothing remembers that this code has been used"]
+
+  # ---------------------------------------------------------------- part 2
+  - kind: part
+    n: "2"
+    title: The building blocks
+    lead: "TOTP is short because it stands on a few simple ideas. Learn these once and you can read any authentication code."
+    items:
+      - "Hashes and HMAC"
+      - What is inside the QR code
+      - Time, cut into steps
+      - One code, by hand
+      - The whole algorithm in 15 lines
+      - "How I know it's right"
+      - "Random numbers: the one thing not to get wrong"
+
+  - kind: text
+    title: Hashes and HMAC
+    lead: "Everything rests on one tool: a function that turns a secret and a message into a number nobody can predict without the secret."
+    blocks:
+      - p: "A **hash** such as SHA-1 turns any input into a fixed-size fingerprint: 20 bytes for SHA-1. The same input always gives the same output, a tiny change gives a completely different one, and you can't run it backwards."
+      - p: "An **HMAC** (RFC 2104) is a hash with a key mixed in. Without the key, you can't work out the output, even if you've seen thousands of others. That is why the phone and the server can both make the same number, and nobody else can."
+      - h: The same message, three times
+      - code: |
+          HMAC-SHA1(demo secret, step 59781920) = 5bb419dd8609b7609c75fad0dd4913920685fa4c
+          HMAC-SHA1(demo secret, step 59781921) = ca374a8e3c7afecd6d0f7a22c778f261c45fe763
+        lang: sql
+      - p: "Two steps one apart, and every byte is different. So seeing one code tells you nothing about the next. RFC 6238's security section says the best possible attack on the outputs is brute force, which is why Part 4 limits guesses."
+      - callout: "SHA-1 has known collision attacks. RFC 6194 (2011) found no sign they extend to HMAC-SHA-1, and RFC 6238 builds on HMAC-SHA-1 by default. It is what authenticator apps expect, and some ignore any other setting."
+        label: "BUT ISN'T SHA-1 BROKEN?"
+        tone: wait
+
+  - kind: table
+    title: What is inside the QR code
+    lead: "A QR code is just text. This one holds a key URI, the format Google Authenticator documented and other apps follow."
+    columns: [PART, IN OUR DEMO, MEANS]
+    widths: "18mm 40mm 1fr"
+    rows:
+      - ["Scheme", "`otpauth://totp/`", "Time-based: an authenticator should add it"]
+      - ["Label", "`StackNova:demo`", "Who issued it, and which account: what the app shows"]
+      - ["secret", "`STACKNOVABEHIND…`", "The secret in Base32, with no padding. **Required**"]
+      - ["issuer", "`StackNova`", "Strongly recommended, and should match the label"]
+      - ["algorithm", "not set", "Default SHA1"]
+      - ["digits", "not set", "Default 6"]
+      - ["period", "not set", "Default 30 seconds"]
+    after:
+      - p: "**Base32** (RFC 4648) writes bytes with only A–Z and 2–7, so a person can type a secret by hand when a QR code won't scan, without mixing up 0 and O or 1 and I. 32 characters hold exactly 20 bytes."
+      - from: samples/go/totp.go
+        lines: [66, 72]
+      - callout: "Google's own page says Google Authenticator ignores `algorithm` and `period` in all its versions, and `digits` on some. Stick to SHA-1, 6 digits and 30 seconds."
+        label: IN PRACTICE
+        tone: wait
+      - callout: "That QR code **is** the secret. Anyone who photographs it, or finds it in a log or a screenshot, has the same code generator you do. Show it once, over HTTPS, and don't send it anywhere."
+        label: THE TRAP
+        tone: bad
+
+  - kind: table
+    join: true
+    title: Time, cut into steps
+    lead: "Unix time counts seconds since 1 January 1970, UTC, so it's the same number everywhere on Earth. Divide by 30, drop the remainder, and you have the **step**."
+    columns: [CLOCK (UTC), UNIX TIME, ÷ 30, CODE]
+    widths: "26mm 1fr 1fr 16mm"
+    rows:
+      - ["14:40:12", "1793457612", "59781920", "`070226`"]
+      - ["14:40:29", "1793457629", "59781920", "`070226`"]
+      - [{t: "14:40:30", tone: bad}, "1793457630", {t: "59781921", tone: bad}, {t: "`844670`", tone: bad}]
+      - ["14:40:59", "1793457659", "59781921", "`844670`"]
+    after:
+      - p: "Time zones don't matter: your phone in Mumbai and a server in Virginia get the same step. Only the clock's accuracy does."
+      - p: "Between 14:40:00 and 14:40:29, every second gives the same step, so the same code. One second later, the step changes, and so does every digit. **That is why it dies.**"
+      - callout: "RFC 6238 recommends 30 seconds \"as a balance between security and usability\". Longer gives anyone who sees a code more time to use it, and makes you wait longer for your next login. It calls 10 minutes too long for typical logins."
+        label: "WHY 30?"
+        tone: ok
+
+  - kind: flowchart
+    title: One code, by hand
+    lead: "Every value below is real: the demo secret at 14:40:12 UTC on 31 October 2026. Run `go run . -mode=now -at=1793457612` to see them yourself."
+    nodes:
+      - {head: "Start with the secret and the time", body: "Secret `STACKNOVABEHINDTHEBUTTONTHREEOTP`. Time 1793457612."}
+      - {head: "Divide the time by 30", body: "Step 59781920, written as 8 bytes: `0000000003903320`."}
+      - {head: "HMAC-SHA-1 of those 8 bytes, with the secret", body: "20 bytes: `5bb419dd8609b7609c75fad0dd4913920685fa4c`."}
+      - {head: "The last 4 bits pick a place", body: "The last byte is `4c`. Its low half is `c`, which is 12, so start at byte 12."}
+      - {head: "Take 4 bytes from there", body: "Bytes 12 to 15 are `dd491392`. Clear the top bit: `5d491392`, which is 1,565,070,226."}
+      - {head: "Keep the last 6 digits", body: "1565070226 mod 1,000,000 = **070226**. Leading zeros count.", tone: ok}
+    after:
+      - p: "RFC 4226 calls step 4 and 5 **dynamic truncation**. The top bit is cleared to avoid confusion between signed and unsigned numbers across languages."
+
+  - kind: code
+    title: The whole algorithm in 15 lines
+    lead: "This is everything both sides run. `hotp` is RFC 4226, built for counters; `stepAt` is what RFC 6238 adds, so that the counter is the time."
+    from: samples/go/totp.go
+    lines: [22, 40]
+    notes:
+      - [25, "HMAC with the secret"]
+      - [26, "the counter, as 8 big-endian bytes"]
+      - [28, "the last 4 bits pick a place in the 20 bytes"]
+      - [29, "4 bytes from there, with the top bit cleared"]
+      - [30, "the last digits, keeping leading zeros"]
+      - [34, "the whole of \"time-based\": one division"]
+
+  - kind: table
+    title: "How I know it's right"
+    lead: "RFC 6238 and RFC 4226 publish test values. A real implementation has to match all of them. Mine does, 28 of 28, and these are a few (8 digits, secret `12345678901234567890`):"
+    columns: [TIME, STEP (HEX), OFFICIAL, MINE]
+    widths: "26mm 1fr 22mm 22mm"
+    rows:
+      - ["59", "`0000000000000001`", "94287082", {t: "94287082", tone: ok}]
+      - ["1111111109", "`00000000023523EC`", "07081804", {t: "07081804", tone: ok}]
+      - ["1111111111", "`00000000023523ED`", "14050471", {t: "14050471", tone: ok}]
+      - ["1234567890", "`000000000273EF07`", "89005924", {t: "89005924", tone: ok}]
+      - ["2000000000", "`0000000003F940AA`", "69279037", {t: "69279037", tone: ok}]
+      - ["20000000000", "`0000000027BC86AA`", "65353130", {t: "65353130", tone: ok}]
+    after:
+      - bullets:
+          - "**Official values**: 18 for TOTP (SHA-1, SHA-256, SHA-512) and 10 for HOTP. `go run . -mode=rfc`."
+          - "**Independent library**: 1,000 random secrets, same moment, compared with pyotp 2.9.0: 1,000 of 1,000 the same. `samples/crosscheck.py`."
+          - "**No network**: the phone runs as a separate program that opens no sockets. 1,000 of its 1,000 codes were accepted. `go run . -mode=offline`."
+      - callout: "RFC 6238's table says the test secret is 20 bytes, but its SHA-256 and SHA-512 rows use the longer keys in the RFC's own reference code (32 and 64 bytes). With a 20-byte key they won't match."
+        label: A TRAP IN THE RFC
+        tone: wait
+
+  - kind: text
+    title: "Random numbers: the one thing not to get wrong"
+    lead: "The whole system is as strong as its secret. RFC 4226 requires at least 128 bits and recommends 160. How you make those bits matters more than how many."
+    blocks:
+      - from: samples/go/totp.go
+        lines: [57, 62]
+      - from: samples/go/sim.go
+        lines: [110, 118]
+        hl: [112]
+      - p: "The second one looks fine: 20 bytes, all different per person. But `math/rand` seeded with the clock has only as many possibilities as there are seconds in the sign-up window."
+      - callout: "Given the sign-up hour and 2 codes seen from each account, an attacker tries all 3,600 seeds. **1,000 of 1,000 secrets recovered**, in all three runs. With `crypto/rand`, the same attack recovered 0."
+        label: TESTED
+        tone: bad
+
+  - kind: table
+    title: A secret in 6 languages
+    lead: "Every language has a generator made for secrets, and a faster one that isn't. Make 20 bytes on the server, when a person turns on 2FA."
+    columns: [LANGUAGE, USE, NEVER]
+    widths: "20mm 1fr 30mm"
+    rows:
+      - ["Go", "`rand.Read(b)` from `crypto/rand`", {t: "`math/rand`", tone: bad}]
+      - ["Node.js", "`crypto.randomBytes(20)`", {t: "`Math.random()`", tone: bad}]
+      - ["Java", "`new SecureRandom().nextBytes(b)`", {t: "`java.util.Random`", tone: bad}]
+      - ["Python", "`secrets.token_bytes(20)`", {t: "`random`", tone: bad}]
+      - ["C#", "`RandomNumberGenerator.GetBytes(20)`", {t: "`System.Random`", tone: bad}]
+      - ["PHP", "`random_bytes(20)`", {t: "`mt_rand()`", tone: bad}]
+
+  # ---------------------------------------------------------------- part 3
+  - kind: part
+    n: "3"
+    title: The login server
+    lead: "Checking a code takes one line. Checking it safely takes a window for real people, and a memory of what has been used."
+    items:
+      - "Why the server accepts 3 codes"
+      - When the phone's clock is wrong
+      - "The bug: a code that works twice"
+      - Looking first doesn't fix it
+      - "The fix: spend the step"
+      - Save the code's step, not yours
+      - "Used codes belong to one account"
+
+  - kind: code
+    title: Why the server accepts 3 codes
+    lead: "You read a code at 14:40:28, type it, and tap at 14:40:35. By then the server's step has moved on. RFC 6238 expects this, so the server looks a little either side."
+    from: samples/go/totp.go
+    lines: [42, 55]
+    notes:
+      - [47, "window 1: the step before, this one, the step after"]
+      - [50, "compare in constant time: no timing clues"]
+      - [51, "return the step the code belongs to; you'll need it"]
+    after:
+      - callout: "1,000 people read a code at a random moment and take 4 to 12 seconds to type and tap. **Exact step only: 248 to 276 refused**, about 1 in 4, for doing nothing wrong. **One step either side: 0 refused.**"
+        label: TESTED
+        tone: ok
+      - p: "RFC 6238 recommends at most one step of delay for the network, warning that a larger window exposes a larger window for attacks. Accepting 3 codes also means a code can be valid for up to about 90 seconds."
+
+  - kind: table
+    title: "When the phone's clock is wrong"
+    lead: "1,000 logins per cell, at random moments, with no typing delay. Each cell is the share accepted. The phone's clock is off by the amount on the left."
+    columns: [CLOCK OFF BY, EXACT STEP, ±1 STEP, ±2 STEPS]
+    widths: "1fr 1fr 1fr 1fr"
+    rows:
+      - ["0 s", {t: "100%", tone: ok}, {t: "100%", tone: ok}, {t: "100%", tone: ok}]
+      - ["5 s", {t: "82%", tone: wait}, {t: "100%", tone: ok}, {t: "100%", tone: ok}]
+      - ["15 s", {t: "48%", tone: bad}, {t: "100%", tone: ok}, {t: "100%", tone: ok}]
+      - ["29 s", {t: "4%", tone: bad}, {t: "100%", tone: ok}, {t: "100%", tone: ok}]
+      - ["30 s", {t: "0%", tone: bad}, {t: "100%", tone: ok}, {t: "100%", tone: ok}]
+      - ["45 s", {t: "0%", tone: bad}, {t: "52%", tone: bad}, {t: "100%", tone: ok}]
+      - ["60 s", {t: "0%", tone: bad}, {t: "0%", tone: bad}, {t: "100%", tone: ok}]
+      - ["75 s", {t: "0%", tone: bad}, {t: "0%", tone: bad}, {t: "52%", tone: bad}]
+      - ["90 s", {t: "0%", tone: bad}, {t: "0%", tone: bad}, {t: "0%", tone: bad}]
+    after:
+      - p: "The maths is exact: a clock 15 seconds off crosses a step boundary half the time, so an exact match fails half the time."
+      - bullets:
+          - "**The server's clock matters most**: if it drifts, every user fails at once. Keep it on NTP, and alert on drift."
+          - "**Wider isn't free**: ±2 steps means 5 live codes instead of 3, so guessing gets easier and a stolen code lasts longer."
+          - "**RFC 6238 §6** suggests recording the drift seen on each successful login, and applying it to that token next time."
+      - callout: "When someone says their codes stopped working, check their phone's clock first, and tell them to turn on automatic time."
+        label: IN PRODUCTION
+        tone: wait
+
+  - kind: timeline
+    title: "The bug: a code that works twice"
+    lead: "Someone watches you type, reads your screen, or runs a fake login page that passes your code along. They also have your password, which is why you have 2FA at all."
+    lanes: [YOU, SOMEONE ELSE]
+    state: LAST USED
+    events:
+      - {who: 0, text: "14:40:12: you type `070226`", state: "nothing"}
+      - {who: 0, text: "The server: right code, you're in", tone: ok}
+      - {who: 1, text: "14:40:15: types `070226` too", tone: wait}
+      - {who: 1, text: "The server: right code, they're in", tone: bad}
+    after:
+      - callout: "RFC 6238, section 5.2: the verifier **must not** accept the second attempt of an OTP after the first has been validated. NIST SP 800-63B says the same: a verifier shall accept a given OTP only once while it is valid."
+        label: THE RULE
+        tone: ok
+      - callout: "1,000 logins, each code sent again within seconds by someone else. **1,000 of 1,000 got in**, in all three runs."
+        label: TESTED
+        tone: bad
+
+  - kind: code
+    title: "Looking first doesn't fix it"
+    lead: "The obvious fix: remember the last step used, and check it. Sent one after the other, this works. Sent at once, it's the last-seat bug from guide #1."
+    from: samples/go/server.go
+    lines: [106, 123]
+    notes:
+      - [106, "both requests read the same `last_step`"]
+      - [112, "both pass this check"]
+      - [116, "both write, and both get in"]
+    after:
+      - callout: "A fake login page's bot can fire your code the instant you submit it. Two requests at the same moment: **both got in on 406 to 732 of 1,000 accounts.** Never check with `SELECT` and then act."
+        label: TESTED
+        tone: bad
+
+  - kind: code
+    title: "The fix: spend the step"
+    lead: "One `UPDATE`, with the check inside it. Postgres takes a row lock, so only one request can change the row. `RowsAffected` tells you which one you were."
+    from: samples/go/server.go
+    lines: [140, 160]
+    notes:
+      - [140, "is it a right code at all? Which step?"]
+      - [145, "the step the code belongs to"]
+      - [150, "the check and the write are one statement"]
+      - [156, "0 rows: someone already spent this step"]
+    after:
+      - from: samples/sql/otp.sql
+        lines: [15, 22]
+        lang: sql
+      - callout: "**Replay after: 0 of 1,000 got in. Both at once: 0 of 1,000.** All three runs, with every honest login still accepted."
+        label: TESTED
+        tone: ok
+      - p: "The cost: one account can log in only once per step, so a second login might wait up to 30 seconds. RFC 6238 notes this. Tell people to wait for the next code."
+
+  - kind: timeline
+    join: true
+    title: "Save the code's step, not yours"
+    lead: "A subtle one. Your phone's clock is 30 seconds ahead, so your code belongs to the server's **next** step. The window accepts it. What does the server save?"
+    lanes: [YOU, SOMEONE ELSE]
+    state: LAST_STEP
+    events:
+      - {who: 0, text: "Server at step 100. You send the code for step 101", state: "0"}
+      - {who: 0, text: "Accepted. The buggy server saves **its own** step", tone: wait, state: "100"}
+      - {who: 1, text: "Server reaches step 101. The same code is sent again", tone: wait}
+      - {who: 1, text: "101 is above 100, and the code matches: they're in", tone: bad}
+    after:
+      - callout: "**Saving the server's step: 1,000 of 1,000 got in. Saving the code's step: 0.** Three runs each. `match` returns the step for this reason."
+        label: TESTED
+        tone: bad
+
+  - kind: text
+    title: "Used codes belong to one account"
+    lead: "Another way to remember: a table of every code that has been used. It works, as long as each account has its own list."
+    blocks:
+      - from: samples/go/server.go
+        lines: [181, 187]
+        hl: [183]
+      - p: "There are only 1,000,000 six-digit codes, so two people often get the same one at the same time. With one list for everyone, the second person is told their brand-new code was \"already used\"."
+      - callout: "10,000 logins in the same 30 seconds: **45 to 62 honest people refused** with one shared list; **0** with a list per account."
+        label: TESTED
+        tone: bad
+      - callout: "Anything tied to a client (used codes, wrong-try counters, locks, stored secrets) belongs to an account. Shared space means one person's actions reach another's. Guide #2 showed the same rule with payment keys."
+        label: THE RULE
+        tone: ok
+
+  # ---------------------------------------------------------------- part 4
+  - kind: part
+    n: "4"
+    title: In production
+    lead: "The code check is the easy part. Real systems also face guessing, stolen tables, lost phones and fake login pages. Each case here was tested too."
+    items:
+      - Stop the guessing
+      - "Secrets can't be hashed"
+      - Encrypt each secret for one account
+      - Turning 2FA on, and recovery codes
+      - "The other OTP: codes by SMS"
+      - "What a code can't stop"
+      - "A login, end to end"
+
+  - kind: table
+    title: Stop the guessing
+    lead: "Six digits is a small space: 1,000,000 codes, and 3 of them are live at once. That is 1 chance in 333,333 per guess. It looks safe until you count the guesses."
+    columns: [THE SERVER'S LIMIT, ATTACK, BROKEN OF 1000]
+    widths: "1fr 30mm 34mm"
+    rows:
+      - ["None", "100 guesses a second, 72 hours", {t: "1,000. Half within 40 minutes", tone: bad}]
+      - ["5 wrong tries, then a 15-minute lock", "24 hours", {t: "1 to 4", tone: wait}]
+      - ["Disabled after 100 wrong tries", "Until disabled", {t: "0 to 2", tone: ok}]
+    after:
+      - p: "100 guesses a second is my assumption: modest, for a script against an API. The guesses are simulated with the real code check, so a day runs in seconds. 3 runs each."
+      - from: samples/sql/otp.sql
+        lines: [25, 39]
+        lang: sql
+      - bullets:
+          - "**Count per account, not per IP.** RFC 4226 keeps counters per device, and says limits must hold across login sessions. A per-IP limit does little against someone with many IPs."
+          - "**NIST SP 800-63B**: at most 100 consecutive failed attempts on one account, and rate limiting is required when the output is under 64 bits. Six digits is about 20."
+          - "**The cost**: anyone with the password can lock the real owner out. Alert the owner when it happens: it means their password is known."
+
+  - kind: text
+    title: "Secrets can't be hashed"
+    lead: "A password can be stored as a hash, because the server only has to compare. A TOTP secret can't: the server needs the secret itself to calculate the code."
+    blocks:
+      - p: "So a copy of your `otp_accounts` table is a copy of every code generator you have. RFC 6238 says to store keys encrypted and decrypt them only when needed. With the key outside the database, a stolen table is useless."
+      - from: samples/go/totp.go
+        lines: [94, 108]
+      - callout: "Someone with a copy of the table and the passwords, but no phones. Secrets stored as they are: **1,000 of 1,000 logged in**. Secrets encrypted with AES-256-GCM: **0**."
+        label: TESTED
+        tone: ok
+      - bullets:
+          - "**Keep the key away from the data**: a key service, or at least an environment variable, never a column."
+          - "**Unique nonce**: AES-GCM breaks if a nonce repeats under one key. A random 12-byte nonce per seal, stored beside it, is the usual way."
+          - "**Never log it**: not the URI, not the QR code, not a debug dump of the row."
+
+  - kind: text
+    title: Encrypt each secret for one account
+    lead: "Encryption stops someone reading the table. What about someone who can **write** to it, through an SQL injection or a restored backup?"
+    blocks:
+      - p: "They sign up, turn on 2FA, and copy their own encrypted secret onto your row. Now the server decrypts it without complaint, and their phone makes your codes."
+      - from: samples/go/totp.go
+        lines: [88, 92]
+      - from: samples/go/server.go
+        lines: [64, 69]
+        hl: [66]
+      - p: "AES-GCM takes **additional data**: bytes that aren't encrypted but must match on decryption. Use the account id, and a secret sealed for one account refuses to open for another."
+      - callout: "Attacker's secret copied onto 1,000 rows. Encrypted without the account: **1,000 of 1,000 got in**. Encrypted with it: **0**, in all three runs."
+        label: TESTED
+        tone: bad
+
+  - kind: flowchart
+    title: Turning 2FA on, step by step
+    lead: "Enrolment is where people get locked out for good. Each step here prevents a real support ticket."
+    nodes:
+      - {head: "Check it's really them", body: "Ask for the password again. Otherwise an unlocked laptop can add a second phone."}
+      - {head: "Make the secret", body: "20 bytes from `crypto/rand`. Encrypt it, and mark it **pending**."}
+      - {head: "Show the QR code once", body: "Plus the Base32 text, for people who can't scan. Over HTTPS, never by email."}
+      - {head: "Ask for one code", body: "2FA isn't on until a code from their app is right. It proves the scan worked and the clock is close."}
+      - {head: "Show recovery codes", body: "Single-use codes, to save somewhere safe. OWASP recommends giving them at setup."}
+      - {head: "Turn it on, and tell them", body: "Send an email: \"2FA was turned on\". If it wasn't them, they need to know now.", tone: ok}
+
+  - kind: text
+    title: Recovery codes
+    lead: "Phones get lost. Without a way back, 2FA turns into a lost account. Recovery codes are long, random, single-use passwords."
+    blocks:
+      - from: samples/sql/otp.sql
+        lines: [80, 97]
+        lang: sql
+      - bullets:
+          - "**Store them hashed**: unlike a TOTP secret, the server only compares. They're long and random, so a fast hash such as SHA-256 is fine."
+          - "**One use each**: the conditional `UPDATE` again. Another account's row can't match, because the account is in the key."
+          - "**Limit tries** like codes, tell the owner when one is used, and show how many are left."
+      - callout: "Recovery is the back door. If support can turn off 2FA after one phone call, that phone call is your real security."
+        label: THE TRAP
+        tone: bad
+
+  - kind: text
+    title: "The other OTP: codes by SMS"
+    lead: "Here the server makes the code and sends it. Simple, and every phone can receive one. No secret to store for years, but new ways to lose."
+    blocks:
+      - from: samples/sql/otp.sql
+        lines: [53, 63]
+        lang: sql
+      - from: samples/sql/otp.sql
+        lines: [65, 77]
+        lang: sql
+      - bullets:
+          - "**Random from `crypto/rand`**, as ever. One live code per phone."
+          - "**Store an HMAC with a server key, not a plain hash**: there are only 1,000,000 codes, so a plain SHA-256 of one can be reversed by trying them all."
+          - "**Delete on success**: deleting the row is what makes it single-use, and the `DELETE` checks everything in one statement."
+
+  - kind: cards
+    title: What SMS adds to your problems
+    lead: "OWASP's cheat sheet treats SMS as a restricted method: don't use it for high-value or PII-handling apps, and prefer TOTP or phishing-resistant methods."
+    items:
+      - head: SIM swaps
+        tag: NETWORK
+        body: "Someone persuades the carrier to move your number. NIST says to consider signals such as device swap, SIM change and number porting before sending."
+      - head: Your bill
+        tag: COST
+        body: "Each text costs money, and attackers can trigger thousands. Limit sends per number, per account and per IP. OWASP calls this out."
+      - head: Other apps
+        tag: PHONE
+        body: "A text may be read by another app on the phone, and may land on the same device you're logging in from."
+      - head: Delays
+        tag: DELIVERY
+        body: "A text can arrive late or not at all, so your expiry has to allow for it. Too long helps attackers; too short brings support tickets."
+
+  - kind: timeline
+    title: "What a code can't stop"
+    lead: "Retool's own account of 27 August 2023. No maths was broken. A person was asked for a code, and synced codes did the rest."
+    lanes: [ATTACKER, RETOOL STAFF]
+    state: HOLDS
+    events:
+      - {who: 0, text: "Texts staff, posing as IT, about open enrollment", state: "nothing"}
+      - {who: 1, text: "One clicks, and logs in on a fake portal", tone: bad, state: "password"}
+      - {who: 0, text: "Calls them as \"IT\", using a deepfaked voice", tone: wait}
+      - {who: 1, text: "Gives one more code", tone: bad, state: "a code"}
+      - {who: 0, text: "Adds own device to their Okta account", tone: bad}
+      - {who: 0, text: "Google account taken. Cloud sync was on, so the codes came with it", tone: bad, state: "all codes"}
+      - {who: 0, text: "Admin access: 27 cloud customers' emails changed, passwords reset", tone: bad}
+    after:
+      - callout: "NIST SP 800-63B: \"OTP authentication is not phishing-resistant.\" A code you can read is a code you can hand over. Retool's advice: hardware keys (FIDO2), because there is no code to give away."
+        label: THE LIMIT OF TOTP
+        tone: wait
+
+  - kind: decide
+    title: Which second factor?
+    lead: "None is perfect, and any is better than a password alone. Pick by what an account can do."
+    rows:
+      - {if: "Money moves, or staff have admin access", use: "Passkeys or security keys", why: "There is no code to phish. NIST and Retool both point here."}
+      - {if: "An ordinary app, with people who can install an authenticator", use: "TOTP + recovery codes", why: "Free per login, works offline, and needs no phone number. Phishable, so spend each code once."}
+      - {if: "All you have is a phone number", use: "SMS, with limits", why: "OWASP and NIST restrict it, but it beats nothing. Offer something stronger too: NIST requires an alternative."}
+
+  - kind: flowchart
+    title: "A login, end to end"
+    lead: "Putting it together. Each step is one thing from this guide."
+    nodes:
+      - {head: "Password first", body: "Right password: the session is **half logged in**. It can only reach the code step."}
+      - {head: "Locked?", body: "Check `otp_tries` for this account **before** checking the code."}
+      - {head: "Load and decrypt the secret", body: "Encrypted for this account: AES-GCM with the account id as additional data."}
+      - {head: "Is it a right code?", body: "`match` with one step either side, compared in constant time. Wrong: count the try."}
+      - {head: "Spend the step", body: "`UPDATE … WHERE account_id = $2 AND last_step < $1`. 0 rows: refuse. Save the code's step."}
+      - {head: "You're in", body: "Clear the wrong-try count, and only now give the session full access.", tone: ok}
+
+  # ---------------------------------------------------------------- part 5
+  - kind: part
+    n: "5"
+    title: Interview kit
+    lead: "\"How does Google Authenticator work offline?\" and \"Design two-factor login\" are classic questions. Now you can answer from the inside."
+    items:
+      - A 2-minute answer
+      - 12 questions, with answers
+      - 8 mistakes to catch in a code review
+      - A checklist and a one-page cheat sheet
+
+  - kind: steps
+    title: Your 2-minute answer
+    lead: "When the interviewer asks \"how does an authenticator app work without internet?\", walk through this."
+    steps:
+      - head: Name the trick
+        body: "They never talk. At setup, a QR code gives both sides one secret. After that, each side calculates the code from the secret and the time."
+      - head: Give the algorithm
+        body: "Unix time divided by 30 is the step. HMAC-SHA-1 of the step with the secret, truncated to 6 digits. RFC 6238, built on RFC 4226."
+      - head: Explain the window
+        body: "People type slowly and clocks drift, so accept one step either side: 3 live codes, and RFC 6238 recommends no more for network delay."
+      - head: Make it single-use
+        body: "Spend the step with `UPDATE … WHERE last_step < $1`. 0 rows means it's used. A separate SELECT would let two requests through."
+      - head: Protect the secret
+        body: "It can't be hashed, because the server needs it. Encrypt it with a key held outside the database, bound to the account."
+      - head: Show the limits
+        body: "Limit guesses per account: 6 digits is small. TOTP isn't phishing-resistant, so high-value accounts should use passkeys."
+
+  - kind: qa
+    title: 12 interview questions
+    items:
+      - q: How can a code work with no internet?
+        a: "Nothing is sent. Both sides hold the same secret and read the time, and each calculates the code. Only what you type crosses between them."
+      - q: What's the difference between HOTP and TOTP?
+        a: "HOTP (RFC 4226) uses a counter that moves on each use. TOTP (RFC 6238) replaces the counter with the time divided by 30, so codes expire by themselves."
+      - q: Why 30 seconds?
+        a: "RFC 6238's default, a balance: longer gives a stolen code more time and makes people wait longer for the next login; shorter fails people mid-typing."
+      - q: Why does the server accept more than one code?
+        a: "People take time to type, and clocks disagree. With only the current step, 248 to 276 of 1,000 people were refused in my test; with one step either side, 0."
+      - q: Why not store the secret hashed, like a password?
+        a: "The server has to calculate the code, so it needs the secret itself. Encrypt it, keep the key outside the database, and decrypt only when checking."
+      - q: Can a code be used twice?
+        a: "Not if you follow RFC 6238, which says a verifier must not accept it again. Without a check, 1,000 of 1,000 replays got in during my test."
+      - q: Why a conditional UPDATE rather than a SELECT then an UPDATE?
+        a: "Two requests can both read the old value and both pass: 406 to 732 of 1,000 in my test. `UPDATE … WHERE last_step < $1` does the check and the write in one statement."
+      - q: How long does it take to guess a code?
+        a: "3 of 1,000,000 codes are live, so about 333,333 tries on average. At 100 guesses a second with no limit, half of accounts fell within 40 minutes. That is why you limit tries."
+      - q: Should you rate limit by IP or by account?
+        a: "By account, as the main limit. Attackers rotate IPs. RFC 4226 keeps counters per device, across sessions. NIST allows at most 100 consecutive failures."
+      - q: Is TOTP better than SMS?
+        a: "Usually. It works offline, costs nothing per login and avoids SIM swaps. OWASP says to prefer it, or phishing-resistant methods, over SMS. Both can be phished."
+      - q: What happens if the user loses their phone?
+        a: "Single-use recovery codes, stored hashed, given at setup. Then a careful recovery process, because a weak one becomes the easiest way in."
+      - q: Does TOTP stop phishing?
+        a: "No. NIST says OTP isn't phishing-resistant: a fake page can pass your code on within its window. Passkeys and security keys tie the login to the real site."
+
+  - kind: text
+    title: 8 mistakes to catch in a review
+    blocks:
+      - bullets:
+          - "**Not remembering used codes.** A right code works for anyone, up to 90 seconds."
+          - "**Checking with SELECT, then writing.** Two requests at once both get in."
+          - "**Saving the server's step instead of the code's.** A phone ahead of the server can replay."
+          - "**Secrets from a weak generator**, such as `math/rand` or `Math.random()`."
+          - "**Secrets stored as they are**, or a QR code or URI in a log."
+          - "**No limit on wrong tries**, or a limit only per IP."
+          - "**Comparing with `==`** instead of a constant-time compare."
+          - "**Turning 2FA on before a first code is confirmed.** A bad scan locks the person out."
+
+  - kind: checklist
+    title: Checklist for 2FA
+    items:
+      - "Secrets are 20 bytes from a cryptographic generator, one per account."
+      - "Secrets are encrypted at rest, the key is outside the database, and the account is bound in."
+      - "The QR code is shown once, over HTTPS, and never logged."
+      - "2FA turns on only after a first right code."
+      - "Single-use recovery codes are issued at setup and stored hashed."
+      - "Checks accept one step either side, in constant time."
+      - "Each code is spent once, with one conditional `UPDATE`, saving the code's own step."
+      - "Wrong tries are limited per account, and the lock is checked first."
+      - "The server's clock runs on NTP, and drift raises an alert."
+      - "The owner is told when 2FA changes, when a recovery code is used, and when the account locks."
+
+  - kind: table
+    title: Cheat sheet
+    lead: Screenshot this page.
+    columns: [YOU NEED TO, DO THIS, THEN]
+    widths: "24mm 1fr 22mm"
+    rows:
+      - ["Make a secret", "20 bytes: `crypto/rand`, `secrets.token_bytes`", "encrypt it"]
+      - ["Share it", "`otpauth://totp/Co:me?secret=BASE32&issuer=Co`", "QR, once"]
+      - ["Get the step", "`unix_time / 30`", "same everywhere"]
+      - ["Make the code", "`HMAC-SHA1(secret, step)`, truncate, `mod 1000000`", "6 digits"]
+      - ["Check a code", "steps `s-1`, `s`, `s+1`, constant-time", "keep its step"]
+      - ["Spend it", "`UPDATE … SET last_step = $1 WHERE … AND last_step < $1`", "0 rows = used"]
+      - ["Stop guessing", "per account: 5 tries, then lock; 100 at most", "lock first"]
+      - ["Store it", "AES-GCM, key elsewhere, account as additional data", "never a hash"]
+      - ["Lost phone", "recovery codes: long, random, hashed, one use", "tell the owner"]
+      - ["SMS code", "HMAC with server key, expiry, `DELETE` on success", "limit sends"]
+
+  - kind: table
+    title: Collect the series
+    lead: "Every Behind the Button video comes with its own free guide like this one. Comment the keyword shown in each video to get it, and build the whole set."
+    columns: ["#", THE GUIDES]
+    widths: "8mm 1fr"
+    rows:
+      - ["1", "The last seat: race conditions in SQL (comment SEAT on that video)"]
+      - ["2", "You tapped Pay twice: idempotency keys (comment PAY on that video)"]
+      - [{t: "3", tone: ok}, {t: "Why your OTP dies in 30 seconds: how TOTP works (this guide)", tone: ok}]
+      - ["4", "The view counter that broke at 2,147,483,647: integer overflow"]
+      - ["5", "\"Username taken\" in 1 ms among a billion: unique indexes and Bloom filters"]
+      - ["6", "Why \"typing…\" shows up instantly: WebSockets and presence"]
+      - ["7", "The reset link that only works once: single-use tokens"]
+
+end:
+  video: "Behind the Button #3, Why your OTP dies in 30 seconds: on Instagram @stacknova.dev and YouTube @StackNovaDev."
+  next: "This is guide #3 of the Behind the Button collection. Missed one? Comment SEAT or PAY on those videos. Follow, and comment the keyword on the next video to get guide #4."
+  more: "Test your own login the way this guide did: send every code twice, then twice at the same moment, and count who gets in."
+
+sources_lead: Every claim in this guide comes from one of these, or from the tests in it (31 Oct 2026).
+extra_sources:
+  - {title: "RFC 6238 — TOTP: Time-Based One-Time Password Algorithm (30-second default, at most one step of delay, second attempts must not be accepted, encrypted keys, resynchronization, test values)", url: "https://www.rfc-editor.org/rfc/rfc6238"}
+  - {title: "RFC 4226 — HOTP: An HMAC-Based One-Time Password Algorithm (dynamic truncation, 128-bit minimum and 160-bit recommended secrets, throttling, test values)", url: "https://www.rfc-editor.org/rfc/rfc4226"}
+  - {title: "RFC 2104 — HMAC: Keyed-Hashing for Message Authentication", url: "https://www.rfc-editor.org/rfc/rfc2104"}
+  - {title: "RFC 6194 — Security Considerations for SHA-0 and SHA-1 (no sign that attacks on SHA-1 extend to HMAC-SHA-1)", url: "https://www.rfc-editor.org/rfc/rfc6194"}
+  - {title: "RFC 4648 — The Base16, Base32, and Base64 Data Encodings", url: "https://www.rfc-editor.org/rfc/rfc4648"}
+  - {title: "NIST SP 800-63B-4 — Authentication and Authenticator Management (OTPs accepted once, not phishing-resistant; at most 100 consecutive failures; PSTN restricted)", url: "https://pages.nist.gov/800-63-4/sp800-63b.html"}
+  - {title: "OWASP — Multifactor Authentication Cheat Sheet (TOTP and SMS, pros and cons; recovery codes; attempt limits)", url: "https://cheatsheetseries.owasp.org/cheatsheets/Multifactor_Authentication_Cheat_Sheet.html"}
+  - {title: "Google Authenticator wiki — Key Uri Format (otpauth URIs, parameters and defaults, what the app ignores)", url: "https://github.com/google/google-authenticator/wiki/Key-Uri-Format"}
+  - {title: "Retool — \"When MFA isn't actually MFA\" (their account of 27 Aug 2023: texts, deepfake call, Authenticator cloud sync, 27 cloud customers)", url: "https://retool.com/blog/mfa-isnt-mfa"}
+  - {title: "PostgreSQL 18 — UPDATE (the command tag reports rows updated) and pgcrypto (hmac)", url: "https://www.postgresql.org/docs/18/sql-update.html"}
+  - {title: "PostgreSQL 18 — 13.2 Transaction Isolation (a second UPDATE waits, then re-checks its WHERE clause)", url: "https://www.postgresql.org/docs/18/transaction-iso.html"}
+  - {title: "Go — crypto/rand, crypto/hmac, crypto/subtle and crypto/cipher (AES-GCM additional data)", url: "https://pkg.go.dev/crypto/cipher#AEAD"}
+  - {title: "pgx v5 — CommandTag.RowsAffected", url: "https://pkg.go.dev/github.com/jackc/pgx/v5/pgconn#CommandTag.RowsAffected"}
+  - {title: "pyotp 2.9.0, the independent library in the cross-check", url: "https://pypi.org/project/pyotp/"}
+  - {title: "Node.js — crypto.randomBytes", url: "https://nodejs.org/api/crypto.html#cryptorandombytessize-callback"}
+  - {title: "Java SE 25 — java.security.SecureRandom", url: "https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/security/SecureRandom.html"}
+  - {title: "Python — secrets.token_bytes", url: "https://docs.python.org/3/library/secrets.html"}
+  - {title: ".NET — RandomNumberGenerator.GetBytes", url: "https://learn.microsoft.com/en-us/dotnet/api/system.security.cryptography.randomnumbergenerator.getbytes"}
+  - {title: "PHP — random_bytes", url: "https://www.php.net/manual/en/function.random-bytes.php"}

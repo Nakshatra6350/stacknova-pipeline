@@ -67,7 +67,7 @@
 
   /* numbers */
   .num { display: grid; grid-template-columns: 22mm 1fr; gap: 3mm; align-items: baseline; padding: 1.6mm 0; border-bottom: 0.3mm solid var(--line); }
-  .num .v { font: 800 15pt/1 "Inter Display", Inter, sans-serif; background: var(--nova); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .num .v { white-space: nowrap; font: 800 15pt/1 "Inter Display", Inter, sans-serif; background: var(--nova); -webkit-background-clip: text; background-clip: text; color: transparent; }
 
   /* code */
   .code { background: var(--code-bg); border: 0.3mm solid var(--code-line); border-radius: 2.4mm; padding: 2.6mm 0; }
@@ -112,6 +112,8 @@
   .ic { font: 600 0.9em/1 "JetBrains Mono", monospace; color: var(--ink); background: var(--code-bg); border: 0.25mm solid var(--code-line);
         border-radius: 0.8mm; padding: 0.1mm 0.7mm; font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
   .gap { height: 2mm; }
+  .pic { align-self: center; line-height: 0; border-radius: 2mm; overflow: hidden; }
+  .pic svg { width: 58mm; height: 58mm; display: block; }
   .part .body { justify-content: center; gap: 4mm; }
   .part .pn { font: 800 64pt/0.9 "Inter Display", Inter, sans-serif; background: var(--nova); -webkit-background-clip: text; background-clip: text; color: transparent; }
   .part .kicker { font: 700 7.4pt/1 "JetBrains Mono", monospace; letter-spacing: .2em; color: var(--pink); }
@@ -278,6 +280,7 @@ window.draw = async (d) => {
       if (b.callout) return el('div', `callout ${b.tone || ''}`, `${b.label ? `<b class="lb">${esc(b.label)}</b>` : ''}<p>${rich(b.callout)}</p>`);
       if (b.bullets) return el('ul', 'bullets', b.bullets.map((x) => `<li>${rich(x)}</li>`).join(''));
       if (b.listing) return codeBox(b.listing, b.listing.file || '', b.hl || [], b.lang);
+      if (b.svg_text) return el('div', 'pic', b.svg_text.replace(/^<\?xml[^>]*\?>\s*/, ''));
       throw new Error(`unknown block: ${JSON.stringify(b)}`);
     });
   }

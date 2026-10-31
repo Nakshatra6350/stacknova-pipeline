@@ -53,6 +53,8 @@ def data(episode_id: str, style: str) -> dict[str, Any]:
         for block in [*section.get("blocks", []), *section.get("after", []), *section.get("items", [])]:
             if isinstance(block, dict) and ("from" in block or "code" in block):
                 block["listing"] = excerpt(folder, block)
+            if isinstance(block, dict) and "svg" in block:  # an image, such as a QR code to scan
+                block["svg_text"] = (folder / block["svg"]).read_text(encoding="utf-8")
     sources = [*episode.get("sources", []), *pack.get("extra_sources", [])]
     return {**pack, "style": style, "sources": sources, "tag": f"{pack['keyword']} PACK",
             "emblem": EMBLEM.as_uri(), "fonts": fonts()}
