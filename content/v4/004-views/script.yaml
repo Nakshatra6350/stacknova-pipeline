@@ -1,0 +1,50 @@
+# Behind the Button #4 (look v4): one more view, and the counter goes negative. Integer overflow, in
+# about a minute: the limit and why it is that number, what Java does at it, what YouTube did, the
+# fix most of us write first and why it isn't one (real runs, samples/java), the fix that works, the
+# real outage (Basecamp, 2018), and the call to action. `scene` names the visual each line plays over
+# (studio-v4); `say` is spoken, `show` (when present) is the on-screen caption text.
+id: 004-views
+keyword: VIEWS
+title: "One More View, and the Counter Goes Negative"
+youtube_title: "Integer Overflow Explained: Why Gangnam Style Hit a Limit"
+lines:
+  - {id: l1, scene: hook, say: "One more view, and this counter goes negative."}
+  - {id: l2, scene: stakes, say: "A thirty-two bit number stops at two point one billion. In twenty fourteen, Gangnam Style got there.",
+     show: "A 32-bit number stops at 2.1 billion. In 2014, Gangnam Style got there."}
+  - {id: l3, scene: bits, say: "Thirty-two switches. One is the sign. Turn on all the rest, and that's the top.",
+     show: "32 switches. One is the sign. Turn on all the rest, and that's the top."}
+  - {id: l4, scene: wrap, say: "Add one, and they all flip. In Java, there's no error. It just counts from minus two billion.",
+     show: "Add 1, and they all flip. In Java, there's no error. It just counts from minus 2 billion."}
+  - {id: l5, scene: youtube, say: "YouTube saw it coming and moved to sixty-four bits. Room for nine quintillion views.",
+     show: "YouTube saw it coming and moved to 64 bits. Room for 9 quintillion views."}
+  - {id: l6, scene: bug, say: "So you change your column to big int. I tested it. A thousand inserts: a thousand still refused. And every read and write froze for over fourteen seconds.",
+     show: "So you change your column to BIGINT. I tested it. 1,000 inserts: 1,000 still refused. And every read and write froze for over 14 seconds."}
+  - {id: l7, scene: fix, say: "The sequence has its own limit, so widen that too. Then add a new column, copy in small batches, and swap it in one quick step."}
+  - {id: l8, scene: proof, say: "Same test: zero refused. Longest wait, under half a second.",
+     show: "Same test: 0 refused. Longest wait, under half a second."}
+  - {id: l9, scene: basecamp, say: "Basecamp hit this same number in twenty eighteen. Its events table filled up, and the app went read-only for almost five hours.",
+     show: "Basecamp hit this same number in 2018. Its events table filled up, and the app went read-only for almost 5 hours."}
+  - {id: l10, scene: cta, say: "Comment views for the free guide: nineteen cases, each one tested, in real Java and SQL. Because it only takes one more view.",
+     show: "Comment VIEWS for the free guide: 19 cases, each one tested, in real Java and SQL. Because it only takes one more view.",
+     # YouTube has no comment-to-DM, so the Short ends on a follow
+     say_youtube: "Follow for one of these every day. Because it only takes one more view."}
+
+fact_check:
+  - claim: "A Java int runs from -2147483648 to 2147483647, and integer operators do not indicate overflow in any way"
+    source: "https://docs.oracle.com/javase/specs/jls/se25/html/jls-4.html#jls-4.2.2"
+  - claim: "int at 2147483647 plus 1 gives -2147483648, with no error"
+    source: "derived from code sample samples/java, mode wrap (JDK 17.0.18, 1 Nov 2026)"
+  - claim: "YouTube's counter was a 32-bit integer; Gangnam Style passed 2,147,483,647 views; the counter was moved to 64 bits (December 2014)"
+    source: "https://www.engadget.com/2014-12-04-op-op-op-op.html"
+  - claim: "YouTube's engineers saw it coming and had already updated to a 64-bit counter; a Google spokesman said nothing actually broke"
+    source: "https://digital-release.fox4kc.com/?p=485680 (CNN Wire, 3 Dec 2014)"
+  - claim: "A 64-bit signed integer reaches 9,223,372,036,854,775,807, about 9.2 quintillion"
+    source: "https://www.postgresql.org/docs/18/datatype-numeric.html"
+  - claim: "After ALTER COLUMN id TYPE BIGINT on a SERIAL column, the sequence stays integer: 1,000 of 1,000 inserts refused at the limit; with ALTER SEQUENCE AS BIGINT, 0"
+    source: "derived from code sample samples/java, mode alter-only (PostgreSQL 16.13, 1 Nov 2026)"
+  - claim: "ALTER COLUMN TYPE takes an ACCESS EXCLUSIVE lock and normally rewrites the table and its indexes"
+    source: "https://www.postgresql.org/docs/18/sql-altertable.html"
+  - claim: "On 5 million rows under load, the in-place ALTER held every read and write for 14 to 19 seconds in three runs; adding a column, copying in batches and swapping left a longest wait under half a second in all three runs, with 0 failed writes"
+    source: "derived from code sample samples/java, modes alter-lock and online (PostgreSQL 16.13, 1 Nov 2026)"
+  - claim: "Basecamp 3's events table hit 2,147,483,647 and the app was read-only from 7:21 am to 12:11 pm CST in November 2018"
+    source: "https://signalvnoise.com/svn3/postmortem-on-the-read-only-outage-of-basecamp-on-november-9th-2018/"

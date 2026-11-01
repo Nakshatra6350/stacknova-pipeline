@@ -1,0 +1,885 @@
+# The free guide for "Behind the Button #4: One more view, and the counter goes negative" (keyword
+# VIEWS). Built by studio/scripts/pack.py content/v4/004-views into out/release/packs/. Every result
+# comes from samples/ run on 1 Nov 2026 (java Views <mode>, three runs of each, on PostgreSQL 16.13 and
+# JDK 17.0.18; node json53.mjs); code is cut from those files by line range. Like guides #1 to #3, it
+# is a whole resource (owner, 29 Oct): every idea the fix uses, practical scenarios and diagrams.
+keyword: VIEWS
+file: stacknova-2-billion-limit-guide
+lang: java
+kicker: "BEHIND THE BUTTON · FREE GUIDE #4"
+title: The 2-Billion Limit
+subtitle: Why counters go negative and IDs run out at 2,147,483,647, how to find it in your own system, and how to move a live table to BIGINT without stopping it. Every result tested.
+versions: Tested on JDK 17.0.18, PostgreSQL 16.13, pgJDBC 42.7.4 and Node 22 on 1 Nov 2026. The int rules quoted are from the Java 25 language spec; they are the same in 17.
+inside:
+  - "Part 1 · The moment: the number, what YouTube and Basecamp really did, every test result"
+  - "Part 2 · The building blocks: bits, the sign, one overflow by hand, how long you have"
+  - "Part 3 · The limit in Java: silent wrap-around, 7 traps, and the JDK's own fixes"
+  - "Part 4 · The limit in Postgres: running out of IDs, and moving a live table safely"
+  - "Part 5 · Interview kit: a 2-minute answer, 12 questions, a one-page cheat sheet"
+
+sections:
+  # ---------------------------------------------------------------- part 1
+  - kind: part
+    n: "1"
+    title: The moment
+    lead: One more view than the limit, and a counter says minus two billion. Before the fix, here is where this number comes from, and who has met it.
+    items:
+      - The number you keep meeting
+      - What really happened at YouTube
+      - When nobody saw it coming
+      - "My test: 19 cases, every result"
+      - The counter most of us write first
+
+  - kind: table
+    title: The number you keep meeting
+    lead: "2,147,483,647 is the largest value a signed 32-bit integer can hold. It keeps turning up, because 32 bits is the default in so many places."
+    columns: [WHERE, WHAT IT COUNTS, WHAT HAPPENS AT THE LIMIT]
+    widths: "24mm 1fr 1fr"
+    rows:
+      - ["YouTube, 2014", "Views of a video", "Upgraded to 64 bits before the count got there"]
+      - ["Basecamp, 2018", "Rows in its events table", {t: "New events refused: read-only for almost 5 hours", tone: bad}]
+      - ["Boeing 787, 2015", "A generator unit's internal counter (FAA)", {t: "Overflows after 248 days of power", tone: bad}]
+      - ["Year 2038", "Seconds since 1 January 1970", {t: "19 Jan 2038, 03:14:07 UTC, then back to 1901", tone: bad}]
+      - ["Node.js timers", "Milliseconds of a delay", {t: "Over 24.8 days: fires after 1 ms, with a warning", tone: bad}]
+      - ["Your schema", "Every `SERIAL` or `INTEGER` id", {t: "This guide", tone: wait}]
+    after:
+      - p: "The FAA directive says only that a counter overflows after 248 days. The arithmetic fits 2³¹ hundredths of a second, 248.5 days, though the directive doesn't state the unit."
+      - callout: "It isn't a rare number. At 100 new rows a second, a 32-bit id runs out in **248 days**. Page 13 has the table."
+        label: THE POINT
+        tone: wait
+
+  - kind: timeline
+    title: What really happened at YouTube
+    lead: "You may have heard that Gangnam Style \"broke YouTube\". That's the fun version. Here's what the sources say."
+    lanes: [THE VIDEO, YOUTUBE]
+    state: COUNTER
+    events:
+      - {who: 0, text: "The video keeps climbing, on a 32-bit counter", state: "32-bit"}
+      - {who: 1, text: "Engineers see the problem coming, and update the whole site to a 64-bit counter", tone: ok, state: "64-bit"}
+      - {who: 0, text: "Passes 2,147,483,647 views", tone: wait}
+      - {who: 1, text: "A playful post: never thought a video would pass a 32-bit integer, \"but that was before we met PSY\"", tone: ok}
+      - {who: null, text: "December 2014: headlines say it broke YouTube"}
+      - {who: 1, text: "Google's spokesman: \"Nothing actually broke\"", tone: ok}
+    after:
+      - callout: "A planned change, made in time. The video's lesson is what happens to everyone else, the ones who don't see it coming. Next page."
+        label: THE REAL STORY
+        tone: ok
+
+  - kind: timeline
+    title: When nobody saw it coming
+    lead: "Basecamp's own postmortem, November 2018. Its `events` table tracked almost all activity in Basecamp 3, so nearly every action wrote a row."
+    lanes: [THE TABLE, THE TEAM]
+    state: BASECAMP 3
+    events:
+      - {who: 1, text: "Already working on more room, but they misjudged how fast it was going", tone: wait, state: "working"}
+      - {who: 0, text: "7:21 am: `events` hits 2,147,483,647", tone: bad, state: "read-only"}
+      - {who: 1, text: "People can read messages and files, but can't create or change anything", tone: bad}
+      - {who: 1, text: "Raises the ceiling to 9,223,372,036,854,775,807", tone: wait}
+      - {who: 0, text: "12:11 pm: writes are back", tone: ok, state: "working"}
+    after:
+      - p: "Their uptime since launch went from 99.998% to 99.978%, from one morning. Their words: \"This was an avoidable problem.\""
+      - p: "Rails had changed its default to the larger limit in version 5.1, in 2017. Existing tables don't change by themselves, and that is the trap: **the default protects new tables, not old ones.**"
+
+  - kind: numbers
+    title: "My test: 19 cases, every result"
+    lead: "Real Java, and a real Postgres 16. 1,000 tries per case unless noted, three runs each; where results varied, the range is shown. **Lower is better.**"
+    rows:
+      - [1000, "An `int` counter past the limit: wrong, with no error"]
+      - [0, "The same with a `long`, or refused by `Math.addExact`"]
+      - [1000, "`long total = views * bytes`: overflowed before it was widened"]
+      - [1000, "`(int)` cast of a long above the limit: silently wrong"]
+      - [1000, "Midpoint with `(lo + hi) / 2` on big indexes: all negative"]
+      - ["422-450", "`hash % 10`: a negative shard number"]
+      - ["~6M", "Of 8M views lost by `views++` on 8 threads (5.97M to 6.15M)"]
+      - [0, "Lost with `AtomicLong` or `LongAdder`"]
+      - [1000, "A 64-bit id above 2⁵³, sent as a JSON number to JavaScript: changed"]
+      - [1000, "`UPDATE` of a SQL `INTEGER` at the limit: refused"]
+      - [1000, "Inserts with a `SERIAL` sequence at the limit: refused"]
+      - [1000, "Inserts after `ALTER COLUMN id TYPE BIGINT`: **still refused**"]
+      - [0, "Refused once the sequence is widened too"]
+      - [1000, "Comments pointing at a big id through an `INTEGER` column: refused"]
+      - [1000, "IDs used up by `ON CONFLICT DO NOTHING`, with no new rows"]
+      - ["14-19 s", "`ALTER` on 5 million rows: every read and write held"]
+      - ["<0.4 s", "New column, copy, swap: the longest wait, 51 to 371 ms, with 0 writes failed"]
+    after:
+      - p: "The other cases, in the pages ahead: 2038 and 25-day timeouts, `IDENTITY` columns, reading with `getInt`, and a check that finds risky tables. To run any of them: `java Views wrap`, with the list of modes at the top of `Views.java`."
+
+  - kind: code
+    title: The counter most of us write first
+    lead: "It compiles, it runs and it passes every test, until one more view."
+    from: samples/java/Counters.java
+    lines: [15, 31]
+    notes:
+      - [16, "the largest value an int can hold"]
+      - [19, "one more, and Java says nothing"]
+      - [21, "prints -2147483648, really 2147483648"]
+    after:
+      - callout: "The Java Language Specification, §4.2.2: \"The integer operators do not indicate overflow or underflow in any way.\" It isn't a bug in Java. It is defined behaviour, and it's your job to handle."
+        label: BY DESIGN
+        tone: wait
+
+  # ---------------------------------------------------------------- part 2
+  - kind: part
+    n: "2"
+    title: The building blocks
+    lead: "Why that exact number, why it goes negative rather than stopping, and how to work out how long you have."
+    items:
+      - Why it's that exact number
+      - One overflow, by hand
+      - Every type's limit
+      - How long until you run out
+      - What each language does at the limit
+
+  - kind: text
+    title: Why it's that exact number
+    lead: "An `int` is 32 switches, each 0 or 1. Each switch is worth double the one to its right."
+    blocks:
+      - code: |
+          value of each switch, right to left:
+          1  2  4  8  16  32  64  128  ...  1,073,741,824
+
+          all 31 of them on:
+          1 + 2 + 4 + ... + 1,073,741,824 = 2,147,483,647
+        lang: sql
+      - p: "That adds up to 2³¹ − 1. Why 31 switches and not 32? The leftmost one is the **sign**. Values with it off are 0 and up; values with it on are negative."
+      - h: How the sign really works
+      - p: "Java uses **two's complement**, and so does almost every CPU. The sign switch isn't just a flag. It's worth **minus** 2,147,483,648, and the rest are added on top:"
+      - code: |
+          0111...1111 = 2,147,483,647
+          1000...0000 = -2,147,483,648
+          1000...0001 = -2,147,483,648 + 1 = -2,147,483,647
+          1111...1111 = -2,147,483,648 + 2,147,483,647 = -1
+        lang: sql
+      - callout: "One more negative value than positive: 2,147,483,648 below zero, 2,147,483,647 above, because zero sits on the positive side. That's why `Math.abs(Integer.MIN_VALUE)` is still negative. See page 20."
+        label: A SIDE EFFECT
+        tone: wait
+
+  - kind: flowchart
+    title: One overflow, by hand
+    lead: "Adding 1 in binary works like adding 1 to 9,999 in decimal: a carry ripples all the way along."
+    nodes:
+      - {head: "Start at the top", body: "`0111 1111 1111 1111 1111 1111 1111 1111` is 2,147,483,647."}
+      - {head: "Add 1 to the last switch", body: "It's already 1, so it becomes 0 and carries 1 to the left."}
+      - {head: "The carry ripples", body: "Every switch does the same: 31 ones turn to 0, one by one."}
+      - {head: "The carry reaches the sign", body: "The leftmost switch goes from 0 to 1. It's the only 1 left."}
+      - {head: "Read the result", body: "`1000 0000 0000 0000 0000 0000 0000 0000`. The sign is worth −2,147,483,648, and the rest are 0."}
+      - {head: "No alarm rings", body: "The CPU did normal addition. The answer is simply a different number, and Java passes it on.", tone: bad}
+    after:
+      - p: "Keep adding and it climbs back towards zero: **+1000** gave −2,147,482,649 in my test. It's a wheel, like an old car's odometer rolling over, except that it rolls over to minus."
+
+  - kind: table
+    title: Every type's limit
+    lead: "Check the type before you trust the count. These are the ones you meet most often."
+    columns: [TYPE, BITS, LARGEST VALUE]
+    widths: "34mm 11mm 1fr"
+    rows:
+      - ["Java `short`, SQL `SMALLINT`", "16", "32,767"]
+      - [{t: "Java `int`, SQL `INTEGER`, Go `int32`", tone: wait}, {t: "32", tone: wait}, {t: "2,147,483,647", tone: wait}]
+      - ["MySQL `INT UNSIGNED`, Go `uint32`", "32", "4,294,967,295"]
+      - ["JavaScript `number` (safe integers)", "53", "9,007,199,254,740,991"]
+      - [{t: "Java `long`, SQL `BIGINT`, Go `int64`", tone: ok}, {t: "64", tone: ok}, {t: "9,223,372,036,854,775,807", tone: ok}]
+      - ["Java `BigInteger`, SQL `NUMERIC`", "any", "Limited by memory, and slower"]
+    after:
+      - p: "Go's plain `int` is 32 or 64 bits depending on the machine. Java's `int` is always 32, wherever it runs."
+      - callout: "`INT UNSIGNED` buys you one doubling, then the same problem. It also doesn't exist in Postgres or Java. Going to 64 bits is a far better use of a migration."
+        label: "WHAT ABOUT UNSIGNED?"
+        tone: wait
+
+  - kind: table
+    title: How long until you run out
+    lead: "The only question that matters: how fast do you use them? This is plain division, and it's a sum worth doing for your busiest table."
+    columns: [NEW IDS PER SECOND, 32 BITS LASTS, 64 BITS LASTS]
+    widths: "1fr 1fr 1fr"
+    rows:
+      - ["1", {t: "68 years", tone: ok}, {t: "292 billion years", tone: ok}]
+      - ["10", {t: "6.8 years", tone: ok}, {t: "29 billion years", tone: ok}]
+      - ["100", {t: "248 days", tone: wait}, {t: "2.9 billion years", tone: ok}]
+      - ["1,000", {t: "24.8 days", tone: bad}, {t: "292 million years", tone: ok}]
+      - ["10,000", {t: "2.5 days", tone: bad}, {t: "29 million years", tone: ok}]
+      - ["1,000,000", {t: "36 minutes", tone: bad}, {t: "292,000 years", tone: ok}]
+    after:
+      - p: "Count **ids used, not rows kept**. A failed insert can use up an id too, so a small table with heavy retries can burn through them (page 39)."
+      - callout: "32 bits looks like plenty on launch day, and it is, until a feature adds a row per click. Basecamp's table tracked almost all activity. Log-style and event tables are the ones that get there first."
+        label: WHO GETS THERE FIRST
+        tone: wait
+
+  - kind: table
+    title: What each language does at the limit
+    lead: "The same bug looks completely different depending on where it happens. Loud failures get fixed. Silent ones reach your customers."
+    columns: [WHERE, ONE PAST THE LIMIT, HOW IT FEELS]
+    widths: "24mm 1fr 22mm"
+    rows:
+      - ["Java `int`", "Wraps to −2,147,483,648", {t: "Silent", tone: bad}]
+      - ["Go `int32`", "Wraps too: the spec says no panic", {t: "Silent", tone: bad}]
+      - ["C `int`", "Undefined behaviour: anything can happen", {t: "Unknowable", tone: bad}]
+      - ["Rust", "Panics in debug builds, wraps in release", {t: "Depends", tone: wait}]
+      - ["JavaScript", "Above 2⁵³ loses precision, without error", {t: "Silent", tone: bad}]
+      - ["Python `int`", "Keeps growing: no limit but memory", {t: "Fine", tone: ok}]
+      - ["PostgreSQL", "`ERROR: integer out of range`", {t: "Loud", tone: ok}]
+      - ["MySQL (strict mode)", "`ERROR 1264: Out of range value`", {t: "Loud", tone: ok}]
+    after:
+      - p: "I ran the Java, Go, JavaScript, Python and PostgreSQL rows myself. The others are from their official docs (see sources)."
+      - callout: "So one system can fail both ways. In Java, your counter silently goes negative. Write it to the database, and a negative number is perfectly valid. **Nothing complains.**"
+        label: THE DANGEROUS MIX
+        tone: bad
+
+  # ---------------------------------------------------------------- part 3
+  - kind: part
+    n: "3"
+    title: The limit in Java
+    lead: "You can overflow without ever writing a counter. These are the seven traps I tested, and the one-line fix for each."
+    items:
+      - Let Java refuse
+      - The multiplication that lies
+      - The cast that lies
+      - The midpoint bug
+      - Negative hash, negative shard
+      - Time is a counter too
+      - Eight threads, one counter
+      - A long meets JavaScript
+
+  - kind: code
+    title: Let Java refuse
+    lead: "The JDK has had a checked version of each operation since Java 8. Where a wrong number is worse than an error, use them."
+    from: samples/java/Counters.java
+    lines: [34, 53]
+    notes:
+      - [40, "throws instead of wrapping"]
+      - [50, "or use a long and stop worrying"]
+    after:
+      - callout: "`Math.addExact`: **1,000 of 1,000 refused**, with `ArithmeticException: integer overflow`, and the value stayed at 2,147,483,647. A `long`: **0 wrong**."
+        label: TESTED
+        tone: ok
+      - p: "Also there: `subtractExact`, `multiplyExact`, `incrementExact`, `negateExact` and `toIntExact`. Use them at the edges, such as money or quantities from outside."
+
+  - kind: code
+    title: The multiplication that lies
+    lead: "You did the right thing: you declared a `long`. But Java works out the right side first, as `int * int`, and only then widens the already wrong answer."
+    from: samples/java/Counters.java
+    lines: [60, 64]
+    notes:
+      - [62, "overflowed, then widened"]
+      - [63, "one long on the right makes it all long"]
+    after:
+      - code: |
+          $ java Views widen
+          views * bytes        1000 of 1000 wrong, into a long
+          (long) views * bytes 0 of 1000 wrong
+          4 * 1024 * 1024 * 1024  = 0
+          4L * 1024 * 1024 * 1024 = 4294967296
+        lang: sql
+      - callout: "A \"4 GB\" limit written as `4 * 1024 * 1024 * 1024` is **zero**. No warning from the compiler. It's the same for `SIZE * COUNT` anywhere. Put the `L` on the first number."
+        label: THE TRAP
+        tone: bad
+
+  - kind: code
+    title: The cast that lies
+    lead: "The column is `BIGINT` at last, but somewhere an old method still returns `int`, so someone adds a cast to make it compile."
+    from: samples/java/Counters.java
+    lines: [83, 91]
+    notes:
+      - [84, "keeps the low 32 bits, and throws away the rest"]
+      - [87, "refuses instead"]
+    after:
+      - code: |
+          $ java Views narrow
+          (int) views        1000 of 1000 silently wrong
+          (int) 3000000000L  = -1294967296
+          Math.toIntExact    1000 of 1000 refused
+        lang: sql
+      - callout: "Search your code for `(int)` next to anything that could be a count or an id. A cast is a promise that the value fits. It is checked by nobody."
+        label: IN A CODE REVIEW
+        tone: wait
+
+  - kind: code
+    title: The midpoint bug
+    lead: "This one sat in the JDK itself. In 2006 Joshua Bloch wrote that `Arrays.binarySearch`, which he had written, was broken, and that nearly all binary searches and mergesorts were too."
+    from: samples/java/Counters.java
+    lines: [105, 109]
+    notes:
+      - [108, "lo + hi overflows on big arrays"]
+      - [109, "the subtraction can't"]
+    after:
+      - callout: "Both indexes above 2³⁰: `(lo + hi) / 2` was **wrong and negative on 1,000 of 1,000**. `lo + (hi - lo) / 2`: **0 wrong**. In Java, the negative index throws `ArrayIndexOutOfBoundsException`."
+        label: TESTED
+        tone: bad
+      - p: "It stayed hidden because it only fails on arrays of around a billion elements. It's the best argument I know for this: **code can be correct for years, then data grows.**"
+
+  - kind: code
+    title: Negative hash, negative shard
+    lead: "`hashCode()` can be any int, and half of those are negative. Java's `%` keeps the sign. So the usual way to pick a shard or a bucket can pick shard number −4."
+    from: samples/java/Counters.java
+    lines: [127, 130]
+    notes:
+      - [128, "negative almost half the time"]
+      - [129, "looks fixed, see below"]
+      - [130, "always 0 to 9"]
+    after:
+      - code: |
+          $ java Views shards
+          h % 10              422-450 of 1000 negative
+          Math.abs(h) % 10    0 of 1000 negative
+          Math.floorMod(h,10) 0 of 1000 negative
+          "polygenelubricants".hashCode() = -2147483648
+          Math.abs of it      = -2147483648
+          Math.abs(h) % 10    = -8
+          Math.floorMod(h,10) = 2
+        lang: sql
+      - callout: "`Math.abs` has no positive answer for the lowest int, so it returns the input. 1,000 random keys won't find this, but one key in 4 billion will, and in production it arrives eventually. Use `Math.floorMod`."
+        label: THE ONE-IN-4-BILLION BUG
+        tone: bad
+
+  - kind: code
+    title: Time is a counter too
+    lead: "The same number counts seconds and milliseconds. There it has a date."
+    from: samples/java/Counters.java
+    lines: [193, 206]
+    notes:
+      - [193, "seconds since 1970, in an int"]
+      - [196, "one second later"]
+      - [202, "every number here is an int"]
+    after:
+      - code: |
+          $ java Views time
+          int seconds  2147483647 = 2038-01-19T03:14:07Z
+          one more     -2147483648 = 1901-12-13T20:45:52Z
+          days to ms   first negative at 25 days: -2134967296
+        lang: sql
+      - bullets:
+          - "**The year 2038**: any `int` holding Unix seconds jumps back to December 1901. Check old database columns and file formats too."
+          - "**25-day timeouts**: `days * 24 * 60 * 60 * 1000` goes negative at day 25. Use `Duration.ofDays(days)`, or `24L`."
+          - "**Node.js**: `setTimeout` with more than about 24.8 days fired almost at once when I tried it, with a `TimeoutOverflowWarning`: the delay is set to 1 ms."
+
+  - kind: code
+    title: Eight threads, one counter
+    lead: "A view counter has a second bug that has nothing to do with size. `views++` is three steps: read, add, write. Two threads can read the same value."
+    from: samples/java/Counters.java
+    lines: [156, 173]
+    notes:
+      - [158, "not atomic"]
+      - [165, "atomic, and all threads fight over one value"]
+      - [172, "spreads the counting over several cells"]
+
+  - kind: table
+    title: "Eight threads: the results"
+    lead: "8 threads, 1,000,000 views each, three runs."
+    columns: [HOW, VIEWS LOST, TIME]
+    widths: "1fr 1fr 24mm"
+    rows:
+      - ["`int ++`", {t: "5.97M to 6.15M of 8M", tone: bad}, "23-33 ms"]
+      - ["`AtomicLong`", {t: "0", tone: ok}, "183-206 ms"]
+      - ["`LongAdder`", {t: "0", tone: ok}, "44-51 ms"]
+    after:
+      - p: "`volatile` wouldn't help: it makes each read and write visible, but `++` is still three steps. **`LongAdder` is built for this**: many writers, and reads that are rare. Reading its total costs more, and isn't a snapshot if writes are still going on."
+
+  - kind: text
+    title: A long meets JavaScript
+    lead: "You moved to 64 bits. Your API sends the id as a JSON number. JavaScript reads every number as a double, which holds whole numbers exactly only up to 2⁵³ − 1."
+    blocks:
+      - from: samples/json53.mjs
+        lines: [4, 9]
+        lang: java
+      - code: |
+          $ node json53.mjs
+          JSON number: 1000 of 1000 ids changed
+          JSON string: 0 of 1000 ids changed
+          9007199254740993 comes back as 9007199254740992
+        lang: sql
+      - callout: "The id comes back as a **different valid-looking id**, so your app loads the wrong record with no error. In 2010, Twitter added `id_str` beside `id` in its API for this reason."
+        label: THE TRAP
+        tone: bad
+      - p: "**The fix**: send 64-bit ids as strings in JSON. You won't reach 2⁵³ by counting up, but generated ids such as Snowflake's get there from day one."
+
+  # ---------------------------------------------------------------- part 4
+  - kind: part
+    n: "4"
+    title: The limit in Postgres
+    lead: "The database fails loudly, and that's good, but it means the whole write path stops. This part is about finding it early, and moving a live table."
+    items:
+      - Java wraps, SQL refuses
+      - Out of IDs
+      - "The fix that isn't"
+      - Why the ALTER froze everything
+      - "The fix that works, in 4 steps"
+      - The columns you forget
+      - IDs run out faster than rows
+      - Find it before it finds you
+      - Which ID type?
+      - A real view counter
+
+  - kind: code
+    title: Java wraps, SQL refuses
+    lead: "Same number, opposite behaviour. Postgres checks every addition, so a counter at the limit fails instead of lying."
+    from: samples/java/Limits.java
+    lines: [46, 60]
+    lang: java
+    notes:
+      - [46, "the same test, on both types"]
+      - [49, "at the limit"]
+      - [52, "then one more"]
+    after:
+      - code: |
+          $ java Views counter-sql
+          INTEGER: 1000 of 1000 refused, views now 2147483647
+                   22003 ERROR: integer out of range
+          BIGINT:  0 of 1000 refused, views now 2147484647
+        lang: sql
+      - p: "The value stays correct, but every `UPDATE` now throws. If that update runs inside a bigger transaction, such as saving a watch event along with the count, the **whole transaction** rolls back. A counter can take down the feature around it."
+
+  - kind: text
+    title: Out of IDs
+    lead: "`SERIAL` is shorthand. It makes an `INTEGER` column, and a separate object called a **sequence** that hands out the next number."
+    blocks:
+      - code: |
+          -- what id SERIAL PRIMARY KEY really creates
+          CREATE SEQUENCE videos_id_seq AS integer;
+          CREATE TABLE videos (
+            id integer NOT NULL
+              DEFAULT nextval('videos_id_seq') PRIMARY KEY
+          );
+          ALTER SEQUENCE videos_id_seq OWNED BY videos.id;
+        lang: sql
+      - p: "Remember the sequence. It's two limits, not one: the column's type **and** the sequence's own."
+      - code: |
+          $ java Views out-of-ids
+          SERIAL at the limit: 1000 of 1000 refused
+            2200H ERROR: nextval: reached maximum value
+            of sequence "videos_id_seq" (2147483647)
+        lang: sql
+      - callout: "Every insert into this table fails, while reads and updates still work. At Basecamp, that table recorded almost every action, so practically everything stopped."
+        label: WHAT IT LOOKS LIKE
+        tone: bad
+
+  - kind: code
+    title: "The fix that isn't"
+    lead: "It's 2 am, inserts are failing, and you run the obvious line. The column is now `bigint`. Inserts still fail."
+    from: samples/java/Limits.java
+    lines: [78, 87]
+    lang: java
+    notes:
+      - [78, "the obvious fix"]
+      - [82, "still refused: see below"]
+      - [84, "the second half of the fix"]
+    after:
+      - code: |
+          $ java Views alter-only
+          column is now  bigint
+          sequence is    integer, its limit 2147483647
+          column BIGINT, sequence untouched: 1000 of 1000 refused
+          sequence is    bigint, its limit 9223372036854775807
+          column BIGINT, sequence BIGINT:    0 of 1000 refused
+          largest id now 2147484647
+        lang: sql
+      - callout: "`ALTER COLUMN TYPE` doesn't touch a `SERIAL` column's sequence. You also need `ALTER SEQUENCE videos_id_seq AS BIGINT`, which raises its limit by itself."
+        label: THE FIX FOR THE FIX
+        tone: ok
+
+  - kind: table
+    title: IDENTITY doesn't have this trap
+    lead: "`GENERATED BY DEFAULT AS IDENTITY` is the modern way to write an auto-increment column. I ran the same test on it."
+    columns: ["", SERIAL, IDENTITY]
+    widths: "34mm 1fr 1fr"
+    rows:
+      - ["At the limit", {t: "1,000 of 1,000 refused", tone: bad}, {t: "1,000 of 1,000 refused", tone: bad}]
+      - ["Sequence after `ALTER COLUMN TYPE BIGINT`", {t: "Still `integer`", tone: bad}, {t: "`bigint`, changed with it", tone: ok}]
+      - ["Inserts after that", {t: "1,000 of 1,000 refused", tone: bad}, {t: "0 refused", tone: ok}]
+    after:
+      - from: samples/java/Limits.java
+        lines: [94, 97]
+      - p: "New tables are better off with `BIGINT GENERATED BY DEFAULT AS IDENTITY`. It doesn't save you from the lock on the next page, though: that comes from rewriting the table."
+      - p: "Rails, since 5.1, and many other frameworks now default to 64-bit keys, but check what your own migrations really created. `\\d videos` in `psql` will tell you."
+
+  - kind: code
+    title: Why the ALTER froze everything
+    lead: "`ALTER COLUMN TYPE` rewrites the whole table and its indexes, because 4-byte ids don't fit in the same place as 8-byte ones. And it holds an `ACCESS EXCLUSIVE` lock all the way through."
+    from: samples/java/Migrate.java
+    lines: [99, 107]
+    notes:
+      - [99, "4 writers and 1 reader, like a live app"]
+      - [102, "the one-line fix"]
+    after:
+      - callout: "5 million rows, under load. **Every read and write waited 14 to 19 seconds**, in all three runs. Nothing failed, because nothing was timed out. In a real app, your connection pool and your users' patience would run out first."
+        label: TESTED
+        tone: bad
+      - p: "`ACCESS EXCLUSIVE` blocks everything, even `SELECT`. The docs also warn it can temporarily need double the disk space. And 5 million rows is small: at the same speed, 2 billion rows would take about **2 hours** (my estimate, 400 times the rows)."
+
+  - kind: flowchart
+    title: "The fix that works, in 4 steps"
+    lead: "The idea: never change the old column. Build a new one beside it while the app keeps running, then swap the names in a moment."
+    nodes:
+      - {head: "Add a new column, and keep it filled", body: "`id_big BIGINT`, instant. A trigger copies each new or updated row's id."}
+      - {head: "Copy the old rows, in small batches", body: "10,000 rows per transaction, so no lock lasts long. The slow part, and it doesn't matter."}
+      - {head: "Prepare the swap, without blocking", body: "`CREATE UNIQUE INDEX CONCURRENTLY`, then a `NOT VALID` check that's validated later."}
+      - {head: "Swap, in one short transaction", body: "Widen the sequence, rename the columns, hand over the primary key. Milliseconds.", tone: ok}
+
+  - kind: table
+    title: The same load, both ways
+    lead: "5 million rows, 4 writers and 1 reader, three runs each. The 4 steps take longer, and nobody notices."
+    columns: ["", ALTER, "4 STEPS"]
+    widths: "1fr 28mm 28mm"
+    rows:
+      - ["Longest write wait", {t: "14.2-18.9 s", tone: bad}, {t: "51-371 ms", tone: ok}]
+      - ["Longest read wait", {t: "14.2-18.9 s", tone: bad}, {t: "25-45 ms", tone: ok}]
+      - ["Failed writes", "0", "0"]
+      - ["Old rows with the same id", "5,000,000", "5,000,000"]
+      - ["Total time", {t: "14-19 s", tone: ok}, {t: "63-89 s", tone: wait}]
+    after:
+      - p: "Read the first and last rows together. `ALTER` is the faster migration, and the worse one: nobody cares how long a change takes if nobody can feel it."
+      - callout: "No request failed either way, but only because my test has no timeouts. A real app times out at a few seconds, so the `ALTER` row would have been full of errors, on a table this small."
+        label: READ IT CAREFULLY
+        tone: wait
+      - p: "Both ended the same way: 5,000,000 old rows with their ids unchanged, every new row kept, and inserts working past 2,147,483,647."
+
+  - kind: code
+    title: "Step 1: a new column, kept filled"
+    lead: "Adding a column with no default is instant, whatever the table's size. From here on, every new or updated row fills both columns."
+    from: samples/java/Migrate.java
+    lines: [114, 123]
+    notes:
+      - [114, "instant: nothing is rewritten"]
+      - [118, "new rows, and any old row that's touched"]
+      - [122, "a BEFORE trigger, so the row is written once"]
+    after:
+      - callout: "Column defaults are filled in before a `BEFORE INSERT` trigger runs, so `NEW.id` already holds the sequence's value here."
+        label: WHY THIS WORKS
+        tone: ok
+
+  - kind: code
+    title: "Step 2: copy in small batches"
+    lead: "One `UPDATE` of 5 million rows would hold 5 million row locks until it finished. Many small ones hold each lock for moments, so the app gets its turn in between."
+    from: samples/java/Migrate.java
+    lines: [126, 135]
+    notes:
+      - [126, "the highest id right now; the trigger covers newer ones"]
+      - [128, "skips rows the trigger has already filled"]
+      - [133, "autocommit: each batch is its own transaction"]
+    after:
+      - bullets:
+          - "**Pick the batch size by watching**: if a batch takes much over a few tens of milliseconds, make it smaller."
+          - "**Sleep between batches on a real system**: replicas have to keep up, and my test didn't have any."
+          - "**Disk grows**: every `UPDATE` writes a new copy of the row, so expect the table to grow until `VACUUM` catches up. Check you have the room first."
+          - "**It can stop and restart**: `id_big IS NULL` means a re-run skips what's done."
+
+  - kind: code
+    title: "Step 3: prepare without blocking"
+    lead: "The primary key needs a unique index and a `NOT NULL`. Both normally lock the table while they scan it. Both have a way around that."
+    from: samples/java/Migrate.java
+    lines: [138, 142]
+    notes:
+      - [138, "builds the index while writes continue"]
+      - [141, "a promise for new rows, with no scan"]
+      - [142, "the scan, under a lock that lets writes through"]
+    after:
+      - p: "`CONCURRENTLY` can't run inside a transaction, and it can fail, leaving an `INVALID` index behind. Check for one, drop it and retry."
+      - p: "Why the check constraint? Setting a column `NOT NULL` normally scans the whole table under the strongest lock. Since Postgres 12, a validated `CHECK (x IS NOT NULL)` lets it skip that scan."
+
+  - kind: code
+    title: "Step 4: the swap"
+    lead: "Everything that takes time is done. What's left only changes the table's description, not its data, so the strongest lock is held only for moments."
+    from: samples/java/Migrate.java
+    lines: [145, 164]
+    notes:
+      - [146, "give up after 2 s rather than make everyone queue"]
+      - [148, "the part that's easy to forget"]
+      - [154, "fast: the check already proved it"]
+      - [155, "the index you built becomes the primary key"]
+      - [159, "or dropping the old column would drop the sequence"]
+    after:
+      - callout: "A long-running query can hold up the lock while every new write queues behind **it**. So `lock_timeout` matters: if it fails, nothing has changed, and you can retry. All 5 million old rows kept their ids, in all three runs."
+        label: THE SAFETY NET
+        tone: ok
+
+  - kind: code
+    title: The columns you forget
+    lead: "`videos.id` is safe now. But `comments.video_id` was created as `INTEGER` too, and Postgres lets a foreign key join the two types."
+    from: samples/java/Limits.java
+    lines: [111, 115]
+    lang: java
+    notes:
+      - [114, "this column has the old limit too"]
+    after:
+      - code: |
+          $ java Views fk-left
+          comments.video_id INTEGER: 1000 of 1000 refused
+                                     22003 integer out of range
+          comments.video_id BIGINT:  0 of 1000 refused
+        lang: sql
+      - callout: "This fails on the first video past the limit, so it passes all your tests at the time of the migration. Then, weeks later, comments stop working on **new** videos only. Migrate the foreign keys **first**."
+        label: THE LATE SURPRISE
+        tone: bad
+      - bullets:
+          - "**Application code**: `int videoId` in a DTO, an `Integer` entity field, or a protobuf `int32`."
+          - "**Everything downstream**: queues, analytics tables, caches, and other services' schemas."
+
+  - kind: code
+    title: How Java reads a big number
+    lead: "The driver helps, as long as you ask for the value properly."
+    from: samples/java/Limits.java
+    lines: [190, 198]
+    lang: java
+    notes:
+      - [191, "the driver refuses a value that doesn't fit"]
+      - [196, "you asked for a long, then cut it down yourself"]
+      - [198, "the right way"]
+    after:
+      - code: |
+          $ java Views read-int
+          rs.getInt         1000 of 1000 threw:
+                            Bad value for type int : 3000001000
+          (int) rs.getLong  1000 of 1000 silently wrong
+          rs.getLong        0 of 1000 wrong
+        lang: sql
+      - p: "An exception here is a good outcome: it tells you the app hasn't been migrated. The silent one comes from a cast someone added to make it compile, which is why the search on page 18 is worth doing."
+
+  - kind: code
+    title: IDs run out faster than rows
+    lead: "A sequence never goes backwards, even when the insert fails. The Postgres docs say so, and it means your row count tells you very little."
+    from: samples/java/Limits.java
+    lines: [145, 166]
+    lang: java
+    notes:
+      - [147, "the row exists, but nextval already ran"]
+      - [155, "rolled back, but the id stays used"]
+      - [166, "no insert attempted, no id used"]
+
+  - kind: table
+    title: "What each one used up"
+    lead: "1,000 tries each, on a table holding one row. Three runs, the same every time."
+    columns: [1000 TIMES, ROWS, IDS USED]
+    widths: "1fr 16mm 22mm"
+    rows:
+      - ["`ON CONFLICT DO NOTHING`, row exists", "1", {t: "1,000", tone: bad}]
+      - ["Insert, then roll back", "1", {t: "1,000", tone: bad}]
+      - ["`WHERE NOT EXISTS`, row exists", "1", {t: "0", tone: ok}]
+    after:
+      - callout: "A table with a few thousand rows, hit by an upsert on every request at 100 a second, runs out in **248 days**. Keep the unique index anyway: `WHERE NOT EXISTS` can race, and the index catches that."
+        label: THE SMALL TABLE THAT DIES
+        tone: bad
+
+  - kind: text
+    title: Find it before it finds you
+    lead: "One query for every sequence-backed column, using the tighter of the column's limit and the sequence's. Run it from a monitor every day."
+    blocks:
+      - from: samples/java/Limits.java
+        lines: [211, 224]
+        lang: sql
+      - code: |
+          $ java Views runway     (columns trimmed)
+          nearly_out     integer  integer  99.9
+          big_column     bigint   integer  99.0   <- the sequence
+          big_seq        integer  bigint   99.0   <- the column
+          getting_close  integer  integer  72.0
+          healthy        integer  integer  10.0
+          fine           bigint   bigint    0.0
+        lang: sql
+      - callout: "6 tables with known levels: all correct, including both half-done migrations, which a simple look at `pg_sequences` would miss. Alert at **50%**, and page someone at **70%**."
+        label: TESTED
+        tone: ok
+
+  - kind: text
+    title: "And the foreign keys"
+    lead: "The columns from page 37, found by asking the catalog. It's worth running after every migration."
+    blocks:
+      - from: samples/java/Limits.java
+        lines: [228, 237]
+        lang: sql
+      - code: |
+          table_name   column_name  column_type  points_at
+          watch.child  parent       integer      bigint
+        lang: sql
+      - h: Three more places to look
+      - bullets:
+          - "**Counters with no sequence**, such as `views INTEGER`: this query can't see those. `SELECT max(views)` tells you; list them by hand."
+          - "**Your other databases**: MySQL's `AUTO_INCREMENT` columns have the same limit, and its `information_schema` shows them."
+          - "**Your code**: search for `int id`, `Integer id`, `int32` and `(int)` in anything touching these tables."
+      - callout: "To work out days left, record `last_value` twice, a day apart. The difference is your burn rate. `(limit − last_value) ÷ burn rate` is the number that belongs on a dashboard."
+        label: THE NUMBER TO WATCH
+        tone: ok
+
+  - kind: decide
+    title: Which ID type?
+    lead: "Decide on day one, when it costs nothing. All of these are fine in some place, and none is free."
+    rows:
+      - {if: "A new table, and the usual case", use: "BIGINT IDENTITY", why: "8 bytes rather than 4, per row and per index. Small and simple, in order, and you never think about it again."}
+      - {if: "IDs are made on many machines, or visible to users", use: "UUID v7", why: "16 bytes, generated anywhere, not guessable by counting, and roughly time-ordered, so indexes stay healthy. Built into Postgres from 18 as uuidv7()."}
+      - {if: "A tiny table you control, such as countries", use: "SMALLINT or INTEGER", why: "Fine, if you can be sure it won't grow. Count ids used, not rows kept."}
+      - {if: "Huge scale, and you want 64 bits with time inside", use: "Snowflake-style", why: "Time + machine + sequence in a BIGINT. Above 2⁵³ from day one, so send them as JSON strings."}
+
+  - kind: table
+    title: A real view counter
+    lead: "Back to where we started. One `UPDATE` per view makes every viewer queue for the same row lock. So real counters don't do that. 8 connections, 16,000 views in total:"
+    columns: [HOW, TIME, COUNTED]
+    widths: "1fr 26mm 26mm"
+    rows:
+      - ["One row: `views = views + 1`", {t: "3.8-4.6 s", tone: bad}, "16,000 of 16,000"]
+      - ["32 shard rows, summed on read", {t: "1.6-2.6 s", tone: wait}, "16,000 of 16,000"]
+      - ["Count in memory, write the total", {t: "1.6M in 0.15 s", tone: ok}, "All of them"]
+    after:
+      - from: samples/java/Limits.java
+        lines: [301, 303]
+        lang: java
+      - bullets:
+          - "**Shards**: each view hits one of 32 rows, and reads do `SUM(n)`. Fewer lock waits, and slower reads."
+          - "**Batches**: count with an `AtomicLong`, then write the total once in a while. In that run, 1.6M views took one database write. **The cost**: a crash loses what wasn't written yet."
+      - callout: "For views, losing a few is fine and speed matters. For money, it's never fine. A counter's design starts with: **what does a wrong number cost?** Times are from this machine, so compare the shapes, not the numbers."
+        label: THE QUESTION
+        tone: wait
+
+  - kind: flowchart
+    title: "Your table is at 70%: the playbook"
+    lead: "Putting it together, in the order that doesn't hurt."
+    nodes:
+      - {head: "Measure the runway", body: "Run the query. Work out the days left from the burn rate. Now you know how long you have."}
+      - {head: "Find everything that holds the id", body: "Foreign keys, DTOs, `int32`s, queues, analytics tables, other services."}
+      - {head: "Make the app ready first", body: "Read ids as `long`, and send them as strings in JSON. Deploy that while ids still fit."}
+      - {head: "Migrate the columns pointing at it", body: "Foreign keys first, with the same 4 steps. They're usually smaller."}
+      - {head: "Migrate the main table", body: "Add column, copy, prepare, swap. Rehearse on a restored copy of production first."}
+      - {head: "Prove it", body: "Run it past the limit in staging: `setval` the sequence to 2147483647, then insert and read back.", tone: ok}
+    after:
+      - callout: "Negative ids are valid, so a sequence can count down from −1: 2 billion more ids, with no rewrite. **Before: 1,000 of 1,000 refused. After: 0.** `java Views on-fire`. It's a hack: every `id > 0` check and every sort by id will misbehave. Use it to buy days, then migrate."
+        label: "IF IT'S ALREADY ON FIRE"
+        tone: wait
+
+  # ---------------------------------------------------------------- part 5
+  - kind: part
+    n: "5"
+    title: Interview kit
+    lead: "\"What happens when an int overflows?\", \"Design a view counter\", \"How do you change a column type on a huge table?\" Now you can answer from the inside."
+    items:
+      - A 2-minute answer
+      - 12 questions, with answers
+      - 8 mistakes to catch in a code review
+      - A checklist and a one-page cheat sheet
+
+  - kind: steps
+    title: Your 2-minute answer
+    lead: "When the interviewer asks \"your table's id is running out. What do you do?\", walk through this."
+    steps:
+      - head: Size the problem
+        body: "A signed 32-bit id stops at 2,147,483,647. Compare `last_value` with its limit, and measure the burn rate to get the days left."
+      - head: Name both limits
+        body: "With `SERIAL`, the column and the sequence each have a limit. Changing only the column still fails at the same number."
+      - head: Say why not ALTER
+        body: "`ALTER COLUMN TYPE` rewrites the table under an `ACCESS EXCLUSIVE` lock. 14 to 19 seconds on 5 million rows in my test, with reads blocked too."
+      - head: Give the online path
+        body: "New `BIGINT` column plus a trigger, batched backfill, unique index `CONCURRENTLY`, validated check, then swap in one short transaction with a `lock_timeout`."
+      - head: Cover the edges
+        body: "Foreign keys, app code using `int`, and JSON: ids above 2⁵³ have to be strings for JavaScript."
+      - head: Prevent it
+        body: "`BIGINT` by default for new tables, and a daily check on how full each sequence is, with an alert at 50%."
+
+  - kind: qa
+    title: 12 interview questions
+    items:
+      - q: Why is the int limit 2,147,483,647?
+        a: "32 bits, with one for the sign in two's complement. The other 31 give 2³¹ − 1."
+      - q: What happens when a Java int overflows?
+        a: "It wraps with no error: the maximum plus 1 is −2,147,483,648. The language spec defines it. Use `Math.addExact` to get an exception, or a `long`."
+      - q: "What's wrong with long x = a * b when a and b are ints?"
+        a: "The multiplication happens in `int`, overflows, and only then widens. 1,000 of 1,000 were wrong in my test. Write `(long) a * b`."
+      - q: "What's the bug in (lo + hi) / 2?"
+        a: "The sum overflows on large indexes and goes negative. `lo + (hi - lo) / 2` can't. It was in the JDK's own binary search until 2006."
+      - q: Can Math.abs return a negative number?
+        a: "Yes: `Math.abs(Integer.MIN_VALUE)` is still negative, since there's no positive counterpart. So use `Math.floorMod` to pick a shard."
+      - q: "Is views++ safe across threads?"
+        a: "No. It's read, add, write. 8 threads lost about 6 million of 8 million in my test. Use `AtomicLong`, or `LongAdder` when writes are heavy."
+      - q: "You ran ALTER COLUMN TYPE BIGINT, and inserts still fail. Why?"
+        a: "A `SERIAL` column's sequence keeps its own `integer` limit. Run `ALTER SEQUENCE ... AS BIGINT` as well. `IDENTITY` columns change it with the column."
+      - q: How do you change a column type on a huge live table?
+        a: "Not in place: that rewrites the table under `ACCESS EXCLUSIVE`. Add a column, keep it filled by trigger, backfill in batches, then swap in one short transaction."
+      - q: Why can a small table run out of IDs?
+        a: "A sequence never goes back. `ON CONFLICT DO NOTHING` and rolled-back inserts both use up ids: 1,000 ids for 0 new rows in my test."
+      - q: Why send 64-bit IDs as strings in JSON?
+        a: "JavaScript parses numbers as doubles, exact only up to 2⁵³ − 1. Above that, an id silently becomes a different id. 1,000 of 1,000 did in my test."
+      - q: INTEGER, BIGINT or UUID for a primary key?
+        a: "`BIGINT` as the default. UUID v7 when ids are made on many machines or shown to users. `INTEGER` only when you're sure of the size."
+      - q: How would you design a view counter?
+        a: "Not one row per view: that's a queue on one lock. Shard the rows, or count in memory and write in batches, and accept losing a few on a crash. `BIGINT`, always."
+
+  - kind: text
+    title: 8 mistakes to catch in a review
+    blocks:
+      - bullets:
+          - "**`int` for a count or an id** that could ever grow. Ask: what's the burn rate?"
+          - "**`long x = a * b`** with both sides `int`. Also `4 * 1024 * 1024 * 1024`."
+          - "**`(int)` casts** on anything from a database or a request."
+          - "**`Math.abs(hash) % n`**. Use `Math.floorMod`."
+          - "**`views++` on a shared field**, with or without `volatile`."
+          - "**`ALTER COLUMN TYPE` in a migration** on a big table, with no plan for the lock."
+          - "**A `BIGINT` primary key with `INTEGER` foreign keys** still pointing at it."
+          - "**64-bit ids as JSON numbers** in any API that a browser reads."
+
+  - kind: checklist
+    title: Checklist for integer limits
+    items:
+      - "New tables use `BIGINT GENERATED BY DEFAULT AS IDENTITY`, or a UUID, by default."
+      - "A daily check reports how full each sequence is, using the tighter of the column and the sequence."
+      - "An alert fires at 50%, and someone gets paged at 70%."
+      - "The burn rate of the busiest tables is known, counted in ids used, not rows."
+      - "Foreign keys match the type of the column they point at."
+      - "App code reads ids and counts as `long`, with no `(int)` casts."
+      - "Multiplications that can get big start with a `long`."
+      - "Shared counters are `AtomicLong` or `LongAdder`, not `int` or `volatile`."
+      - "64-bit ids travel as strings in JSON."
+      - "Timestamps are 64-bit, in the database and in file formats, well before 2038."
+
+  - kind: table
+    title: Cheat sheet
+    lead: Screenshot this page.
+    columns: [YOU NEED TO, DO THIS, BECAUSE]
+    widths: "24mm 1fr 25mm"
+    rows:
+      - ["Count safely", "`long`, or `Math.addExact(a, b)`", "`int` wraps silently"]
+      - ["Multiply", "`(long) a * b`, `4L * 1024`", "Overflows first"]
+      - ["Narrow", "`Math.toIntExact(v)`", "A cast cuts bits"]
+      - ["Find a midpoint", "`lo + (hi - lo) / 2`", "`lo + hi` overflows"]
+      - ["Pick a shard", "`Math.floorMod(h, n)`", "`abs` can be negative"]
+      - ["Count on threads", "`LongAdder`, `AtomicLong`", "`++` is 3 steps"]
+      - ["Widen a SERIAL", "`ALTER SEQUENCE s AS BIGINT` too", "Two limits"]
+      - ["Change a big column", "Add, copy in batches, swap", "`ALTER` locks all"]
+      - ["Check the runway", "`last_value / limit`, then alert", "IDs burn on failure"]
+      - ["Send an id to a browser", "A JSON string", "Doubles stop at 2⁵³"]
+
+  - kind: table
+    title: Collect the series
+    lead: "Every Behind the Button video comes with its own free guide like this one. Comment the keyword shown in each video to get it, and build the whole set."
+    columns: ["#", THE GUIDES]
+    widths: "8mm 1fr"
+    rows:
+      - ["1", "The last seat: race conditions in SQL (comment SEAT on that video)"]
+      - ["2", "You tapped Pay twice: idempotency keys (comment PAY on that video)"]
+      - ["3", "Why your OTP dies in 30 seconds: how TOTP works (comment OTP on that video)"]
+      - [{t: "4", tone: ok}, {t: "One more view: integer overflow and running out of IDs (this guide)", tone: ok}]
+      - ["5", "\"Username taken\" in 1 ms among a billion: unique indexes and Bloom filters"]
+      - ["6", "Why \"typing…\" shows up instantly: WebSockets and presence"]
+      - ["7", "The reset link that only works once: single-use tokens"]
+
+end:
+  video: "Behind the Button #4, One more view, and the counter goes negative: on Instagram @stacknova.dev and YouTube @StackNovaDev."
+  next: "This is guide #4 of the Behind the Button collection. Missed one? Comment SEAT, PAY or OTP on those videos. Follow, and comment the keyword on the next video to get guide #5."
+  more: "Run the runway query on your busiest database today. If anything's above 50%, you've just got the most useful number of your week."
+
+sources_lead: Every claim in this guide comes from one of these, or from the tests in it (1 Nov 2026).
+extra_sources:
+  - {title: "The Java Language Specification, Java SE 25 — §4.2.1 ranges and §4.2.2 \"do not indicate overflow or underflow in any way\"", url: "https://docs.oracle.com/javase/specs/jls/se25/html/jls-4.html#jls-4.2.2"}
+  - {title: "Java SE 25 — java.lang.Math (addExact, multiplyExact, toIntExact, abs, floorMod)", url: "https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/lang/Math.html"}
+  - {title: "Java SE 25 — java.util.concurrent.atomic.LongAdder", url: "https://docs.oracle.com/en/java/javase/25/docs/api/java.base/java/util/concurrent/atomic/LongAdder.html"}
+  - {title: "CNN Wire via FOX 4 — 'Gangnam Style' breaks YouTube (3 Dec 2014: engineers saw it coming; \"Nothing actually broke\")", url: "https://digital-release.fox4kc.com/?p=485680"}
+  - {title: "Engadget — YouTube's view counter wasn't ready for 'Gangnam Style' (4 Dec 2014, quoting YouTube's post)", url: "https://www.engadget.com/2014-12-04-op-op-op-op.html"}
+  - {title: "CBS News — How \"Gangnam Style\" broke YouTube's view counter (3 Dec 2014)", url: "https://www.cbsnews.com/news/how-gangnam-style-broke-youtubes-view-counter/"}
+  - {title: "Basecamp (Signal v. Noise) — Postmortem on the read-only outage of Basecamp, November 2018", url: "https://signalvnoise.com/svn3/postmortem-on-the-read-only-outage-of-basecamp-on-november-9th-2018/"}
+  - {title: "FAA AD 2018-20-15 — Boeing 787, GCU software counter overflows after 248 days of continuous power", url: "https://www.govinfo.gov/content/pkg/FR-2018-10-16/html/2018-22152.htm"}
+  - {title: "Google Research — Joshua Bloch, Extra, Extra: Nearly All Binary Searches and Mergesorts are Broken (2 June 2006)", url: "https://research.google/blog/extra-extra-read-all-about-it-nearly-all-binary-searches-and-mergesorts-are-broken/"}
+  - {title: "PostgreSQL 18 — 8.1 Numeric Types (ranges, serial, sequence gaps, when to use bigserial)", url: "https://www.postgresql.org/docs/18/datatype-numeric.html"}
+  - {title: "PostgreSQL 18 — ALTER TABLE (ACCESS EXCLUSIVE, table rewrites, double disk space, NOT VALID, VALIDATE CONSTRAINT, PRIMARY KEY USING INDEX)", url: "https://www.postgresql.org/docs/18/sql-altertable.html"}
+  - {title: "PostgreSQL 18 — ALTER SEQUENCE (AS data_type changes the limits)", url: "https://www.postgresql.org/docs/18/sql-altersequence.html"}
+  - {title: "PostgreSQL 18 — CREATE TABLE (GENERATED AS IDENTITY)", url: "https://www.postgresql.org/docs/18/sql-createtable.html"}
+  - {title: "PostgreSQL 18 — CREATE INDEX (CONCURRENTLY, invalid indexes)", url: "https://www.postgresql.org/docs/18/sql-createindex.html"}
+  - {title: "PostgreSQL 18 — UUID functions (uuidv7)", url: "https://www.postgresql.org/docs/18/functions-uuid.html"}
+  - {title: "The Go Programming Language Specification — Integer overflow", url: "https://go.dev/ref/spec#Integer_overflow"}
+  - {title: "The Rust Programming Language — Integer Overflow", url: "https://doc.rust-lang.org/book/ch03-02-data-types.html#integer-overflow"}
+  - {title: "cppreference — C arithmetic operators, overflow of signed integers is undefined behaviour", url: "https://en.cppreference.com/w/c/language/operator_arithmetic"}
+  - {title: "MDN — Number.MAX_SAFE_INTEGER", url: "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/MAX_SAFE_INTEGER"}
+  - {title: "Node.js — Timers: setTimeout delays above 2147483647", url: "https://nodejs.org/api/timers.html#settimeoutcallback-delay-args"}
+  - {title: "MySQL 8.4 — Out-of-Range and Overflow Handling", url: "https://dev.mysql.com/doc/refman/8.4/en/out-of-range-and-overflow.html"}
+  - {title: "X Developer docs — Twitter IDs (snowflake), id and id_str", url: "https://developer.x.com/en/docs/x-ids"}

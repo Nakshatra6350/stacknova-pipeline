@@ -19,6 +19,10 @@ What actually happened: the owner started early, so the dates above moved up. SE
 PAY on 30 Oct, and OTP is posted on Sat 31 Oct. At one a day, the rest follow: VIEWS Sun 1 Nov, NAME Mon 2 Nov,
 TYPING Tue 3 Nov, RESET Wed 4 Nov.
 
+VIEWS went out under another name, "One more view, and the counter goes negative": a Google spokesman said
+nothing actually broke at YouTube (its engineers had already moved to 64 bits), so the video doesn't say it
+broke. Its real outage is Basecamp, 2018, and its demo is Java + Postgres.
+
 Next week's candidates: 10,000 PS5s and no oversell (atomic stock), the nearest driver in
 milliseconds (geohash), stories that vanish after 24 h (TTL), the 2021 Facebook outage (BGP, DNS),
 why Netflix doesn't buffer (adaptive bitrate).

@@ -7,6 +7,8 @@ import { OTP_VERSIONS, Otp, otpDuration } from "./otp/Otp";
 import { PayCover } from "./pay/Cover";
 import { PAY_VERSIONS, Pay, payDuration } from "./pay/Pay";
 import { FPS } from "./timeline";
+import { ViewsCover } from "./views/Cover";
+import { VIEWS_VERSIONS, Views, viewsDuration } from "./views/Views";
 
 export const RemotionRoot: React.FC = () => (
   <>
@@ -25,5 +27,10 @@ export const RemotionRoot: React.FC = () => (
     <Composition id="OtpShort" component={Otp} defaultProps={{ version: "youtube" as const }}
                  durationInFrames={otpDuration(OTP_VERSIONS.youtube.tl)} fps={FPS} width={1080} height={1920} />
     <Composition id="OtpCover" component={OtpCover} durationInFrames={1} fps={FPS} width={1080} height={1920} />
+    <Composition id="ViewsReel" component={Views} defaultProps={{ version: "reel" as const }}
+                 durationInFrames={viewsDuration(VIEWS_VERSIONS.reel.tl)} fps={FPS} width={1080} height={1920} />
+    <Composition id="ViewsShort" component={Views} defaultProps={{ version: "youtube" as const }}
+                 durationInFrames={viewsDuration(VIEWS_VERSIONS.youtube.tl)} fps={FPS} width={1080} height={1920} />
+    <Composition id="ViewsCover" component={ViewsCover} durationInFrames={1} fps={FPS} width={1080} height={1920} />
   </>
 );
