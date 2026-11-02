@@ -8,7 +8,11 @@ import { OtpCover } from "./otp/Cover";
 import { OTP_VERSIONS, Otp, otpDuration } from "./otp/Otp";
 import { PayCover } from "./pay/Cover";
 import { PAY_VERSIONS, Pay, payDuration } from "./pay/Pay";
+import { ResetCover } from "./reset/Cover";
+import { RESET_VERSIONS, Reset, resetDuration } from "./reset/Reset";
 import { FPS } from "./timeline";
+import { TypingCover } from "./typing/Cover";
+import { TYPING_VERSIONS, Typing, typingDuration } from "./typing/Typing";
 import { ViewsCover } from "./views/Cover";
 import { VIEWS_VERSIONS, Views, viewsDuration } from "./views/Views";
 
@@ -39,5 +43,15 @@ export const RemotionRoot: React.FC = () => (
     <Composition id="NameShort" component={Name} defaultProps={{ version: "youtube" as const }}
                  durationInFrames={nameDuration(NAME_VERSIONS.youtube.tl)} fps={FPS} width={1080} height={1920} />
     <Composition id="NameCover" component={NameCover} durationInFrames={1} fps={FPS} width={1080} height={1920} />
+    <Composition id="TypingReel" component={Typing} defaultProps={{ version: "reel" as const }}
+                 durationInFrames={typingDuration(TYPING_VERSIONS.reel.tl)} fps={FPS} width={1080} height={1920} />
+    <Composition id="TypingShort" component={Typing} defaultProps={{ version: "youtube" as const }}
+                 durationInFrames={typingDuration(TYPING_VERSIONS.youtube.tl)} fps={FPS} width={1080} height={1920} />
+    <Composition id="TypingCover" component={TypingCover} durationInFrames={1} fps={FPS} width={1080} height={1920} />
+    <Composition id="ResetReel" component={Reset} defaultProps={{ version: "reel" as const }}
+                 durationInFrames={resetDuration(RESET_VERSIONS.reel.tl)} fps={FPS} width={1080} height={1920} />
+    <Composition id="ResetShort" component={Reset} defaultProps={{ version: "youtube" as const }}
+                 durationInFrames={resetDuration(RESET_VERSIONS.youtube.tl)} fps={FPS} width={1080} height={1920} />
+    <Composition id="ResetCover" component={ResetCover} durationInFrames={1} fps={FPS} width={1080} height={1920} />
   </>
 );

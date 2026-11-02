@@ -175,6 +175,7 @@ const rich = (s) => esc(s).replace(/`([^`]+)`/g, '<code class="ic">$1</code>').r
 const KEYWORDS = {
   java: 'abstract boolean break case catch class continue default do double else enum extends final finally float for if implements import instanceof int interface long new null package private protected public record return static super switch this throw throws true false try var void while yield',
   go: 'break case chan const continue default defer else fallthrough for func go goto if import interface map package range return select struct switch type var nil true false err',
+  js: 'async await break case catch class const continue default delete do else export extends false finally for from function if import in instanceof let new null of return static super switch this throw true try typeof undefined var void while yield',
   sql: 'select from where and or not null as on join left right inner group by order limit insert into update set delete create alter table index values returning begin commit rollback transaction isolation level repeatable read committed',
 };
 

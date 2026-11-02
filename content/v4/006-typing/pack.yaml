@@ -1,0 +1,651 @@
+# The free guide for "Behind the Button #6: Typing is a real message, and it's built to get lost"
+# (keyword TYPING). Built by studio/scripts/pack.py content/v4/006-typing into out/release/packs/. Every
+# result comes from samples/ run on 2 Nov 2026 (node main.mjs <mode>, three runs of each, on Node 22.17.1);
+# code is cut from those files by line range. Like guides #1 to #5, it is a whole resource (owner,
+# 29 Oct): every idea the fix uses, practical scenarios and diagrams.
+keyword: TYPING
+file: stacknova-built-to-get-lost-guide
+lang: js
+kicker: "BEHIND THE BUTTON · FREE GUIDE #6"
+title: Built to Get Lost
+subtitle: How "typing..." reaches you instantly, a WebSocket server written by hand, the phone that dies mid-word, and why a server can't see it's gone. Every result tested.
+versions: Tested on Node 22.17.1 with no libraries, real sockets on one Windows laptop, on 2 Nov 2026, so there's no network in these times. Node 24 is the current LTS; nothing here depends on the difference.
+inside:
+  - "Part 1 · The moment: four ways to say it, every test result, two companies' docs"
+  - "Part 2 · The connection: polling, the handshake and one frame by hand"
+  - "Part 3 · The indicator: how often to send, how long to show, three ways to leave"
+  - "Part 4 · Dead connections: 0 errors to a dead phone, heartbeats, reconnect storms"
+  - "Part 5 · At scale: slow readers, big rooms, two servers, and who's allowed in"
+  - "Part 6 · Interview kit: a 2-minute answer, 12 questions, a cheat sheet"
+
+sections:
+  # ---------------------------------------------------------------- part 1
+  - kind: part
+    n: "1"
+    title: The moment
+    lead: Someone starts typing, and three dots appear on your phone straight away. It's a real message, and unlike every other message in the app, nobody minds if it never arrives.
+    items:
+      - What one key sets off
+      - Four ways to say "typing", measured
+      - "My test: every result"
+      - The timer in two companies' docs
+
+  - kind: flowchart
+    title: What one key sets off
+    lead: "Six small steps. The clever part is everything the system doesn't do: no database, no retry, no receipt."
+    nodes:
+      - {head: "You press a key", body: "Your app has an open connection to a server already. It sends a tiny signal, at most once every few seconds (page 19)."}
+      - {head: "16 bytes travel", body: "`{\"t\":\"typing\"}` and a 2-byte header. No HTTP request and no headers. Page 12."}
+      - {head: "The server passes it on", body: "To everyone else in the chat, straight down their open connections. Nothing is written to disk."}
+      - {head: "Their phone starts a timer", body: "It shows the dots and counts down. Each new signal starts the count again. Page 20."}
+      - {head: "You stop, or your phone dies", body: "Either way, no more signals come, and the timer runs out. No \"stop\" message is needed. Page 22.", tone: ok}
+      - {head: "If anything goes wrong", body: "A slow reader, a full buffer: throw the signal away. It'll be out of date in a moment anyway. Page 31.", tone: ok}
+
+  - kind: table
+    title: Four ways to say "typing", measured
+    lead: "500 chats, each with one person typing and one watching, a signal every 3 seconds, for 15 seconds. Same signal, same machine, three runs."
+    columns: [HOW, LATE BY, P99, REQUESTS/S, BYTES A SIGNAL]
+    widths: "1fr 20mm 18mm 16mm 14mm"
+    rows:
+      - ["Poll every 1 s", {t: "494-508 ms", tone: bad}, "~1,000 ms", "700", {t: "~950", tone: bad}]
+      - ["Poll every 250 ms", {t: "147-163 ms", tone: wait}, "278-447 ms", "~2,150", {t: "~2,700", tone: bad}]
+      - ["Long polling", {t: "0.8-1.2 ms", tone: ok}, "2-6 ms", "333", {t: "502", tone: wait}]
+      - ["Server-sent events", {t: "0.7-0.9 ms", tone: ok}, "2-4 ms", "166", {t: "313", tone: wait}]
+      - ["WebSocket", {t: "0.4-0.5 ms", tone: ok}, "0.7-1.5 ms", "0", {t: "95", tone: ok}]
+    after:
+      - p: "Bytes count both directions on the wire, for a slightly fuller signal than the one above (it carries a name and a timestamp for the test). A real browser sends far bigger HTTP headers than my test client does, so the polling numbers here are the kind ones."
+      - callout: "Polling harder doesn't fix it. Three times the requests made it about 3 times less late, for about 3 times the bytes a signal, with 85% of the replies empty."
+        label: READ THE SECOND ROW
+        tone: bad
+
+  - kind: numbers
+    title: "My test: every result"
+    lead: "Real sockets, no libraries. 1,000 clients per case unless noted, three runs each; where results varied, the range is shown. **Lower is better.**"
+    rows:
+      - ["~500 ms", "How late a signal is, polling once a second"]
+      - ["0.5 ms", "How late it is on a WebSocket"]
+      - [16, "Bytes in one typing signal, down a WebSocket"]
+      - [1000, "Stuck on \"typing\" forever: phone dies, no timer"]
+      - [0, "Stuck, with a 5-second timer"]
+      - ["100,000", "Signals sent to phones that had gone. **0 errors**"]
+      - ["2.1 s", "Heartbeats at 1 s: time to find all 1,000 dead phones"]
+      - [0, "Healthy clients wrongly dropped by those heartbeats"]
+      - [1000, "Spoofed names shown, when the server believes the client"]
+      - [0, "Chat messages lost when dropping typing for a slow reader"]
+    after:
+      - p: "The other cases, in the pages ahead: how often to send, big rooms, memory per connection, reconnect storms and two servers. To run any of them: `node main.mjs compare`, with the list of modes at the top of `main.mjs`."
+
+  - kind: table
+    title: The timer in two companies' docs
+    lead: "You can't see inside Telegram's or Discord's servers. But their developer docs say what the signal does, and both describe the same design."
+    columns: [APP, WHAT THE DOCS SAY, HOW LONG]
+    widths: "20mm 1fr 14mm"
+    rows:
+      - ["Telegram", "\"The status is set for 5 seconds or less\", and clients clear it when a message arrives from that bot", {t: "5 s", tone: ok}]
+      - ["Discord", "The indicator \"expires after 10 seconds\"", {t: "10 s", tone: ok}]
+    after:
+      - p: "Those are the docs for bots, the part these companies publish. Neither says how their own apps are built inside, so I won't claim it. But both describe exactly what this guide builds: **a signal, a timer, and no \"stop\" message needed.**"
+      - callout: "Telegram even tells you the second rule on page 23: when the real message arrives, the dots go away at once."
+        label: NOTICE
+        tone: ok
+
+  # ---------------------------------------------------------------- part 2
+  - kind: part
+    n: "2"
+    title: The connection
+    lead: Normal web traffic can't do this, because a server can only answer. Here's what can, written out by hand, byte by byte.
+    items:
+      - Why plain HTTP can't do it
+      - Polling, and why it's late
+      - Long polling and server-sent events
+      - The handshake, in real bytes
+      - One frame, by hand
+      - The whole server
+      - What an open connection costs
+      - Which one should you use?
+
+  - kind: text
+    title: Why plain HTTP can't do it
+    lead: "In HTTP, the browser asks and the server answers. That's the whole deal. A server has no way to start a conversation."
+    blocks:
+      - p: "So when Maya starts typing, the server knows straight away. Your phone doesn't, and the server can't tell it, because your phone hasn't asked anything. There are only two ways out:"
+      - bullets:
+          - "**Keep asking.** Polling and long polling. The server still only answers, but now you're always asking."
+          - "**Keep a line open.** Server-sent events hold a response open, and WebSockets turn the connection into a two-way pipe."
+      - svg: samples/wait.svg
+      - p: "A signal lands at a random moment between two asks, so on average it waits half the gap. That's why polling once a second was **about 500 ms late**, on any network, however fast your server is."
+
+  - kind: table
+    title: Long polling and server-sent events
+    lead: "Two clever middle options, both real, and both still useful. Each one has a catch."
+    columns: ["", LONG POLLING, SERVER-SENT EVENTS]
+    widths: "22mm 1fr 1fr"
+    rows:
+      - ["How", "Ask, and the server holds the answer until there's news. Ask again", "One response that never ends, with events written into it"]
+      - ["Late by", {t: "0.8-1.2 ms", tone: ok}, {t: "0.7-0.9 ms", tone: ok}]
+      - ["Can the client send on it?", "No: every signal is a separate POST", "No: docs call it a one-way connection"]
+      - ["Requests a signal", {t: "2: the POST and a new ask", tone: wait}, {t: "1: the POST", tone: wait}]
+      - ["Catch", "Every signal rebuilds a request. Things can be missed between asks unless the server queues them", "Over HTTP/1, browsers allow only 6 of these per site, across all tabs (MDN). HTTP/2 raises that"]
+    after:
+      - callout: "If your feature only needs the server to talk (live scores, notifications, an AI reply streaming in), **server-sent events are simpler** than a WebSocket, and they reconnect by themselves. Typing goes both ways, all the time, so it suits a WebSocket."
+        label: WORTH KNOWING
+        tone: ok
+
+  - kind: text
+    title: The handshake, in real bytes
+    lead: "A WebSocket starts as an ordinary HTTP request, which is why it gets through the same ports and proxies. Here's the whole thing, as it crossed the socket in my test."
+    blocks:
+      - code: |
+          GET /ws?room=7 HTTP/1.1
+          Host: chat.example
+          Upgrade: websocket
+          Connection: Upgrade
+          Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==
+          Sec-WebSocket-Version: 13
+      - p: "160 bytes. And the server's answer, 129 bytes:"
+      - code: |
+          HTTP/1.1 101 Switching Protocols
+          Upgrade: websocket
+          Connection: Upgrade
+          Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=
+      - p: "After that blank line it isn't HTTP any more. **Same TCP connection, a different language.** No more headers, ever: from here on, either side can send at any moment."
+
+  - kind: code
+    title: The one sum in the handshake
+    lead: "The client sends a random key. The server adds a fixed string from the RFC, takes the SHA-1 and sends it back. Why?"
+    from: samples/node/ws.mjs
+    lines: [7, 11]
+    notes:
+      - [7, "this exact string is in RFC 6455; every WebSocket server has it"]
+    after:
+      - code: |
+          RFC 6455's example:
+            dGhlIHNhbXBsZSBub25jZQ== -> s3pPLMBiTxaQ9kYGzzhZRbK+xOo=
+      - p: "My function gives the RFC's own answer. It's **not security**: it encrypts nothing, and SHA-1 is fine here because nothing depends on it being hard to reverse. It only proves the server meant to speak WebSocket, and that it isn't some old server echoing what it was sent."
+      - p: "To be sure mine really speaks the protocol, I connected Node's own built-in `WebSocket` client to it. It connected, and echoed `{\"t\":\"typing\"}` back."
+
+  - kind: text
+    title: One frame, by hand
+    lead: "This is the signal on the wire, the actual 16 bytes from my test. Compare that with the hundreds of bytes of headers in every HTTP request."
+    blocks:
+      - svg: samples/frame.svg
+      - from: samples/node/ws.mjs
+        lines: [15, 22]
+      - p: "From a client, the same signal is 20 bytes, because of a rule in the RFC: **clients must mask every frame, and servers must not.** The mask scrambles the bytes with a random 4-byte key that travels in the same frame, so it hides nothing from anyone reading."
+      - p: "It's there for old proxies: without it, a page's script could write bytes that look like HTTP to a proxy that doesn't understand WebSockets. RFC 6455 section 10.3 explains the attack."
+
+  - kind: code
+    title: Reading frames
+    lead: "Not every read gives you exactly one frame. TCP is a stream of bytes: a read can hold half a frame, or three and a bit."
+    from: samples/node/ws.mjs
+    lines: [34, 57]
+    notes:
+      - [41, "length 126 means the real length is in the next 2 bytes"]
+      - [47, "not all here yet: stop, and wait for more bytes"]
+      - [51, "undo the client's mask, byte by byte"]
+      - [56, "whatever's left over waits for the next read"]
+    after:
+      - p: "That's the part everyone gets wrong the first time: treating one `data` event as one message. It works on your laptop, and breaks under load."
+
+  - kind: code
+    title: The whole server
+    lead: "That's all it takes to turn a request into a socket. 30 lines. In production use a library such as `ws`: real servers also handle fragments, extensions and bad clients. But now you know what it's doing."
+    from: samples/node/ws.mjs
+    lines: [72, 101]
+    notes:
+      - [74, "a normal HTTP server; it only needs an upgrade handler"]
+      - [76, "the place to check who's asking: page 34"]
+      - [91, "a client that answered a ping is alive: page 26"]
+      - [96, "they hung up, so we do too"]
+
+  - kind: table
+    title: What an open connection costs
+    lead: "An open socket does nothing most of the time, but it isn't free. I opened thousands of idle connections to my server and read its memory."
+    columns: [IDLE CONNECTIONS, SERVER MEMORY, EACH]
+    widths: "1fr 26mm 22mm"
+    rows:
+      - ["1,000", "57 MB", "~14 kB"]
+      - ["3,000", "~71 MB", "~9.4 kB"]
+      - ["5,000", "80 MB", "~7.4 kB"]
+    after:
+      - p: "So about 7 kB per connection in Node, once you're past the start-up cost: about 7 GB for a million, by multiplication. I stopped at 5,000 because one machine running both ends runs out of its own ports, not because the server was struggling."
+      - callout: "In January 2012, WhatsApp's own blog said they could push one server \"to over 2 million tcp connections\", on a machine with 24 logical CPUs and 96 GB of memory. An open connection is cheap. It's what you do with it that costs."
+        label: A REAL NUMBER
+        tone: ok
+
+  - kind: decide
+    title: Which one should you use?
+    lead: "My recommendation: use the simplest one that does the job. Most features don't need a WebSocket."
+    rows:
+      - {if: "A dashboard that can be a few seconds old", use: "Polling", why: "Simple, cacheable, works everywhere, and it's fine when a few seconds don't matter. Poll slowly."}
+      - {if: "The server talks, the client mostly listens", use: "Server-sent events", why: "Notifications, live scores, AI replies. Plain HTTP, and it reconnects by itself. Use HTTP/2 because of the 6-connection limit."}
+      - {if: "Both sides talk, often, and small", use: "WebSocket", why: "Chat, typing, presence, multiplayer, collaborative editing. The smallest frames and the lowest delay. You take on heartbeats and reconnects."}
+      - {if: "WebSockets are blocked somewhere", use: "Long polling", why: "Still the fallback that works through anything HTTP gets through."}
+
+  # ---------------------------------------------------------------- part 3
+  - kind: part
+    n: "3"
+    title: The indicator
+    lead: Two small classes, one on each side. How often to send, how long to show the dots, and the three ways a person can leave.
+    items:
+      - The sender
+      - How often to send
+      - The receiver
+      - How long to show it
+      - Three ways to leave
+      - The message clears it
+
+  - kind: code
+    title: The sender
+    lead: "Your app doesn't need to send a signal for each key. It needs to say \"still typing\" before the other side's timer runs out."
+    from: samples/node/indicator.mjs
+    lines: [4, 22]
+    notes:
+      - [14, "said it recently: don't say it again"]
+      - [19, "a message went out, so the next key should tell them at once"]
+    after:
+      - p: "The clock is passed in, so the tests can run thousands of typing sessions in a moment with the same code the real app would use."
+
+  - kind: table
+    title: How often to send
+    lead: "1,000 simulated people typing for 30 seconds: bursts of keys 120 ms apart, short pauses, a few long ones. About 86 keys each. The clock is simulated; the sender is the real class."
+    columns: [SEND, SIGNALS, ROOM OF 100, "ROOM OF 1,000"]
+    widths: "1fr 16mm 22mm 24mm"
+    rows:
+      - ["On every key", {t: "86-87", tone: bad}, {t: "~8,600 sends", tone: bad}, {t: "~86,500 sends", tone: bad}]
+      - ["At most every 1 s", "17", "~1,700", "~17,100"]
+      - [{t: "At most every 3 s", tone: ok}, {t: "7.5", tone: ok}, {t: "~740", tone: ok}, {t: "~7,450", tone: ok}]
+      - ["At most every 5 s", "5", "~510", "~5,100"]
+    after:
+      - p: "That's for **one person typing for 30 seconds**. One signal costs the server one send per person in the room, so a busy group multiplies this by everyone who's typing."
+      - callout: "Sending on each key tells the other side nothing that one signal every 3 seconds doesn't. It's 11 times the traffic, for the same three dots."
+        label: THE POINT
+        tone: ok
+
+  - kind: code
+    title: The receiver
+    lead: "No events to wire up, no \"stop\" to wait for. Each name has a time it runs out, and the screen just asks who's left."
+    from: samples/node/indicator.mjs
+    lines: [23, 43]
+    notes:
+      - [31, "each signal pushes the deadline back"]
+      - [34, "the message is here, so stop saying typing"]
+      - [39, "no word for too long: gone, whatever the reason"]
+
+  - kind: table
+    title: How long to show it
+    lead: "Signals at most every 3 seconds, with 0 to 200 ms of network delay. Too short and the dots flicker off while someone's typing. Too long and they stay after everyone has stopped."
+    columns: [SHOW FOR, "DARK MOMENTS IN 1,000 SESSIONS", LINGERS AFTER THE LAST KEY]
+    widths: "16mm 1fr 1fr"
+    rows:
+      - ["2 s", {t: "~5,600", tone: bad}, "0.9 s"]
+      - ["3 s", {t: "~3,700", tone: bad}, "1.8 s"]
+      - ["4 s", {t: "45-52", tone: wait}, "2.8 s"]
+      - [{t: "5 s", tone: ok}, {t: "3-6", tone: ok}, {t: "3.8 s", tone: ok}]
+      - ["7 s", {t: "4-15", tone: ok}, {t: "5.8 s", tone: wait}]
+      - ["10 s", {t: "5-12", tone: ok}, {t: "8.8 s", tone: bad}]
+    after:
+      - callout: "**The rule: show it for a bit longer than the gap between signals, plus the network's delay.** Below that it flickers; above that you only add lying. With a 3-second send, 5 seconds is the sweet spot, and it's also Telegram's number."
+        label: THE RULE
+        tone: ok
+
+  - kind: table
+    title: Three ways to leave
+    lead: "1,000 people type, then leave one of three ways. Six seconds later, how many still show \"typing\"? The server may or may not clean up when a socket closes; the watcher may or may not run a timer."
+    columns: ["", NO CLEAN-UP, CLEAN-UP, "5 S TIMER, EITHER WAY"]
+    widths: "1fr 20mm 20mm 26mm"
+    rows:
+      - ["They send \"stop\"", {t: "0", tone: ok}, {t: "0", tone: ok}, {t: "0", tone: ok}]
+      - ["They close the tab", {t: "1,000", tone: bad}, {t: "0", tone: ok}, {t: "0", tone: ok}]
+      - ["Their phone dies", {t: "1,000", tone: bad}, {t: "1,000", tone: bad}, {t: "0", tone: ok}]
+    after:
+      - p: "Read the bottom row. **A phone that dies sends nothing at all**: no \"stop\", and no closing of the connection. The server has nothing to react to, so a clean-up handler can't help."
+      - callout: "A design that needs a \"stop\" message only works when nothing goes wrong. A timer works anyway, because it doesn't need anyone to do anything. And since it covers every case, you may not need \"stop\" at all."
+        label: THE IDEA
+        tone: ok
+      - p: "To \"die\" in my test, a client stops reading and writing, and never closes. That's how it looks to a server when a phone loses signal."
+      - callout: "This test caught a bug in my own server. Node's HTTP sockets stay half-open after the other side hangs up, so `close` never fired, and \"closes the tab\" stayed stuck 1,000 times even with the clean-up handler. That's line 96 on page 14."
+        label: A REAL BUG
+        tone: bad
+
+  - kind: text
+    title: The message clears it
+    lead: "One more case. Someone hits send: the message arrives, and the dots are still there for the next few seconds."
+    blocks:
+      - code: |
+          message arrived, still says typing:
+            1000 of 1000 without clearing
+               0 of 1000 with
+      - p: "It looks broken: the message is on screen, and it says they're still typing. Telegram's docs cover exactly this: when a message arrives from that bot, clients clear its typing status."
+      - from: samples/node/indicator.mjs
+        lines: [33, 35]
+      - callout: "This only works if the two arrive in order. On one socket they do, because TCP keeps order. Across two servers (page 33) a stale typing signal can arrive after the message, so the timer is still your safety net."
+        label: ORDER
+        tone: wait
+
+  # ---------------------------------------------------------------- part 4
+  - kind: part
+    n: "4"
+    title: Dead connections
+    lead: A phone that loses signal doesn't hang up. As far as your server can tell, it's still there, and your writes still succeed. This is the part that catches everyone.
+    items:
+      - Zero errors to a dead phone
+      - Heartbeats
+      - How often to ping
+      - When everyone comes back at once
+      - Online, offline, online
+
+  - kind: text
+    title: Zero errors to a dead phone
+    lead: "1,000 clients go silent: no close, no goodbye. The server then sends each of them 100 signals, and checks every write."
+    blocks:
+      - code: |
+          1000 phones gone. 100000 signals sent to them:
+            100000 accepted, 0 errors
+            1000 connections still "open"
+      - p: "**A successful write doesn't mean anyone got it.** It means your operating system took the bytes and will try to send them. TCP has no idea whether the phone at the other end is in a pocket or in a lake, until it tries for a long time and gives up."
+      - callout: "That wait belongs to the operating system: Linux's default works out at about 15 minutes of retries. I couldn't test it on one machine, because the loopback never loses a packet, and in my test the other end's kernel kept acknowledging. So I measured what your code sees, not how long TCP takes."
+        label: WHAT I COULD AND COULDN'T TEST
+        tone: wait
+      - p: "Meanwhile that connection holds memory, and it's still showing as \"online\" to everyone. You need your own way to find out."
+
+  - kind: code
+    title: Heartbeats
+    lead: "Every few seconds, ping everyone. If someone didn't answer the last ping, they've gone."
+    from: samples/node/main.mjs
+    lines: [390, 404]
+    notes:
+      - [394, "no pong since the last ping: hang up on them"]
+      - [400, "assume the worst until the pong comes back"]
+    after:
+      - code: |
+          ping every 1000 ms: found 1000 of 1000 dead phones
+            all within 2.0 to 2.1 s
+            healthy clients dropped: 0 of 1000
+      - p: "The RFC requires it: on receiving a Ping, an endpoint must send a Pong. So browsers answer by themselves, with no JavaScript from you. Node's built-in client did too: those are the 1,000 healthy ones."
+      - p: "Why 2 seconds with a 1-second ping? The first tick sends a ping; the next finds no answer. **You'll notice within two intervals.**"
+
+  - kind: table
+    title: How often to ping
+    lead: "A ping is 2 bytes, and a pong is 6, because the client has to mask it."
+    columns: [PING EVERY, YOU NOTICE WITHIN, TRAFFIC A DAY]
+    widths: "1fr 1fr 1fr"
+    rows:
+      - ["5 s", "10 s", "~138 kB"]
+      - [{t: "30 s", tone: ok}, {t: "60 s", tone: ok}, {t: "~23 kB", tone: ok}]
+      - ["2 min", "4 min", "~6 kB"]
+    after:
+      - p: "Those bytes are the frames only, before TCP and IP add their own. Each ping also wakes the phone, so don't ping faster than you need."
+      - callout: "There's another reason to ping: anything in between may cut a quiet connection. An AWS Application Load Balancer closes connections that stay idle for 60 seconds by default, for example. So a ping every 30 seconds keeps the line open as well as checking it."
+        label: TWO JOBS
+        tone: ok
+
+  - kind: table
+    title: When everyone comes back at once
+    lead: "The server restarts. 1,000 clients lose their connection in the same instant, and the server is down for 2 seconds. Three ways to come back:"
+    columns: [RETRY, TRIES, REFUSED, BUSIEST 100 MS, ALL BACK]
+    widths: "1fr 18mm 18mm 16mm 14mm"
+    rows:
+      - ["Every 100 ms", "7,000-9,000", "6,000-8,000", {t: "849-892", tone: bad}, "~2.6 s"]
+      - ["Every 1 s", "2,000", "1,000", {t: "686-872", tone: bad}, "~3 s"]
+      - [{t: "Doubling, with jitter", tone: ok}, "~3,650", "~2,650", {t: "74-75", tone: ok}, {t: "12-14 s", tone: wait}]
+    after:
+      - from: samples/node/main.mjs
+        lines: [571, 575]
+      - p: "A fixed delay means everyone returns together, and with 100,000 clients that crowd can knock the server straight back over. Doubling spreads the tries out, and **jitter is what stops them all landing at once**: the busiest moment was 10 times smaller."
+      - p: "The price is that the last person takes longer to get back. Cap the wait, and it's a price worth paying."
+
+  - kind: table
+    title: Online, offline, online
+    lead: "Your phone moves from Wi-Fi to mobile data. The connection drops, and comes back a moment later. 1,000 people, gone for 300 ms:"
+    columns: [SERVER SAYS OFFLINE, BLIP, TOLD ONLINE AGAIN, REALLY GONE, ANNOUNCED]
+    widths: "1fr 16mm 22mm 18mm 18mm"
+    rows:
+      - ["Right away", {t: "1,000", tone: bad}, {t: "1,000", tone: bad}, "1,000", {t: "1,000", tone: ok}]
+      - [{t: "After a grace period", tone: ok}, {t: "0", tone: ok}, {t: "0", tone: ok}, "1,000", {t: "1,000", tone: ok}]
+    after:
+      - p: "Each of those is a message to everyone who can see that person. Waiting a moment before announcing \"offline\" stopped all 2,000 of them, and anyone who really left was still announced."
+      - callout: "Same trick as the typing timer, used the other way round. Presence is a guess about the recent past, so don't report it to the millisecond."
+        label: THE PATTERN
+        tone: ok
+
+  # ---------------------------------------------------------------- part 5
+  - kind: part
+    n: "5"
+    title: At scale
+    lead: One reader falls behind, a room has thousands in it, and your users are on different servers. And then, who's allowed in at all?
+    items:
+      - One slow reader
+      - Big rooms
+      - Two servers
+      - Who's allowed in
+      - Real messages need a different road
+
+  - kind: table
+    title: One slow reader
+    lead: "One client stops reading. 10,000 signals a second keep coming for 5 seconds, with a real chat message in every 100. Node keeps whatever it can't send in the server's memory, per connection."
+    columns: ["", WRITE EVERYTHING, DROP TYPING WHEN BEHIND]
+    widths: "1fr 30mm 34mm"
+    rows:
+      - ["Slow reader's buffer, peak", {t: "1,715-1,727 kB", tone: bad}, {t: "69-70 kB", tone: ok}]
+      - ["Server's memory grew", {t: "28 MB", tone: bad}, {t: "No growth", tone: ok}]
+      - ["Typing signals dropped", "0", "26,300-27,000"]
+      - ["Healthy reader", {t: "Unaffected", tone: ok}, {t: "Unaffected", tone: ok}]
+      - ["Slow reader's messages, once back", {t: "All, in order", tone: ok}, {t: "All, in order", tone: ok}]
+    after:
+      - from: samples/node/main.mjs
+        lines: [475, 479]
+      - callout: "**This is what \"built to get lost\" buys you.** A typing signal that's seconds old is worthless, so when someone falls behind you throw them away, and nobody ever knows. You could never do this with messages."
+        label: THE WHOLE IDEA
+        tone: ok
+      - p: "With one reader it's only 1.7 MB. With 100,000 people on bad networks, unbounded buffers are how a server runs out of memory. A browser's `bufferedAmount` tells you the same thing on the client side."
+
+  - kind: table
+    title: Big rooms
+    lead: "One person types. How long until everyone in the room has heard? Measured from the send to the last one to receive, 20 rounds, all on one machine."
+    columns: [ROOM, FIRST HEARS, LAST HEARS]
+    widths: "1fr 26mm 26mm"
+    rows:
+      - ["10", "~0.6 ms", "~1 ms"]
+      - ["100", "~0.5 ms", "~3 ms"]
+      - ["1,000", "~0.5 ms", "~25 ms"]
+      - ["5,000", "~0.4 ms", "117-139 ms"]
+    after:
+      - p: "Time grows with the room, because someone has to do each send. One fix is to encode the frame once and write the same bytes to everyone: at 5,000, that took 117 to 139 ms against 132 to 145 ms for encoding each time. A small win, for one line of code."
+      - callout: "Now combine that with page 19: one person typing for 30 seconds in a room of 1,000 is about 7,450 sends, and it's rarely one person. In a very big room, consider hiding typing altogether, or just saying \"several people are typing\". Decide what's worth sending at all."
+        label: THE REAL DECISION
+        tone: wait
+
+  - kind: table
+    title: Two servers
+    lead: "One server can't hold everyone. So now the typist is on server A and the watcher is on server B, and server A has no idea who's on server B."
+    columns: ["", ARRIVED, AVERAGE]
+    widths: "1fr 24mm 24mm"
+    rows:
+      - ["Typist on A, watcher on B, no hub", {t: "0 of 1,000", tone: bad}, "-"]
+      - ["With a hub between the servers", {t: "1,000 of 1,000", tone: ok}, "0.4-1.3 ms"]
+    after:
+      - from: samples/node/main.mjs
+        lines: [620, 626]
+      - p: "That's a hub in a few lines: each server publishes what it hears, and every other server passes it to its own people. In production this is usually Redis Pub/Sub."
+      - callout: "Redis's docs say its Pub/Sub delivers at most once: if a subscriber can't handle a message, it's forever lost. **For most things that's a warning. For typing, it's a perfect match.** Your chat messages need something stronger, such as Redis Streams or a real queue."
+        label: AT MOST ONCE
+        tone: ok
+
+  - kind: table
+    title: Who's allowed in
+    lead: "A WebSocket is a door that stays open, and it's easy to forget it's a door. Three attacks against the same server, 1,000 tries each."
+    columns: [THE ATTACK, UNCHECKED, CHECKED]
+    widths: "1fr 22mm 22mm"
+    rows:
+      - ["A page on `evil.example` opens a socket", {t: "1,000 got in", tone: bad}, {t: "0", tone: ok}]
+      - ["Bob sends `from: \"ceo\"`, and Alice sees it", {t: "1,000 fooled", tone: bad}, {t: "0", tone: ok}]
+      - ["Someone not in the room joins it", {t: "1,000 listening", tone: bad}, {t: "0", tone: ok}]
+      - ["The right people, from the right site", "1,000 in", "1,000 in"]
+    after:
+      - from: samples/node/ws.mjs
+        lines: [76, 79]
+      - bullets:
+          - "**Check `Origin` in the handshake.** Browsers attach cookies to a WebSocket handshake and it isn't covered by CORS, so a page on any site can open one as your logged-in user. OWASP calls this Cross-Site WebSocket Hijacking. Use an allow-list."
+          - "**The server says who sent it.** Stamp `from` with the logged-in user. Never believe a name in the payload."
+          - "**A room belongs to its members.** Check membership when someone joins, and for each action after."
+          - "**Limit the rate.** OWASP suggests 100 messages a minute as a starting point. A typing signal every 3 seconds is 20."
+
+  - kind: text
+    title: Real messages need a different road
+    lead: "Keeping them apart is the design. Here's what each kind needs, side by side."
+    blocks:
+      - code: |
+          ...         typing signal      chat message
+          saved       never              always, first
+          retried     never              until confirmed
+          old copy    worthless          still matters
+          if behind   throw it away      keep it, and catch up
+          two servers Pub/Sub is fine    a durable queue
+      - p: "Save a message first, and only then tell anyone. If the socket is down, it's still there when they come back."
+      - p: "**Put a typing signal in the same pipeline and you pay for durability you don't want.** A database write for each key, for something that's stale in 5 seconds."
+
+  # ---------------------------------------------------------------- part 6
+  - kind: part
+    n: "6"
+    title: Interview kit
+    lead: "\"Design a chat app\" is one of the most common system design questions, and typing indicators and presence are the follow-ups. Here's a real answer, with numbers behind it."
+    items:
+      - Your 2-minute answer
+      - 12 interview questions
+      - The mistakes people ship
+      - Checklist for real-time features
+      - The one-page cheat sheet
+      - Collect the series
+
+  - kind: steps
+    title: Your 2-minute answer
+    lead: "When the interviewer asks \"how would you build typing indicators?\", walk through this."
+    steps:
+      - head: Name what it is
+        body: "An ephemeral signal, not a message. No database, no retry, no receipt. If it's lost, nobody should notice."
+      - head: Pick the transport
+        body: "A WebSocket: one open connection, two bytes of header, and the server can speak first. Polling would be half an interval late however fast the server is."
+      - head: Design the two sides
+        body: "The sender says \"typing\" at most every 3 seconds, not per key. The receiver shows it for 5 seconds after the last signal, and clears it when the message arrives."
+      - head: Say why there's no stop message
+        body: "A phone that dies sends nothing. A timer handles every way of leaving, so a stop message is only a small nicety."
+      - head: Find dead connections
+        body: "TCP won't tell you: writes to a dead phone still succeed. Ping every 30 seconds, drop whoever doesn't pong, and reconnect with backoff and jitter."
+      - head: Scale it
+        body: "Pub/Sub between servers, at-most-once is fine. Encode once for big rooms, drop typing for slow readers, and consider hiding it in very big rooms. Check `Origin` and room membership."
+
+  - kind: qa
+    title: 12 interview questions
+    items:
+      - q: Why not just poll?
+        a: "A signal lands between asks, so it waits half an interval on average: about 500 ms at 1 s, measured. Polling 4 times as often cut that by only about 3 times, with 85% of replies empty."
+      - q: How does a WebSocket start?
+        a: "As an HTTP GET with `Upgrade: websocket`. The server answers `101 Switching Protocols`, and the same TCP connection then carries frames both ways."
+      - q: What's Sec-WebSocket-Accept for?
+        a: "SHA-1 of the client's key plus a fixed GUID, in base64. It proves the server understands WebSocket. It isn't encryption or authentication."
+      - q: Why do clients mask frames?
+        a: "So a page's script can't write bytes that a confused proxy reads as HTTP. RFC 6455 requires it for clients, and forbids it for servers. It isn't privacy: the key is in the frame."
+      - q: How small is a WebSocket frame?
+        a: "A 2-byte header for up to 125 bytes from the server, plus 4 for the mask from a client. My typing signal was 16 bytes down and 20 up."
+      - q: What if the typist's phone dies?
+        a: "No stop arrives and no close event fires. Without a timer it says typing forever: 1,000 of 1,000 in my test. With a 5-second timer, 0."
+      - q: How do you pick the timer?
+        a: "Longer than the send interval plus network delay. At 3 s between signals, 2 s and 3 s flickered badly, and 5 s didn't, while lingering under 4 s."
+      - q: How does a server know a client has gone?
+        a: "It doesn't, from writes: 100,000 writes to gone clients gave 0 errors. Use application heartbeats: ping, expect a pong, drop whoever misses one."
+      - q: What's a reconnect storm?
+        a: "Everyone reconnects at the same moment after a restart. A fixed retry made a busiest 100 ms of up to 892 reconnects; doubling with jitter, about 75."
+      - q: What do you do with a slow reader?
+        a: "Don't buffer forever. Watch the socket's buffer, and drop disposable signals when it's full. I dropped about 27,000 typing signals and kept every chat message, in order."
+      - q: How do two servers share a room?
+        a: "Publish to a broker such as Redis Pub/Sub, and each server forwards to its own clients. Without one, 0 of 1,000 arrived. At-most-once is fine here."
+      - q: What's Cross-Site WebSocket Hijacking?
+        a: "Browsers send cookies with the handshake, and CORS doesn't apply, so a page on any site can open a socket as you. Check `Origin` against an allow-list."
+
+  - kind: table
+    title: The mistakes people ship
+    lead: "Each one of these works fine on your laptop."
+    columns: [THE MISTAKE, WHAT HAPPENS, DO THIS]
+    widths: "1fr 1fr 1fr"
+    rows:
+      - ["Waiting for a stop message", {t: "Stuck on \"typing\"", tone: bad}, "A timer on the receiver"]
+      - ["A signal for every key", {t: "11× the traffic", tone: bad}, "At most every 3 s"]
+      - ["Timer equal to the send gap", {t: "Dots flicker", tone: bad}, "Gap + delay + margin"]
+      - ["Trusting a successful write", {t: "Writing to nobody", tone: bad}, "Heartbeats"]
+      - ["One `data` event = one message", {t: "Breaks under load", tone: bad}, "Parse a stream of bytes"]
+      - ["Retrying at a fixed delay", {t: "Everyone at once", tone: bad}, "Doubling, with jitter"]
+      - ["Buffering for slow readers", {t: "Memory grows", tone: bad}, "Drop what's disposable"]
+      - ["\"Offline\" the moment it drops", {t: "Flickering presence", tone: bad}, "A grace period"]
+      - ["Believing `from` in the payload", {t: "Spoofed names", tone: bad}, "The server stamps it"]
+      - ["No `Origin` check", {t: "Any site gets in", tone: bad}, "An allow-list"]
+      - ["Saving typing to a database", {t: "A write per signal", tone: bad}, "Never save it"]
+
+  - kind: checklist
+    title: Checklist for real-time features
+    items:
+      - "Each signal is either disposable or durable, and the two never share a pipeline."
+      - "Durable messages are saved before anyone is told."
+      - "Typing is sent at most every few seconds, and shown for a little longer than that gap."
+      - "The receiver's timer handles leaving, and a real message clears the indicator."
+      - "The server pings on a schedule, and drops whoever doesn't answer."
+      - "Clients reconnect by themselves, doubling the wait, with jitter and a cap."
+      - "\"Offline\" waits for a short grace period."
+      - "Each socket's buffer is watched, and disposable signals are dropped when it's full."
+      - "`Origin` is checked against an allow-list in the handshake."
+      - "The logged-in user comes from the session, and is stamped on every signal."
+      - "Room membership is checked on join and on each action."
+      - "Pings are more frequent than the idle timeout of anything in between."
+
+  - kind: table
+    title: The one-page cheat sheet
+    lead: "Screenshot this one."
+    columns: [NEED, USE, REMEMBER]
+    widths: "1fr 1fr 1fr"
+    rows:
+      - ["Server talks first, both ways", "WebSocket", "101, then frames"]
+      - ["Server talks, client listens", "Server-sent events", "6 per site on HTTP/1"]
+      - ["A few seconds old is fine", "Polling", "Late by half the gap"]
+      - ["One frame, server to client", "2-byte header", "Up to 125 bytes of data"]
+      - ["One frame, client to server", "2 + 4 bytes", "Must be masked"]
+      - ["Send typing", "At most every 3 s", "Not on each key"]
+      - ["Show typing", "5 s after the last signal", "Longer than the gap"]
+      - ["Find dead clients", "Ping, expect a pong", "Notice within 2 intervals"]
+      - ["Reconnect", "Double, jitter, cap", "Jitter stops the crowd"]
+      - ["Reader falling behind", "`writableLength`", "Drop what's disposable"]
+      - ["Many servers", "Pub/Sub", "At most once is fine here"]
+      - ["Keep others out", "`Origin` + membership", "Stamp `from` yourself"]
+
+  - kind: table
+    title: Collect the series
+    lead: "Every Behind the Button video comes with its own free guide like this one. Comment the keyword shown in each video to get it, and build the whole set."
+    columns: ["#", THE GUIDES]
+    widths: "8mm 1fr"
+    rows:
+      - ["1", "The last seat: race conditions in SQL (comment SEAT on that video)"]
+      - ["2", "You tapped Pay twice: idempotency keys (comment PAY on that video)"]
+      - ["3", "Why your OTP dies in 30 seconds: how TOTP works (comment OTP on that video)"]
+      - ["4", "One more view: integer overflow and running out of IDs (comment VIEWS on that video)"]
+      - ["5", "Four pages to a billion: indexes and Bloom filters (comment NAME on that video)"]
+      - [{t: "6", tone: ok}, {t: "Built to get lost: WebSockets and presence (this guide)", tone: ok}]
+      - ["7", "The reset link that only works once: single-use tokens"]
+
+end:
+  video: "Behind the Button #6, Typing is a real message, and it's built to get lost: on Instagram @stacknova.dev and YouTube @StackNovaDev."
+  next: "This is guide #6 of the Behind the Button collection. Missed one? Comment SEAT, PAY, OTP, VIEWS or NAME on those videos. Follow, and comment the keyword on the next video to get guide #7."
+  more: "Look at your own real-time feature today, and ask: what happens if the phone just disappears? If the answer is \"it says online forever\", you've found this week's fix."
+
+sources_lead: Every claim in this guide comes from one of these, or from the tests in it (2 Nov 2026).
+extra_sources:
+  - {title: "RFC 6455 — The WebSocket Protocol (handshake, framing, masking and section 10.3, Ping and Pong, Origin)", url: "https://www.rfc-editor.org/rfc/rfc6455.html"}
+  - {title: "Telegram Bot API — sendChatAction (\"The status is set for 5 seconds or less\")", url: "https://core.telegram.org/bots/api#sendchataction"}
+  - {title: "Discord Developer Docs — Trigger Typing Indicator (expires after 10 seconds)", url: "https://docs.discord.com/developers/resources/channel"}
+  - {title: "MDN — Using server-sent events (one-way, 6 connections per browser and domain on HTTP/1)", url: "https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events"}
+  - {title: "MDN — WebSocket.bufferedAmount", url: "https://developer.mozilla.org/en-US/docs/Web/API/WebSocket/bufferedAmount"}
+  - {title: "Node.js — globals: WebSocket (no longer experimental from v22.4.0)", url: "https://nodejs.org/api/globals.html"}
+  - {title: "Node.js — stream: writable.writableLength", url: "https://nodejs.org/api/stream.html"}
+  - {title: "WhatsApp Blog — 1 million is so 2011 (6 January 2012: over 2 million TCP connections on one server)", url: "https://blog.whatsapp.com/1-million-is-so-2011"}
+  - {title: "Redis — Pub/Sub, delivery semantics (at-most-once)", url: "https://redis.io/docs/latest/develop/pubsub/"}
+  - {title: "Linux kernel docs — IP sysctl, tcp_retries2 (default 15, a hypothetical timeout of 924.6 seconds)", url: "https://docs.kernel.org/networking/ip-sysctl.html"}
+  - {title: "AWS — Application Load Balancer attributes (connection idle timeout, 60 seconds by default)", url: "https://docs.aws.amazon.com/elasticloadbalancing/latest/application/edit-load-balancer-attributes.html"}
+  - {title: "OWASP — WebSocket Security Cheat Sheet (Origin, CSWSH, per-message authorization, rate limits)", url: "https://cheatsheetseries.owasp.org/cheatsheets/WebSocket_Security_Cheat_Sheet.html"}

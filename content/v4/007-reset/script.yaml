@@ -1,0 +1,44 @@
+# Behind the Button #7 (look v4): the reset link that only works once, in about a minute. A reset link
+# is a password: the table that gives away every account even with every password hashed, the hash that
+# fixes it, two clicks at once, the mail scanner that clicks first (real runs, samples/go), the real
+# case (GitLab, CVE-2023-7028), and the call to action. `scene` names the visual each line plays over
+# (studio-v4); `say` is spoken, `show` (when present) is the on-screen caption text.
+id: 007-reset
+keyword: RESET
+title: "Every Password Hashed. Every Account Still Stolen."
+youtube_title: "Password Reset Security: Why Hashed Passwords Aren't Enough"
+lines:
+  - {id: l1, scene: hook, say: "Every password was hashed, and every account was still stolen."}
+  - {id: l2, scene: link, say: "Because a reset link is a password too. If your table stores its token, anyone who can read that table can use it."}
+  - {id: l3, scene: stolen, say: "I tested it. A thousand tokens read from the table: a thousand accounts taken.",
+     show: "I tested it. 1,000 tokens read from the table: 1,000 accounts taken."}
+  - {id: l4, scene: fix, say: "So email the token, and store only its hash. Same theft: zero accounts.",
+     show: "So email the token, and store only its hash. Same theft: 0 accounts."}
+  - {id: l5, scene: fast, say: "One fast hash is enough here. Passwords can be guessed. Two hundred fifty-six random bits can't.",
+     show: "One fast hash is enough here. Passwords can be guessed. 256 random bits can't."}
+  - {id: l6, scene: once, say: "Now make it work once. Two clicks, same moment: look first, then write, and a thousand of a thousand both worked. One update: zero.",
+     show: "Now make it work once. Two clicks, same moment: look first, then write, and 1,000 of 1,000 both worked. One update: 0."}
+  - {id: l7, scene: scanner, say: "But mail scanners click first. Use the token on open, and a thousand of a thousand links were dead on arrival. So opening shows a form. Only submitting uses it.",
+     show: "But mail scanners click first. Use the token on open, and 1,000 of 1,000 links were dead on arrival. So opening shows a form. Only submitting uses it."}
+  - {id: l8, scene: gitlab, say: "GitLab, twenty twenty-four: reset emails could go to an address nobody had verified. No click from the victim. Severity: ten out of ten.",
+     show: "GitLab, 2024: reset emails could go to an address nobody had verified. No click from the victim. Severity: 10 out of 10."}
+  - {id: l9, scene: cta, say: "Comment reset for the free guide: every attack tested, in real Go and SQL. Because a reset link is a password.",
+     show: "Comment RESET for the free guide: every attack tested, in real Go and SQL. Because a reset link is a password.",
+     # YouTube has no comment-to-DM, so the Short ends on a follow
+     say_youtube: "Follow for one of these every day. Because a reset link is a password."}
+
+fact_check:
+  - claim: "Tokens stored as they are: reading the table gives 1,000 of 1,000 accounts; stored as SHA-256 hashes, 0"
+    source: "derived from code sample samples/go, mode leak (PostgreSQL 16.13, 2 Nov 2026)"
+  - claim: "Store tokens securely, single use, expiring, cryptographically random"
+    source: "https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html"
+  - claim: "crypto/rand gives 256 random bits; a fast hash is enough because they can't be guessed"
+    source: "https://pkg.go.dev/crypto/rand; derived from code sample samples/go, modes hashes and guesslong"
+  - claim: "Two clicks at once: look, then write, both worked in 1,000 of 1,000; one UPDATE, 0"
+    source: "derived from code sample samples/go, mode once"
+  - claim: "Mail scanners fetch links before the person does"
+    source: "https://github.com/orgs/supabase/discussions/41618; https://portswigger.net/web-security/host-header/exploiting/password-reset-poisoning"
+  - claim: "Token used on GET: 1,000 of 1,000 links dead when the person clicked; GET shows a form and POST uses it: 0"
+    source: "derived from code sample samples/go, mode scanner"
+  - claim: "GitLab CVE-2023-7028: reset emails could be delivered to an unverified address, without user interaction, CVSS 10.0, fixed 11 January 2024"
+    source: "https://docs.gitlab.com/releases/patches/patch-release-gitlab-16-7-2-released/"

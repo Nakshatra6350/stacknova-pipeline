@@ -28,6 +28,11 @@ case. I found no primary source that Instagram or Google uses a Bloom filter for
 doesn't say so. Its demo is Go + Postgres on 10 million names; 4 pages at a billion is an estimate, marked
 as one, and the Bloom filter was really loaded with a billion names.
 
+TYPING (Tue 3 Nov) went out as "Typing is a real message, and it's built to get lost", with Telegram's and
+Discord's own docs as its evidence for the timer, and a WebSocket server written by hand in Node. RESET
+(Wed 4 Nov) went out as "Every password was hashed, and every account was still stolen", with GitLab's
+CVE-2023-7028 as its real case, in Go + Postgres. That finishes the seven in this table.
+
 Next week's candidates: 10,000 PS5s and no oversell (atomic stock), the nearest driver in
 milliseconds (geohash), stories that vanish after 24 h (TTL), the 2021 Facebook outage (BGP, DNS),
 why Netflix doesn't buffer (adaptive bitrate).

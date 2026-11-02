@@ -1,0 +1,568 @@
+# The free guide for "Behind the Button #7: Every password was hashed, and every account was still
+# stolen" (keyword RESET). Built by studio/scripts/pack.py content/v4/007-reset into out/release/packs/.
+# Every result comes from samples/ run on 2 Nov 2026 (reset.exe -mode=<mode>, three runs of each, on
+# PostgreSQL 16.13 and Go 1.24.6); code is cut from those files by line range. Like guides #1 to #6, it
+# is a whole resource (owner, 29 Oct): every idea the fix uses, practical scenarios and diagrams.
+keyword: RESET
+file: stacknova-link-is-a-password-guide
+lang: go
+kicker: "BEHIND THE BUTTON · FREE GUIDE #7"
+title: A Link Is a Password
+subtitle: How one table can give away every account even with every password hashed, how to make a reset link work once, and the other ways it gets away. Every attack tested.
+versions: Tested on PostgreSQL 16.13, pgx 5.7 and Go 1.24.6, on one Windows laptop, against my own code, on 2 Nov 2026. Go 1.27 is current; nothing here depends on the difference.
+inside:
+  - "Part 1 · The moment: the stolen table, every test result, GitLab's 10 out of 10"
+  - "Part 2 · The token: what to store, why SHA-256, how long, and when there's no table"
+  - "Part 3 · Using it once: two clicks, mail scanners, expiry, sessions, whose account"
+  - "Part 4 · Getting the link out: Host headers, two emails, stopwatches, email bombs, logs"
+  - "Part 5 · Interview kit: a 2-minute answer, 12 questions, a one-page cheat sheet"
+
+sections:
+  # ---------------------------------------------------------------- part 1
+  - kind: part
+    n: "1"
+    title: The moment
+    lead: You did everything right with passwords. Then someone reads one other table, and every account is theirs. A reset link is a password that lives in an inbox.
+    items:
+      - What a reset really does
+      - The table that gives it all away
+      - "My test: every result"
+      - GitLab's 10 out of 10
+
+  - kind: flowchart
+    title: What a reset really does
+    lead: "It's the one feature that lets someone in without a password, on purpose. Each of its six steps has been attacked."
+    nodes:
+      - {head: "Someone says they forgot", body: "Anyone can say it, for anyone's address. It can reveal who has an account (page 25), and can flood an inbox (page 26)."}
+      - {head: "The server makes a token", body: "It has to be impossible to guess (pages 10 to 12). And what you store has to be useless if stolen (page 4)."}
+      - {head: "A link goes out by email", body: "To the address on the account, and nowhere else (page 24), with a link your code builds itself (page 23)."}
+      - {head: "Something opens the link", body: "Often not the person: mail scanners open links first, so opening must change nothing (page 17)."}
+      - {head: "A new password is set", body: "Exactly once, on the account the token belongs to (pages 16, 21), even with two clicks at once."}
+      - {head: "Everything old stops working", body: "The link, older links and every logged-in session, including an attacker's (pages 19, 20).", tone: ok}
+
+  - kind: table
+    title: The table that gives it all away
+    lead: "1,000 accounts, each with a live reset link. Every password is hashed. Someone can read `reset_tokens`, and only read it: a backup, a read replica, one SQL injection. All they can do is paste what they found into the reset page."
+    columns: [WHAT THE TABLE HOLDS, TOKENS READ, ACCOUNTS TAKEN]
+    widths: "1fr 22mm 26mm"
+    rows:
+      - ["The token itself", "1,000", {t: "1,000", tone: bad}]
+      - ["Only its SHA-256", "1,000", {t: "0", tone: ok}]
+    after:
+      - svg: samples/flow.svg
+      - callout: "**A token in your database is a password stored in plain text.** You'd never store passwords that way, and this is the same mistake with a shorter life. The OWASP cheat sheet says tokens must be \"stored in a secure manner\". This is how."
+        label: THE WHOLE IDEA
+        tone: bad
+
+  - kind: numbers
+    title: "My test: every result"
+    lead: "Real Go, and a real Postgres 16, attacking my own code. 1,000 tries per case unless noted, three runs each. **Lower is better.**"
+    rows:
+      - [1000, "Accounts taken with tokens read from the table"]
+      - [0, "Accounts taken when only the hash is stored"]
+      - [1000, "Links that worked twice: look first, then write"]
+      - [0, "Links that worked twice: one `UPDATE`"]
+      - [1000, "Links dead on arrival because a scanner opened them first"]
+      - [1000, "Attackers still logged in after the owner reset"]
+      - [1000, "Victims taken when the form says whose account it is"]
+      - [1000, "Time-seeded tokens found, in about 1,000 tries each"]
+      - [1000, "Real emails pointing at the attacker's site: Host header"]
+      - [1000, "Links delivered to the attacker: GitLab's bug in miniature"]
+    after:
+      - p: "Each of those has a fix, tested the same way, that takes it to 0. To run any of them: `go run . -mode=leak`, with the list of modes at the top of `main.go`."
+
+  - kind: timeline
+    title: GitLab's 10 out of 10
+    lead: "GitLab's own security notice, January 2024. A CVSS score of 10.0 is the worst there is, and this one was on the password reset page."
+    lanes: [THE ATTACKER, GITLAB]
+    state: THE VICTIM
+    events:
+      - {who: 1, text: "May 2023: version 16.1 lets you reset by a secondary email address", state: "fine"}
+      - {who: 0, text: "Asks for a reset, giving the victim's address and also their own, unverified one"}
+      - {who: 1, text: "Reset email goes to an unverified address too", tone: bad}
+      - {who: 0, text: "Clicks the real link, in their own inbox", tone: bad, state: "taken"}
+      - {who: null, text: "\"Account Takeover via Password Reset without user interactions\". The victim did nothing at all"}
+      - {who: 1, text: "11 January 2024: fixed in 16.7.2 and other versions. CVE-2023-7028, CVSS 10.0", tone: ok}
+    after:
+      - p: "GitLab's notice says accounts with two-factor authentication could have their password reset, but couldn't be taken over, because the second factor is still needed to log in. That's what a second factor is for."
+      - p: "Public analyses show the trick was one request parameter with two addresses in it, `user[email][]`. I rebuilt the shape of this on page 24, not GitLab's code."
+      - callout: "A reset email must go to the address **you already have on file**, not to whatever the request says. Everything else on this page is detail."
+        label: THE LESSON
+        tone: bad
+
+  # ---------------------------------------------------------------- part 2
+  - kind: part
+    n: "2"
+    title: The token
+    lead: What goes in the email, what goes in the table, how random it has to be, and the design that needs no table at all.
+    items:
+      - Making one, and storing it
+      - Why SHA-256 and not bcrypt?
+      - How long is long enough?
+      - A token seeded with the time
+      - A 6-digit code is different
+      - A link with no table
+
+  - kind: code
+    title: Making one, and storing it
+    lead: "Two small functions, and they're the whole of it."
+    from: samples/go/token.go
+    lines: [12, 24]
+    notes:
+      - [15, "crypto/rand: from the operating system. Its docs say Read never returns an error"]
+      - [22, "this is the only thing the database ever sees"]
+    after:
+      - from: samples/go/schema.go
+        lines: [17, 22]
+        lang: sql
+      - bullets:
+          - "`token_hash` is the primary key, so finding a token is one index lookup."
+          - "`used_at` and `expires_at` are kept, not deleted, so you can see what happened later. Clear old rows on a schedule."
+          - "`user_id` is here, and nowhere else: the token decides whose account it is (page 21)."
+      - p: "Since Go 1.24, `rand.Text()` gives you a ready-made random string with at least 128 bits, which is also fine."
+
+  - kind: table
+    title: Why SHA-256 and not bcrypt?
+    lead: "You've learned never to use a fast hash for passwords. So why's it right here? Measured:"
+    columns: ["", SHA-256, "BCRYPT, COST 10", "BCRYPT, COST 12"]
+    widths: "1fr 22mm 26mm 26mm"
+    rows:
+      - ["One hash", {t: "under 0.004 ms", tone: ok}, "70-71 ms", "253-293 ms"]
+      - ["Same input, same hash?", {t: "Yes", tone: ok}, {t: "No: it's salted", tone: bad}, {t: "No", tone: bad}]
+      - ["Find 1 token among 1,000", {t: "0.13 ms", tone: ok}, {t: "~70 s", tone: bad}, {t: "~4 minutes", tone: bad}]
+    after:
+      - callout: "**Slow hashes exist because people choose guessable passwords.** They make each guess expensive. A token has 256 random bits, and nobody is going to guess that at any speed. A slow hash would add nothing, and it would cost you the lookup."
+        label: THE REASON
+        tone: ok
+      - p: "bcrypt's salt also means you can't look up a token by its hash: you'd have to test it against every row. The 70 s is simply 1,000 rows times the measured 70 ms, and the 4 minutes the same sum at cost 12."
+
+  - kind: table
+    title: How long is long enough?
+    lead: "My laptop does about 2 million SHA-256 a second. Now imagine a billion of these laptops, guessing against a stolen table. How long, on average?"
+    columns: [RANDOM BITS, TIME ON AVERAGE]
+    widths: "30mm 1fr"
+    rows:
+      - ["32", {t: "Under a millisecond", tone: bad}]
+      - ["64", {t: "About an hour or so", tone: bad}]
+      - [{t: "128", tone: ok}, {t: "Over 2 thousand trillion years", tone: ok}]
+      - [{t: "256", tone: ok}, {t: "About 10⁵⁴ years", tone: ok}]
+    after:
+      - p: "128 bits is plenty, and 256 costs you nothing. **What matters is that they're really random.** A 64-character token can have almost no randomness in it, as the next page shows."
+      - p: "That's simple arithmetic from the measured rate, not a test of a billion laptops."
+
+  - kind: table
+    title: A token seeded with the time
+    lead: "It looks random, and it's the right length. But a generator seeded with the clock has only as many possible values as there are moments the attacker has to consider."
+    columns: [TOKEN FROM, FOUND, TRIES EACH]
+    widths: "1fr 26mm 22mm"
+    rows:
+      - ["`math/rand`, seeded with the time in ms", {t: "1,000 of 1,000", tone: bad}, {t: "~1,000", tone: bad}]
+      - ["`crypto/rand`", {t: "0", tone: ok}, {t: "Not possible", tone: ok}]
+    after:
+      - from: samples/go/token.go
+        lines: [26, 33]
+      - p: "The attacker only has to know when, to within a second: **asking for a reset for the victim tells them exactly that.** Trying every millisecond in a 2-second window found every one, in about 1,000 tries."
+      - callout: "Same in every language: `Math.random()` in JavaScript, `java.util.Random`, Python's `random`. If it isn't documented as cryptographically secure, it can't make tokens. Use `crypto/rand`, `crypto.randomBytes`, `SecureRandom` or `secrets`."
+        label: THE RULE
+        tone: bad
+
+  - kind: code
+    title: A 6-digit code is different
+    lead: "Codes sent by SMS or typed from an email have only a million possible values. They're easy to type, and easy to guess. Without a limit:"
+    from: samples/go/attacks.go
+    lines: [335, 338]
+    notes:
+      - [337, "the count and the check happen together, so 8 guesses at once can't slip past"]
+    after:
+      - code: |
+          no limit:  found 5 of 5 codes, 15 to 24 s each
+                     ~25,000 tries a second, one laptop
+          5 tries, then the code is dead:
+                     found 0 of 1000 codes
+      - p: "Without a limit, a million is nothing. With 5 tries, it's a 1-in-200,000 chance per code. **A short code is only safe with a limit that's checked atomically.**"
+      - callout: "In his own write-up, researcher Laxman Muthiyah described this on Instagram's recovery: a 6-digit SMS code, a rate limit per IP that could be worked around with many addresses and requests sent in parallel. Facebook fixed it and paid him $30,000. So limit per code and per account, not only per address."
+        label: IT HAPPENS
+        tone: bad
+
+  - kind: code
+    title: A link with no table
+    lead: "There's a design that stores nothing at all. The token is a signature over the user's id, an expiry time and **the current password hash**."
+    from: samples/go/attacks.go
+    lines: [643, 649]
+    notes:
+      - [646, "the password hash is part of what's signed"]
+    after:
+      - code: |
+          no table: first use 1000 of 1000, second use 0
+                    forged user id 0, expired 0
+      - p: "It works once because **changing the password changes the signature**, and the old link stops matching. Nothing to leak, nothing to clean up. Django's built-in reset tokens work this way: its generator hashes the user's id, password field, last login, email and a timestamp, and checks a timeout setting."
+      - p: "The catches: you can't revoke one link without changing the password, a log-in or anything else you sign. And the signing key is now the most valuable thing you have: if it leaks, anyone can make a link for anyone."
+      - callout: "Compare with the hashed table: a stolen table gives nothing, and each link can be revoked by itself. **For most systems I'd use the table.** It's simple to reason about, and easy to look at when something goes wrong."
+        label: MY VIEW
+        tone: ok
+
+  # ---------------------------------------------------------------- part 3
+  - kind: part
+    n: "3"
+    title: Using it once
+    lead: "\"Single use\" sounds like one line of code. Then two clicks arrive together, a scanner gets there first, and a logged-in attacker doesn't care that the password changed."
+    items:
+      - Two clicks at once
+      - One statement
+      - The scanner clicks first
+      - How long should it live?
+      - Old links
+      - What a new password must end
+      - Whose account is it?
+
+  - kind: code
+    title: Two clicks at once
+    lead: "A double click, or two tabs. Each sets a different password. The way most of us write it first:"
+    from: samples/go/flow.go
+    lines: [34, 50]
+    notes:
+      - [37, "both clicks read it here, and both see \"not used\""]
+      - [46, "both then mark it used, and both carry on"]
+    after:
+      - code: |
+          look, then write:  both worked 1000 of 1000
+      - p: "**All 1,000.** Both reads finish before either write, because a write is a network trip away. Now two passwords were set, and whoever landed last won without either person knowing."
+
+  - kind: code
+    title: One statement
+    lead: "Put the check and the claim in the same statement. The database does the rest: the second one waits for the first, sees `used_at` is set, and matches nothing."
+    from: samples/go/schema.go
+    lines: [34, 39]
+    lang: sql
+    notes:
+      - [37, "only a token nobody has used"]
+      - [38, "by the database's clock, so app servers can't disagree"]
+      - [39, "the token says whose it is"]
+    after:
+      - from: samples/go/flow.go
+        lines: [19, 32]
+      - code: |
+          one UPDATE:  both worked 0 of 1000
+                       exactly one worked 1000 of 1000
+      - p: "Line 24 is worth copying too: unknown, used and expired all look the same from outside, so an attacker can't learn which tokens are real."
+
+  - kind: table
+    title: The scanner clicks first
+    lead: "Email security tools open links to check them, often before the person sees the message. Scanners such as Outlook Safe Links and Proofpoint are the usual ones named. So your one-time link has already had its one time."
+    columns: [THE PAGE, SCANNER, THE PERSON, RESULT]
+    widths: "1fr 26mm 26mm 22mm"
+    rows:
+      - ["`GET` uses the token", {t: "Uses it", tone: bad}, {t: "\"Link expired\"", tone: bad}, {t: "1,000 of 1,000 dead", tone: bad}]
+      - ["`GET` shows a form, `POST` uses it", {t: "Sees a form", tone: ok}, {t: "Sets a password", tone: ok}, {t: "1,000 of 1,000 fine", tone: ok}]
+    after:
+      - from: samples/go/attacks.go
+        lines: [161, 168]
+      - callout: "**A `GET` must never change anything.** It's the oldest rule in HTTP, and this is what it's for. Mail scanners, previews and browser prefetching all assume it. Password reset is the feature where forgetting it hurts most."
+        label: THE RULE
+        tone: ok
+      - p: "My \"scanner\" is a `GET` from a test client, the same request a real one sends. Some scanners also follow links, run scripts or submit forms, so a form isn't a perfect defence, only a far better one."
+
+  - kind: table
+    title: How long should it live?
+    lead: "A link should die by itself, because inboxes last for years. Tested with a 2-second life and the database's clock:"
+    columns: ["", WORKED]
+    widths: "1fr 30mm"
+    rows:
+      - ["Used in time", {t: "500 of 500", tone: ok}]
+      - ["Used after it ran out", {t: "0 of 500", tone: ok}]
+    after:
+      - p: "Long enough to find the email and a laptop; short enough that an old inbox isn't a skeleton key. **I'd use an hour**, and the OWASP cheat sheet asks only that it \"expire after an appropriate period\"."
+      - callout: "Check it in the `WHERE` with `now()`, not in app code. Your app servers' clocks can drift apart; the database has just one."
+        label: WHICH CLOCK
+        tone: ok
+
+  - kind: table
+    title: Old links
+    lead: "Someone clicks \"forgot password\" three times, impatiently. Now there are three live links in the inbox. Is the first one still good?"
+    columns: ["", THE FIRST OF 3 STILL WORKED]
+    widths: "1fr 44mm"
+    rows:
+      - ["Old links stay", {t: "1,000 of 1,000", tone: bad}]
+      - ["A new link cancels them", {t: "0", tone: ok}]
+    after:
+      - from: samples/go/schema.go
+        lines: [41, 43]
+        lang: sql
+      - p: "One line, on every new request and on every password change. Otherwise an old email, from months ago, keeps its power for as long as the link lives."
+
+  - kind: table
+    title: What a new password must end
+    lead: "Someone has broken in, and is logged in. The real owner notices and resets the password. The attacker's session is a separate thing."
+    columns: ["", ATTACKER STILL LOGGED IN]
+    widths: "1fr 40mm"
+    rows:
+      - ["Password changed, sessions left alone", {t: "1,000 of 1,000", tone: bad}]
+      - ["Sessions ended on reset", {t: "0", tone: ok}]
+    after:
+      - from: samples/go/schema.go
+        lines: [45, 46]
+        lang: sql
+      - p: "That's the whole point of the owner resetting. OWASP says invalidate existing sessions after recovery. Django builds this in: its session holds a hash derived from the password, so changing the password logs out every session."
+      - bullets:
+          - "Also revoke API tokens and \"remember me\" cookies."
+          - "Email the account to say the password changed, so that the real owner hears about an attacker's reset."
+          - "Don't log them in automatically after a reset: send them through the normal log-in, with their second factor."
+
+  - kind: table
+    title: Whose account is it?
+    lead: "The attacker asks for a reset for their **own** account, and gets a real, valid token. Then they edit one field of the form."
+    columns: [THE SERVER TAKES THE USER FROM, VICTIMS' PASSWORDS CHANGED]
+    widths: "1fr 44mm"
+    rows:
+      - ["`user_id` in the form", {t: "1,000 of 1,000", tone: bad}]
+      - ["The token's own row", {t: "0", tone: ok}]
+    after:
+      - code: |
+          POST /reset
+          token=<my own, real token>&user_id=<yours>&password=...
+      - p: "\"Is the token valid?\" isn't the question. **The question is \"valid for whom?\"**, and only the token can answer. If your reset form has a `user_id` or an `email` field, that's a bug waiting to be found."
+      - p: "The same bug shows up with idempotency keys in guide #2: anything a client hands you belongs to one account, and the server must check which."
+
+  # ---------------------------------------------------------------- part 4
+  - kind: part
+    n: "4"
+    title: Getting the link out
+    lead: The token is fine, the table is fine, and the link still gets away. In a header you trusted, a list you didn't expect, a stopwatch or a log file.
+    items:
+      - The Host header
+      - Two emails in one request
+      - "\"No such account\""
+      - 1,000 emails to one person
+      - Logs and the Referer header
+
+  - kind: timeline
+    title: The Host header
+    lead: "How do you build the link? Many frameworks make it easy to use the address the request came to. But the request says what that address is."
+    lanes: [THE ATTACKER, THE SERVER]
+    state: THE LINK
+    events:
+      - {who: 0, text: "`POST /forgot` for the victim, with `Host: evil.example`"}
+      - {who: 1, text: "Builds the link from the Host header, and emails the **real** victim", tone: bad, state: "evil.example"}
+      - {who: 0, text: "Waits. The email is genuine: right sender, right words"}
+      - {who: null, text: "The victim, or their mail scanner, opens the link"}
+      - {who: 0, text: "The real token arrives at their own server, in the URL", tone: bad}
+      - {who: 0, text: "Uses it on the real site", tone: bad}
+    after:
+      - code: |
+          link built from Host:       1000 of 1000 point at the attacker
+          link from a fixed address:     0 of 1000
+      - p: "It's known as password reset poisoning. Notice that a mail scanner is enough: **the victim doesn't even have to click.** OWASP's advice: don't rely on the Host header when creating reset URLs. Hard-code the address, or check it against a list."
+
+  - kind: code
+    title: Two emails in one request
+    lead: "GitLab's bug, in miniature: my own small version of the same shape, not GitLab's code. The account is found by any address in the list, and then the mail goes to the list."
+    from: samples/go/attacks.go
+    lines: [494, 500]
+    notes:
+      - [495, "the address you already had on file"]
+      - [499, "whatever the request said"]
+    after:
+      - code: |
+          sent to the form's list:     attacker got 1000 of 1000 links,
+                                       1000 accounts taken
+          sent to the stored address:  attacker got 0, 0 accounts taken
+      - callout: "The request's job is to **find** the account. It never says where the email goes. Look up the account, read its address from your own table, and send it there. Also watch how your framework parses a field: `email` can arrive as a list without your code ever asking for one."
+        label: THE FIX
+        tone: ok
+
+  - kind: table
+    title: "\"No such account\""
+    lead: "Can a stranger find out who has an account here? Two ways to ask: read the words, and time the reply. My mail call is a simulated 60 ms."
+    columns: ["", "SAME WORDS?", REAL ACCOUNT, NO ACCOUNT, SLOWER ONE WAS REAL]
+    widths: "1fr 14mm 16mm 16mm 18mm"
+    rows:
+      - ["Answer differs, mail sent in the request", {t: "No", tone: bad}, {t: "~61 ms", tone: bad}, "0.1 ms", {t: "100 of 100", tone: bad}]
+      - ["Same answer, mail sent by a worker", {t: "Yes", tone: ok}, {t: "0.1-0.2 ms", tone: ok}, "0.1-0.2 ms", {t: "See below", tone: wait}]
+    after:
+      - from: samples/go/attacks.go
+        lines: [538, 548]
+      - p: "Saying the same words isn't enough, because **the stopwatch still tells**: sending an email takes time, and only real accounts get one. Put the sending on a queue, so that both paths do the same work in the request."
+      - callout: "OWASP asks for both: a consistent message, and consistent response times. My second row still wasn't even: over a loopback with no network, the reply for a **missing** account was usually the slower one, by far less than a millisecond. A real network's noise should bury that, though I didn't test one. So the rate limit on the next page matters too."
+        label: READ IT CAREFULLY
+        tone: wait
+
+  - kind: table
+    title: 1,000 emails to one person
+    lead: "A stranger can make you email anyone, and it's your domain's reputation on the line, and their inbox. One script, 1,000 requests, one victim:"
+    columns: ["", REQUESTS, EMAILS SENT]
+    widths: "1fr 24mm 24mm"
+    rows:
+      - ["No limit", "1,000", {t: "1,000", tone: bad}]
+      - ["At most one a minute, per account", "1,000", {t: "1", tone: ok}]
+    after:
+      - from: samples/go/attacks.go
+        lines: [588, 592]
+      - p: "OWASP asks for this explicitly: rate-limiting on a per-account basis. A limit per IP isn't enough, as an attacker can use many IPs, and this limit also caps what the stopwatch can learn."
+      - p: "And say the same thing whether or not you sent it, so that the limit itself doesn't reveal which accounts exist."
+
+  - kind: table
+    title: Logs and the Referer header
+    lead: "A token in a URL goes wherever URLs go. A normal access log, 1,000 clicks:"
+    columns: ["", RESULT]
+    widths: "1fr 34mm"
+    rows:
+      - ["Live tokens readable in the log", {t: "1,000 of 1,000", tone: bad}]
+      - ["Owner used it; someone reads the log later", {t: "0 of 500 worked", tone: ok}]
+      - ["Nobody used it yet, read from the log", {t: "500 of 500 worked", tone: bad}]
+    after:
+      - p: "**That's why single use and a short life matter even with hashing.** Your table is safe, and the log isn't. Strip the query string from access logs for this route, or log the path only."
+      - h: "And the Referer header"
+      - p: "If the reset page loads a script or an image from someone else, the browser may tell them where it came from, token included. OWASP says to add a referrer policy with the `no-referrer` value to the reset page."
+      - code: |
+          Referrer-Policy: no-referrer
+      - p: "Modern browsers' default already trims this to the origin alone for other sites, per MDN, but an old browser or a page's own policy can undo that. It's one header, and I didn't test browsers here, so I'd set it anyway. Keep third-party scripts off that page altogether."
+
+  # ---------------------------------------------------------------- part 5
+  - kind: part
+    n: "5"
+    title: Interview kit
+    lead: "\"Design password reset\" sounds simple, which is why interviewers like it. Here's an answer that goes far past \"email a link\", with numbers behind it."
+    items:
+      - Your 2-minute answer
+      - 12 interview questions
+      - The mistakes people ship
+      - Checklist for a reset flow
+      - The one-page cheat sheet
+      - Collect the series
+
+  - kind: steps
+    title: Your 2-minute answer
+    lead: "When the interviewer asks \"how would you build forgot password?\", walk through this."
+    steps:
+      - head: Say what it really is
+        body: "A way in without a password, so a reset token is a password. It gets the same care, for a shorter time."
+      - head: Make and store the token
+        body: "256 bits from a secure generator. Email the token, store only its SHA-256. A fast hash is fine, because nothing here can be guessed, and it allows an index lookup."
+      - head: Use it once, atomically
+        body: "One `UPDATE` with `used_at IS NULL AND expires_at > now()`, `RETURNING user_id`. No look-then-write. An hour's life, and new links cancel old ones."
+      - head: Respect the scanners
+        body: "`GET` shows a form and changes nothing. Only `POST` uses the token, because mail scanners open links first."
+      - head: Control where it goes
+        body: "To the address on file, never one from the request. A fixed base URL, never the Host header. The user comes from the token, never the form."
+      - head: Cover the edges
+        body: "Same answer and timing for unknown emails, with mail sent by a queue. Rate-limit per account. End every session after a reset, and tell the owner it happened."
+
+  - kind: qa
+    title: 12 interview questions
+    items:
+      - q: Why hash a reset token?
+        a: "It's a password. In plain text, anyone who can read the table has every account: 1,000 of 1,000 in my test, and 0 once only the hash was stored."
+      - q: Why SHA-256 and not bcrypt?
+        a: "bcrypt slows down guessing, and nobody can guess 256 random bits. It's also salted, so you couldn't find the row by its hash: about 70 s per lookup across 1,000 rows, against 0.13 ms."
+      - q: How long should a token be?
+        a: "128 random bits at least; 256 costs nothing. The randomness matters, not the length: a time-seeded token was found in about 1,000 tries."
+      - q: How do you make a link work once?
+        a: "One atomic `UPDATE ... WHERE used_at IS NULL ... RETURNING`. Look-then-write let both clicks through 1,000 of 1,000 times."
+      - q: What do mail scanners do to reset links?
+        a: "They open them first. If `GET` uses the token, the person finds a dead link. So `GET` shows a form and `POST` uses it."
+      - q: How long should a link live?
+        a: "Around an hour. Check it with the database's `now()`, so app servers' clocks can't disagree."
+      - q: "What's password reset poisoning?"
+        a: "The link is built from the `Host` header, which the attacker controls. A real email then points at their site, and the token reaches them. Use a fixed base URL."
+      - q: What was GitLab's CVE-2023-7028?
+        a: "Reset emails could be delivered to an unverified address, with no action by the victim. CVSS 10.0. Always send to the address on file."
+      - q: How do you avoid revealing who has an account?
+        a: "Same message, and same timing: send mail from a queue. With the mail sent in the request, the slower reply was the real account 100 of 100 times."
+      - q: What should happen after a successful reset?
+        a: "End all sessions and API tokens, cancel other links, and email the owner. Otherwise an attacker stays logged in: 1,000 of 1,000 in my test."
+      - q: Are 6-digit reset codes OK?
+        a: "Only with a strict, atomic attempt limit. Without one I found every code in 15 to 24 s. With 5 tries, 0 of 1,000."
+      - q: Can you do this with no table?
+        a: "Yes: sign the user id, expiry and password hash. A new password invalidates it. But you can't revoke one link, and the signing key becomes the crown jewel."
+
+  - kind: table
+    title: The mistakes people ship
+    lead: "Each one of these works perfectly in a demo."
+    columns: [THE MISTAKE, WHAT HAPPENS, DO THIS]
+    widths: "1fr 1fr 1fr"
+    rows:
+      - ["Token stored as it is", {t: "One read: every account", tone: bad}, "Store the SHA-256"]
+      - ["`Math.random()` or similar", {t: "Guessable", tone: bad}, "A secure generator"]
+      - ["Look, then write", {t: "Two clicks both work", tone: bad}, "One atomic `UPDATE`"]
+      - ["`GET` uses the token", {t: "Scanners burn it", tone: bad}, "`POST` uses it"]
+      - ["No expiry", {t: "Old inboxes are keys", tone: bad}, "About an hour"]
+      - ["Old links left alive", {t: "Three live links", tone: bad}, "Cancel on each new one"]
+      - ["Sessions left alone", {t: "Attacker stays in", tone: bad}, "End every session"]
+      - ["`user_id` in the form", {t: "Anyone's account", tone: bad}, "The token decides"]
+      - ["Link built from `Host`", {t: "Real mail, evil link", tone: bad}, "A fixed base URL"]
+      - ["Mail sent to the request's address", {t: "CVSS 10.0", tone: bad}, "The address on file"]
+      - ["\"No such account\"", {t: "A list of your users", tone: bad}, "Same words, same time"]
+      - ["No limit per account", {t: "An email bomb", tone: bad}, "One a minute"]
+
+  - kind: checklist
+    title: Checklist for a reset flow
+    items:
+      - "Tokens come from a secure random generator, with at least 128 bits."
+      - "Only the hash is stored, and no copy of the token is logged."
+      - "Using a token is one atomic statement: unused, unexpired, returning whose it is."
+      - "Links last about an hour, by the database's clock."
+      - "A new link cancels the old ones, and a new password cancels them all."
+      - "`GET` on the reset page changes nothing."
+      - "The user comes from the token, and never from the form."
+      - "The email goes to the address on file, at a fixed base URL."
+      - "Unknown addresses get the same words and the same timing, and mail is sent from a queue."
+      - "Requests are limited per account, and short codes per code."
+      - "A reset ends every session and API token, and the owner gets an email about it."
+      - "The reset page sets `Referrer-Policy: no-referrer` and loads no third-party scripts."
+      - "Tests cover two clicks at once, and a `GET` followed by a real visit."
+
+  - kind: table
+    title: The one-page cheat sheet
+    lead: "Screenshot this one."
+    columns: [THE PART, DO THIS, BECAUSE]
+    widths: "1fr 1fr 1fr"
+    rows:
+      - ["Make it", "`crypto/rand`, 256 bits", "Time-seeded: 1,000 tries"]
+      - ["Store it", "SHA-256 only", "A stolen table gives 0"]
+      - ["Find it", "An index on the hash", "bcrypt can't be looked up"]
+      - ["Use it", "One `UPDATE ... RETURNING`", "Two clicks: 1,000 of 1,000"]
+      - ["Open it", "`GET` shows a form", "Scanners click first"]
+      - ["Limit it", "About an hour", "Inboxes last for years"]
+      - ["Replace it", "New link cancels old", "Three live links otherwise"]
+      - ["Whose?", "The token's row", "Forms can lie"]
+      - ["Where?", "The address on file", "GitLab: CVSS 10.0"]
+      - ["Link", "A fixed base URL", "`Host` can be forged"]
+      - ["Unknown email", "Same words, queue the mail", "The stopwatch tells"]
+      - ["After", "End all sessions, tell them", "The attacker stays in"]
+
+  - kind: table
+    title: Collect the series
+    lead: "Every Behind the Button video comes with its own free guide like this one. Comment the keyword shown in each video to get it, and build the whole set."
+    columns: ["#", THE GUIDES]
+    widths: "8mm 1fr"
+    rows:
+      - ["1", "The last seat: race conditions in SQL (comment SEAT on that video)"]
+      - ["2", "You tapped Pay twice: idempotency keys (comment PAY on that video)"]
+      - ["3", "Why your OTP dies in 30 seconds: how TOTP works (comment OTP on that video)"]
+      - ["4", "One more view: integer overflow and running out of IDs (comment VIEWS on that video)"]
+      - ["5", "Four pages to a billion: indexes and Bloom filters (comment NAME on that video)"]
+      - ["6", "Built to get lost: WebSockets and presence (comment TYPING on that video)"]
+      - [{t: "7", tone: ok}, {t: "A link is a password: single-use reset tokens (this guide)", tone: ok}]
+
+end:
+  video: "Behind the Button #7, Every password was hashed, and every account was still stolen: on Instagram @stacknova.dev and YouTube @StackNovaDev."
+  next: "This is guide #7 of the Behind the Button collection. Missed one? Comment SEAT, PAY, OTP, VIEWS, NAME or TYPING on those videos. Follow, and comment the keyword on the next video to get the next guide."
+  more: "Open your own reset_tokens table today. If you can read a token and paste it into your reset page, that's this week's most important fix."
+
+sources_lead: Every claim in this guide comes from one of these, or from the tests in it (2 Nov 2026).
+extra_sources:
+  - {title: "OWASP — Forgot Password Cheat Sheet (tokens, expiry, consistent responses, rate limits, Host header, Referrer-Policy, sessions)", url: "https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html"}
+  - {title: "GitLab — Critical patch release 16.7.2 (CVE-2023-7028, CVSS 10.0, 11 January 2024)", url: "https://docs.gitlab.com/releases/patches/patch-release-gitlab-16-7-2-released/"}
+  - {title: "NVD — CVE-2023-7028", url: "https://nvd.nist.gov/vuln/detail/CVE-2023-7028"}
+  - {title: "AttackerKB — CVE-2023-7028 (the two-address user[email][] parameter)", url: "https://attackerkb.com/topics/cve-2023-7028"}
+  - {title: "PortSwigger Web Security Academy — Password reset poisoning", url: "https://portswigger.net/web-security/host-header/exploiting/password-reset-poisoning"}
+  - {title: "Laxman Muthiyah — How I Could Have Hacked Any Instagram Account", url: "https://thezerohack.com/hack-any-instagram"}
+  - {title: "Supabase community — Magic links and password reset tokens consumed by email scanners", url: "https://github.com/orgs/supabase/discussions/41618"}
+  - {title: "Ackify release notes — scanners such as Outlook Safe Links and Proofpoint burning single-use tokens", url: "https://github.com/kOlapsis/ackify/releases/tag/v1.3.12"}
+  - {title: "Go — crypto/rand (Read never returns an error; Text, at least 128 bits, from Go 1.24)", url: "https://pkg.go.dev/crypto/rand"}
+  - {title: "Go — math/rand (not for security-sensitive work)", url: "https://pkg.go.dev/math/rand"}
+  - {title: "Go — golang.org/x/crypto/bcrypt", url: "https://pkg.go.dev/golang.org/x/crypto/bcrypt"}
+  - {title: "Django — Using the authentication system (one-time reset links, sessions end when the password changes)", url: "https://docs.djangoproject.com/en/5.2/topics/auth/default/"}
+  - {title: "Django source — django/contrib/auth/tokens.py (what the reset token hashes, and why it dies after a reset)", url: "https://github.com/django/django/blob/main/django/contrib/auth/tokens.py"}
+  - {title: "MDN — Referrer-Policy (default strict-origin-when-cross-origin)", url: "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Referrer-Policy"}
+  - {title: "RFC 9110 — HTTP Semantics, section 9.2.1: safe methods (GET)", url: "https://www.rfc-editor.org/rfc/rfc9110.html#name-safe-methods"}

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 150" style="width:128mm;height:auto" font-family="JetBrains Mono, monospace">
+  <!-- The real 16 bytes from main.mjs handshake: server to client, {"t":"typing"}. -->
+  <g font-size="11" text-anchor="middle" font-weight="700">
+    <rect x="1" y="26" width="30" height="30" rx="4" fill="#ff4d8d"/><text x="16" y="45" fill="#07060f">81</text>
+    <rect x="33" y="26" width="30" height="30" rx="4" fill="#ff4d8d"/><text x="48" y="45" fill="#07060f">0e</text>
+    <g fill="#110d24" stroke="#ffd24d">
+      <rect x="65" y="26" width="30" height="30" rx="4"/><rect x="97" y="26" width="30" height="30" rx="4"/><rect x="129" y="26" width="30" height="30" rx="4"/><rect x="161" y="26" width="30" height="30" rx="4"/><rect x="193" y="26" width="30" height="30" rx="4"/><rect x="225" y="26" width="30" height="30" rx="4"/><rect x="257" y="26" width="30" height="30" rx="4"/><rect x="289" y="26" width="30" height="30" rx="4"/><rect x="321" y="26" width="30" height="30" rx="4"/><rect x="353" y="26" width="30" height="30" rx="4"/><rect x="385" y="26" width="30" height="30" rx="4"/><rect x="417" y="26" width="30" height="30" rx="4"/><rect x="449" y="26" width="30" height="30" rx="4"/><rect x="481" y="26" width="30" height="30" rx="4"/>
+    </g>
+    <g fill="#ffd24d">
+      <text x="80" y="45">7b</text><text x="112" y="45">22</text><text x="144" y="45">74</text><text x="176" y="45">22</text><text x="208" y="45">3a</text><text x="240" y="45">22</text><text x="272" y="45">74</text><text x="304" y="45">79</text><text x="336" y="45">70</text><text x="368" y="45">69</text><text x="400" y="45">6e</text><text x="432" y="45">67</text><text x="464" y="45">22</text><text x="496" y="45">7d</text>
+    </g>
+    <g fill="#a29bc4" font-weight="400">
+      <text x="80" y="72">{</text><text x="112" y="72">"</text><text x="144" y="72">t</text><text x="176" y="72">"</text><text x="208" y="72">:</text><text x="240" y="72">"</text><text x="272" y="72">t</text><text x="304" y="72">y</text><text x="336" y="72">p</text><text x="368" y="72">i</text><text x="400" y="72">n</text><text x="432" y="72">g</text><text x="464" y="72">"</text><text x="496" y="72">}</text>
+    </g>
+  </g>
+  <g font-size="12">
+    <text x="1" y="16" fill="#ff4d8d" font-weight="700">header: 2 bytes</text>
+    <text x="65" y="16" fill="#ffd24d" font-weight="700" dx="60">the message: 14 bytes of plain JSON</text>
+    <text x="1" y="98" fill="#f4f1ff" font-weight="700">81</text><text x="28" y="98" fill="#a29bc4">1000 0001: last piece of this message, and it's text</text>
+    <text x="1" y="118" fill="#f4f1ff" font-weight="700">0e</text><text x="28" y="118" fill="#a29bc4">0000 1110: not masked, 14 bytes follow</text>
+    <text x="1" y="142" fill="#5fe3a8" font-weight="700">16 bytes down. 20 bytes up: a client adds a 4-byte mask.</text>
+  </g>
+</svg>

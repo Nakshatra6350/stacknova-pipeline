@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 214" style="width:128mm;height:auto" font-family="JetBrains Mono, monospace">
+  <!-- What goes where: the token leaves in the email, and only its hash stays. -->
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#ff4d8d"/></marker>
+  </defs>
+  <g font-size="12">
+    <rect x="1" y="1" width="160" height="62" rx="8" fill="#110d24" stroke="#7b5cff"/>
+    <text x="14" y="22" fill="#f4f1ff" font-weight="700">newToken()</text><text x="14" y="42" fill="#a29bc4">256 random bits</text><text x="14" y="56" fill="#ffd24d">x7Qm2p-Lk9vZ…</text>
+
+    <path d="M161 20 L348 20" fill="none" stroke="#ff4d8d" stroke-width="2" marker-end="url(#a)"/>
+    <text x="178" y="14" fill="#ff4d8d">goes out, once</text>
+    <rect x="352" y="1" width="167" height="62" rx="8" fill="#110d24" stroke="#ffd24d"/>
+    <text x="365" y="22" fill="#f4f1ff" font-weight="700">the email</text><text x="365" y="42" fill="#a29bc4">/reset?token=</text><text x="365" y="56" fill="#ffd24d">x7Qm2p-Lk9vZ…</text>
+
+    <path d="M80 63 L80 110" fill="none" stroke="#ff4d8d" stroke-width="2" marker-end="url(#a)"/>
+    <text x="90" y="92" fill="#ff4d8d">SHA-256</text>
+    <rect x="1" y="114" width="160" height="62" rx="8" fill="#110d24" stroke="#5fe3a8"/>
+    <text x="14" y="135" fill="#f4f1ff" font-weight="700">reset_tokens</text><text x="14" y="155" fill="#a29bc4">token_hash</text><text x="14" y="169" fill="#5fe3a8">9f2c41e07ab3…</text>
+
+    <path d="M435 63 L435 110" fill="none" stroke="#ff4d8d" stroke-width="2" marker-end="url(#a)"/>
+    <text x="445" y="92" fill="#ff4d8d">a click</text>
+    <rect x="352" y="114" width="167" height="62" rx="8" fill="#110d24" stroke="#7b5cff"/>
+    <text x="365" y="135" fill="#f4f1ff" font-weight="700">the reset page</text><text x="365" y="155" fill="#a29bc4">hashes what it got</text><text x="365" y="169" fill="#5fe3a8">9f2c41e07ab3…</text>
+
+    <path d="M352 145 L166 145" fill="none" stroke="#5fe3a8" stroke-width="2" marker-end="url(#a)"/>
+    <text x="196" y="138" fill="#5fe3a8" font-weight="700">same hash: it's you</text>
+    <text x="0" y="204" fill="#a29bc4">Steal the table and you hold a hash. The page would hash it again.</text>
+  </g>
+</svg>

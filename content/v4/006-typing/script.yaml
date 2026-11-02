@@ -1,0 +1,49 @@
+# Behind the Button #6 (look v4): why "typing..." shows up instantly, in about a minute. It's a real
+# message that nothing keeps: polling and why it's late, the WebSocket and its handshake (real bytes,
+# samples/node), the phone that dies mid-word, the timer that fixes it (Telegram's and Discord's own
+# docs), the dead phone a server can't see, heartbeats, and dropping typing when a reader falls behind.
+# `scene` names the visual each line plays over (studio-v4); `say` is spoken, `show` (when present) is
+# the on-screen caption text.
+id: 006-typing
+keyword: TYPING
+title: "Typing Is a Message Built to Get Lost"
+youtube_title: "WebSocket Explained: Why \"Typing...\" Shows Up Instantly"
+lines:
+  - {id: l1, scene: hook, say: "Typing is a real message, and it's built to get lost."}
+  - {id: l2, scene: poll, say: "Ask the server every second? I tested it: half a second late, and half the replies are empty."}
+  - {id: l3, scene: socket, say: "So keep one connection open. It starts as a normal web request, then it switches. Now the server can speak first."}
+  - {id: l4, scene: proof, say: "Same test: half a millisecond, and a tenth of the bytes. The signal itself is sixteen bytes.",
+     show: "Same test: half a millisecond, and a tenth of the bytes. The signal itself is 16 bytes."}
+  - {id: l5, scene: bug, say: "Then your phone dies mid-word. Stop typing never gets sent. I tested a thousand: a thousand stuck on typing, forever.",
+     show: "Then your phone dies mid-word. Stop typing never gets sent. I tested 1,000: 1,000 stuck on typing, forever."}
+  - {id: l6, scene: fix, say: "So the receiver runs a timer. No word for five seconds, and it's gone. Zero stuck.",
+     show: "So the receiver runs a timer. No word for 5 seconds, and it's gone. 0 stuck."}
+  - {id: l7, scene: real, say: "Telegram's docs say five seconds. Discord's say ten.",
+     show: "Telegram's docs say 5 seconds. Discord's say 10."}
+  - {id: l8, scene: silent, say: "A dead phone doesn't hang up, either. A hundred thousand signals sent to phones that were gone: zero errors. So ping them. No reply, and you close it.",
+     show: "A dead phone doesn't hang up, either. 100,000 signals sent to phones that were gone: 0 errors. So ping them. No reply, and you close it."}
+  - {id: l9, scene: drop, say: "And when a reader falls behind, drop the typing, never the messages. That's what it's built for."}
+  - {id: l10, scene: cta, say: "Comment typing for the free guide: a WebSocket server written by hand, every case tested. Because typing is built to get lost.",
+     show: "Comment TYPING for the free guide: a WebSocket server written by hand, every case tested. Because typing is built to get lost.",
+     # YouTube has no comment-to-DM, so the Short ends on a follow
+     say_youtube: "Follow for one of these every day. Because typing is built to get lost."}
+
+fact_check:
+  - claim: "Polling every second: a signal arrives about half a second late on average, and about half the replies are empty when a signal comes every 3 seconds"
+    source: "derived from code sample samples/node, mode compare (Node 22.17.1, 2 Nov 2026)"
+  - claim: "A WebSocket starts as an HTTP request with Upgrade, answered by 101 Switching Protocols"
+    source: "https://www.rfc-editor.org/rfc/rfc6455.html; derived from code sample, mode handshake"
+  - claim: "WebSocket: 0.4 to 0.5 ms and about a tenth of the bytes per signal (95 against 945 to 948), on one machine with no network in between"
+    source: "derived from code sample samples/node, mode compare"
+  - claim: "A 14-byte JSON typing signal is 16 bytes from server to client"
+    source: "derived from code sample samples/node, mode handshake"
+  - claim: "1,000 typists vanish without a stop: 1,000 stuck with no timer; 0 with a 5-second timer"
+    source: "derived from code sample samples/node, mode stuck"
+  - claim: "Telegram: the typing status is set for 5 seconds or less"
+    source: "https://core.telegram.org/bots/api#sendchataction"
+  - claim: "Discord: the typing indicator expires after 10 seconds"
+    source: "https://docs.discord.com/developers/resources/channel"
+  - claim: "100,000 signals written to 1,000 clients that had gone: 100,000 accepted, 0 errors; heartbeats found all 1,000"
+    source: "derived from code sample samples/node, modes silent and heartbeat"
+  - claim: "Dropping typing signals for a slow reader keeps its buffer small and loses no chat message"
+    source: "derived from code sample samples/node, mode slow"
