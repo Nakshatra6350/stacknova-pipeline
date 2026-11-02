@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 318" style="width:128mm;height:auto" font-family="JetBrains Mono, monospace">
+  <!-- One real route through the real index: name.exe -mode=tree, 10 million names. -->
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#ff4d8d"/></marker>
+  </defs>
+  <g font-size="12" fill="#a29bc4">
+    <rect x="1" y="1" width="400" height="92" rx="8" fill="#110d24" stroke="#7b5cff"/>
+    <text x="14" y="20" fill="#f4f1ff" font-weight="700">page 209</text><text x="388" y="20" text-anchor="end">the root · 189 ranges</text>
+    <text x="14" y="42">menalajaligi8 …</text>
+    <rect x="2" y="48" width="398" height="20" fill="#7b5cff" fill-opacity=".28"/>
+    <text x="14" y="62" fill="#f4f1ff" font-weight="700">mevifotebara3 …</text><text x="388" y="62" text-anchor="end" fill="#ff4d8d" font-weight="700">go to page 20405</text>
+    <text x="14" y="84">migotilavaref …</text>
+
+    <path d="M430 58 C 470 58, 470 124, 416 150" fill="none" stroke="#ff4d8d" stroke-width="2" marker-end="url(#a)"/>
+
+    <rect x="60" y="113" width="400" height="92" rx="8" fill="#110d24" stroke="#7b5cff"/>
+    <text x="74" y="132" fill="#f4f1ff" font-weight="700">page 20405</text><text x="447" y="132" text-anchor="end">a branch · 203 ranges</text>
+    <text x="74" y="154">migefofodovad …</text>
+    <rect x="61" y="160" width="398" height="20" fill="#7b5cff" fill-opacity=".28"/>
+    <text x="74" y="174" fill="#f4f1ff" font-weight="700">migehikivofo1 …</text><text x="447" y="174" text-anchor="end" fill="#ff4d8d" font-weight="700">go to page 20582</text>
+    <text x="74" y="196">migekebezileb …</text>
+
+    <path d="M488 170 C 528 170, 528 236, 476 262" fill="none" stroke="#ff4d8d" stroke-width="2" marker-end="url(#a)"/>
+
+    <rect x="119" y="225" width="400" height="92" rx="8" fill="#110d24" stroke="#5fe3a8"/>
+    <text x="133" y="244" fill="#f4f1ff" font-weight="700">page 20582</text><text x="506" y="244" text-anchor="end">a leaf · 261 names</text>
+    <text x="133" y="266">migejojekane3</text>
+    <rect x="120" y="272" width="398" height="20" fill="#5fe3a8" fill-opacity=".22"/>
+    <text x="133" y="286" fill="#f4f1ff" font-weight="700">migejojorile9</text><text x="506" y="286" text-anchor="end" fill="#5fe3a8" font-weight="700">found: number 204</text>
+    <text x="133" y="308">migejokalonad</text>
+  </g>
+</svg>

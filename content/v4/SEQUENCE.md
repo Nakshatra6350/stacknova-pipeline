@@ -23,6 +23,11 @@ VIEWS went out under another name, "One more view, and the counter goes negative
 nothing actually broke at YouTube (its engineers had already moved to 64 bits), so the video doesn't say it
 broke. Its real outage is Basecamp, 2018, and its demo is Java + Postgres.
 
+NAME went out as "A billion usernames, and it opens four pages", with Spotify's own write-up as its real
+case. I found no primary source that Instagram or Google uses a Bloom filter for usernames, so the video
+doesn't say so. Its demo is Go + Postgres on 10 million names; 4 pages at a billion is an estimate, marked
+as one, and the Bloom filter was really loaded with a billion names.
+
 Next week's candidates: 10,000 PS5s and no oversell (atomic stock), the nearest driver in
 milliseconds (geohash), stories that vanish after 24 h (TTL), the 2021 Facebook outage (BGP, DNS),
 why Netflix doesn't buffer (adaptive bitrate).

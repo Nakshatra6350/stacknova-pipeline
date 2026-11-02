@@ -179,7 +179,7 @@ export const Stamp: React.FC<{ text: string; color: string; at: number; x: numbe
     return (
       <div style={{ position: "absolute", left: x, top: y, transform: `translate(-50%,-50%) rotate(${rotate}deg) scale(${2.2 - 1.2 * p})`,
                     opacity: Math.min(1, p * 1.5), border: `8px solid ${color}`, color, borderRadius: 18,
-                    padding: "10px 30px", font: `800 76px "${FONT.display}"`, letterSpacing: 2, background: "rgba(10,13,18,.82)" }}>
+                    padding: "10px 30px", font: `800 76px "${FONT.display}"`, letterSpacing: 2, background: "rgba(10,13,18,.82)", whiteSpace: "nowrap" }}>
         {text}
       </div>
     );

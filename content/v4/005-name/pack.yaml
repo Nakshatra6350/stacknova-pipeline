@@ -1,0 +1,916 @@
+# The free guide for "Behind the Button #5: A billion usernames, and it opens four pages" (keyword
+# NAME). Built by studio/scripts/pack.py content/v4/005-name into out/release/packs/. Every result
+# comes from samples/ run on 2 Nov 2026 (name.exe -mode=<mode>, three runs of each, on PostgreSQL 16.13
+# and Go 1.24.6; node typing.mjs); code is cut from those files by line range. Like guides #1 to #4, it
+# is a whole resource (owner, 29 Oct): every idea the fix uses, practical scenarios and diagrams.
+keyword: NAME
+file: stacknova-four-pages-guide
+lang: go
+kicker: "BEHIND THE BUTTON · FREE GUIDE #5"
+title: Four Pages to a Billion
+subtitle: How "username taken" answers in a fraction of a millisecond, the one word that breaks it, what a Bloom filter really buys, and why the green tick is only a guess. Every result tested.
+versions: Tested on PostgreSQL 16.13 (ICU en-US collation, default settings), pgx 5.7, Go 1.24.6 and Node 22, on one Windows laptop, on 2 Nov 2026. Docs quoted are PostgreSQL 18. Your times will differ; the shape won't.
+inside:
+  - "Part 1 · The moment: the number, the Bloom filter story, every test result"
+  - "Part 2 · The index: pages, one real route, why a billion is only 4 deep"
+  - "Part 3 · One word: 9 queries that lose the index, and a live fix"
+  - "Part 4 · The Bloom filter: 20 lines, a real billion, what it can't do"
+  - "Part 5 · The signup: races, keystrokes, deleted names, lookalikes"
+  - "Part 6 · Interview kit: a 2-minute answer, 12 questions, a cheat sheet"
+
+sections:
+  # ---------------------------------------------------------------- part 1
+  - kind: part
+    n: "1"
+    title: The moment
+    lead: You type a name, and "taken" appears before you lift your finger. A billion names, and the answer comes back in a fraction of a millisecond. Before any fix, here's what's really happening.
+    items:
+      - What one keystroke sets off
+      - The numbers, by table size
+      - "My test: every result"
+      - The Bloom filter story
+      - A username that stole an account
+
+  - kind: flowchart
+    title: What one keystroke sets off
+    lead: "Nothing here is exotic. Six small steps, and the hard one is the fourth."
+    nodes:
+      - {head: "You type a letter", body: "The page waits for a pause, then asks. If it asks on every key, a slow old answer can land last. Page 41."}
+      - {head: "A request reaches a server", body: "`GET /check?name=alice`. Anyone can call this, as often as they like, unless you stop them. Page 45."}
+      - {head: "The name is cleaned", body: "Is `Alice` the same as `alice`? Is a Cyrillic `а` the same as a Latin `a`? Decide before you look. Page 47."}
+      - {head: "The database finds it", body: "One name among a billion, by opening a few pages of an index. Part 2 is about this step."}
+      - {head: "The answer comes back", body: "A red cross, or a green tick. The tick is only true for this instant."}
+      - {head: "You tap Sign up", body: "Only now does anything get decided, and the unique index decides it. Page 40.", tone: ok}
+
+  - kind: table
+    title: The numbers, by table size
+    lead: "One check for one name, on real tables, measured from Go through a real connection, three runs. With the index: 1,000 checks, half of them taken names. Without it: a name that isn't there, so every row is read."
+    columns: [NAMES, PAGES, WITH INDEX, NO INDEX]
+    widths: "1fr 12mm 24mm 24mm"
+    rows:
+      - ["1,000", "2", {t: "0.13-0.16 ms", tone: ok}, "0.2-0.3 ms"]
+      - ["10,000", "2", {t: "0.13-0.18 ms", tone: ok}, "1.0-1.3 ms"]
+      - ["100,000", "3", {t: "0.17-0.18 ms", tone: ok}, "10-11 ms"]
+      - ["1,000,000", "3", {t: "0.19-0.43 ms", tone: ok}, "124-142 ms"]
+      - ["10,000,000", "3", {t: "0.23-0.29 ms", tone: ok}, {t: "0.7-0.8 s", tone: bad}]
+      - [{t: "1,000,000,000", tone: wait}, {t: "4", tone: wait}, {t: "estimate", tone: wait}, {t: "about 80 s", tone: wait}]
+    after:
+      - p: "Read down the two right-hand columns. **A table 10,000 times bigger cost the index about a tenth of a millisecond.** Without the index the time grows with the table, exactly as you'd fear."
+      - callout: "I didn't have the disk for a real billion rows, so the last line is an estimate: the depth comes from this index's own measured shape (page 12), and the 80 s is simply 100 times the 0.8 s. Nothing else in this guide is an estimate unless it says so."
+        label: BE STRAIGHT ABOUT IT
+        tone: wait
+
+  - kind: numbers
+    title: "My test: every result"
+    lead: "Real Go, and a real Postgres 16. 1,000 tries per case unless noted, three runs each; where results varied, the range is shown. **Lower is better.**"
+    rows:
+      - ["3", "Pages opened to find a name among 10 million"]
+      - ["~3.5 s", "`lower(username) = lower($1)` with only a plain index (3.3 to 3.9 s)"]
+      - [1000, "Taken names said to be free when one `lower()` was forgotten"]
+      - [1000, "`Alice` and `alice` both accepted by plain `UNIQUE`"]
+      - [1000, "Names signed up twice: look first, then insert, no unique rule"]
+      - [0, "Names signed up twice, with a unique index"]
+      - ["1.00%", "False positives: a real billion names in 1.2 GB (0.995% to 0.998%)"]
+      - [0, "Times a Bloom filter called a name free after being given it"]
+      - [1000, "Server B said \"free\" about a name server A had just signed up"]
+      - [1000, "Accounts taken over by Spotify's bug, rebuilt in miniature"]
+    after:
+      - p: "The other cases, in the pages ahead: building an index on a live table, hash indexes, deleted users, keystrokes, scraping, partitions and lookalike letters. To run any of them: `go run . -mode=scale`, with the list of modes at the top of `main.go`."
+
+  - kind: text
+    title: The Bloom filter story
+    blocks:
+      - p: "Search for how big sites check usernames and you'll read the same thing many times: Instagram or Google checks a Bloom filter. It's a good story, and a Bloom filter is a lovely idea (Part 4 builds one)."
+      - p: "**I looked for a primary source: an engineering post, a talk or a paper in which one of those companies says so. I didn't find one.** What I found were blog posts repeating each other, some of them saying plainly that they're assuming it."
+      - p: "That doesn't mean nobody does it. It means the claim is unproven, and you shouldn't repeat it in an interview as fact."
+      - callout: "A plain unique index answered in 0.2 ms on my laptop. A Bloom filter doesn't replace that index, because a filter can only say \"certainly not\" or \"maybe\". It can save the database a lot of work, if most names being checked are free. Page 32 has the numbers."
+        label: MY VIEW
+        tone: ok
+      - p: "What's documented is Bloom filters inside databases: Apache Cassandra's docs describe using one to skip files that can't hold a row. That's the job they were made for: avoiding an expensive look."
+
+  - kind: timeline
+    title: A username that stole an account
+    lead: "Spotify's engineers wrote this up themselves in June 2013, about an attack \"some years\" earlier. `bigbird` is the example they use, not the account attacked."
+    lanes: [ATTACKER, SPOTIFY]
+    state: ACCOUNT
+    events:
+      - {who: 0, text: "Signs up as `ᴮᴵᴳᴮᴵᴿᴰ`, in tiny capitals", state: "new"}
+      - {who: 1, text: "Cleans the name once: `BIGBIRD`. It doesn't clash with `bigbird`, so it's allowed", tone: wait}
+      - {who: 0, text: "Asks for a password reset for that new account"}
+      - {who: 1, text: "Finds the attacker's account, and emails the attacker a link", tone: wait}
+      - {who: 0, text: "Clicks the link and types a new password"}
+      - {who: 1, text: "Cleans the name **again**: `bigbird`. The new password goes on someone else's account", tone: bad, state: "stolen"}
+    after:
+      - p: "Their words: they were relying on the function being idempotent, \"and it wasn't\". They found a handful of compromised accounts, and a forum manager's account had been hijacked within minutes of the flaw being posted."
+      - callout: "Cleaning a name twice must give the same answer as cleaning it once. I rebuilt this in Go on page 47: 1,000 of 1,000 accounts taken."
+        label: THE LESSON
+        tone: bad
+
+  # ---------------------------------------------------------------- part 2
+  - kind: part
+    n: "2"
+    title: The index
+    lead: How one name is found among millions by opening 3 pages. This is the idea behind almost every fast database lookup you'll ever write.
+    items:
+      - What a page is
+      - A tree of pages, by hand
+      - One real route through a real index
+      - Why a billion is only 4 deep
+      - What each answer really reads
+      - The first check of the day
+      - Could a hash index do it?
+      - What the index costs you
+
+  - kind: text
+    title: What a page is
+    lead: "Databases don't read rows. They read pages: fixed blocks of 8 kB in Postgres. Everything below is counted in pages, because that's what costs time."
+    blocks:
+      - p: "My `users` table has 10 million rows of `id` and `username`. Here's what that is on disk:"
+      - code: |
+          table                 498 MB    about 63,700 pages
+          index on username     301 MB    about 38,500 pages
+          in one leaf page      262 names on average
+          in one branch page    204 ranges on average
+      - p: "With no index, Postgres must read all 63,700 table pages to prove a name isn't there. It's why the check took almost a second, even with parallel workers sharing the job."
+      - callout: "Postgres's docs say over 99% of an index's pages are typically leaf pages. Mine: 38,315 leaves, 189 branches and 1 root. The branches are tiny, and they're what make it fast."
+        label: REAL NUMBERS
+        tone: ok
+
+  - kind: flowchart
+    title: A tree of pages, by hand
+    lead: "Think of a dictionary, if each page told you exactly which page to open next. Suppose you're looking for `kiran`."
+    nodes:
+      - {head: "Sort every name, and fill pages with them", body: "Those are the **leaf** pages: sorted names, each pointing at its row. Sorted is what makes the rest possible."}
+      - {head: "Above them, a page of ranges", body: "Each line says \"from this name on, go to that page\": `a → page 7`, `h → page 12`, `m → page 31`. That's a **branch** page."}
+      - {head: "Above those, one page", body: "The **root**, which does the same job for the branches. There's always exactly one."}
+      - {head: "Now find kiran", body: "Root: `k` falls in `h…m`, so open that branch. Branch: `ki` falls in `kh…kl`, so open that leaf."}
+      - {head: "Search inside the page", body: "A page is sorted too, so a binary search takes about 8 comparisons, not 262."}
+      - {head: "Found, or provably not", body: "If `kiran` isn't on that page, it isn't anywhere. That's why a free name is answered as fast as a taken one.", tone: ok}
+    after:
+      - p: "It's called a B-tree. Rudolf Bayer and Ed McCreight published it in 1972, and it has been the default database index ever since."
+
+  - kind: text
+    title: One real route
+    lead: "These are the actual pages Postgres used, read straight out of my index with its `pageinspect` extension. Finding one name among 10 million:"
+    blocks:
+      - svg: samples/tree.svg
+      - p: "Each step is a choice between neighbours: `migejojorile9` comes after `mevifotebara3` and before `migotilavaref`, so take that range."
+      - p: "And the plan Postgres reports for a name that isn't there:"
+      - code: |
+          Index Only Scan using users_username_key on users
+          Buffers: shared hit=3
+      - p: "`shared hit=3` means 3 pages, all found in memory. Add `EXPLAIN (ANALYZE, BUFFERS)` to any query and you get that line. It's the most useful habit in this guide."
+
+  - kind: table
+    title: Why a billion is only 4 deep
+    lead: "Each level multiplies. With 262 names on a leaf and 204 ranges on a branch (my index's own averages), here's what each depth can hold:"
+    columns: [PAGES DEEP, HOW MANY NAMES IT CAN REACH, WHO FITS]
+    widths: "16mm 1fr 34mm"
+    rows:
+      - ["1", "262", "A tiny table"]
+      - ["2", "262 × 204 = 53,448", "1,000 and 10,000 (measured)"]
+      - [{t: "3", tone: ok}, {t: "× 204 = 10.9 million", tone: ok}, {t: "100,000 to 10 million (measured)", tone: ok}]
+      - [{t: "4", tone: wait}, {t: "× 204 = 2.2 billion", tone: wait}, {t: "A billion (my estimate)", tone: wait}]
+      - ["5", "× 204 = 454 billion", "Beyond any website"]
+    after:
+      - callout: "Going from 10 million names to a billion, 100 times more, adds **one page**. That's the whole trick. The cost grows with the logarithm of the size, and the base is about 200."
+        label: THE TRICK
+        tone: ok
+      - p: "Longer names mean fewer on a page, so a tree of very long keys is a little deeper. This is why you shouldn't index a 2,000-character column just because you can."
+
+  - kind: table
+    title: What each answer really reads
+    lead: "\"Three pages\" is the index alone. Depending on what you ask, there may be one more. All measured with `EXPLAIN (ANALYZE, BUFFERS)`, on 10 million names:"
+    columns: [THE QUESTION, PAGES, WHY]
+    widths: "1fr 12mm 36mm"
+    rows:
+      - ["A free name: `SELECT 1 ... WHERE username = $1`", {t: "3", tone: ok}, "Index only. It isn't there, so we're done"]
+      - ["A taken name, same query", {t: "4", tone: ok}, "3, plus a page of the visibility map"]
+      - ["A taken name: `SELECT id ...`", {t: "4", tone: wait}, "3, plus the table page holding the row"]
+    after:
+      - p: "An **index-only scan** answers from the index, without visiting the table. It only needs to know the row is visible to everyone, and Postgres keeps that in a separate, tiny file called the visibility map. Its docs say the map is four orders of magnitude smaller than the table."
+      - p: "So ask for `SELECT 1` when all you want to know is whether something exists. And run `VACUUM`, or the map goes stale and every check has to visit the table after all."
+      - callout: "With the billion-name estimate, that makes 4 pages for a free name and 5 for a taken one. The video's \"4 pages\" means the index itself."
+        label: TO BE EXACT
+        tone: wait
+
+  - kind: text
+    title: The first check of the day
+    lead: "Those times assume the pages are already in memory, and in a busy system the branches always are, because every lookup uses them. I restarted Postgres and asked again, three times:"
+    blocks:
+      - code: |
+          first check:  Index Only Scan   shared read=4
+          same again:   Index Only Scan   shared hit=4
+          next 1,000:   average 0.14 to 0.41 ms
+      - p: "`read` means the page wasn't in Postgres's own memory. Windows most likely still had the file in its own cache, so it was quick. On a truly cold machine each `read` is a trip to disk, so the first few requests are slower."
+      - bullets:
+          - "The root and branches are few, so they stay cached. Only the leaf is ever likely to need a disk read."
+          - "So on a table in constant use, a lookup usually needs one disk read at most, for the leaf."
+          - "`pg_prewarm` can load an index into memory on purpose, for example after a restart."
+
+  - kind: table
+    title: Could a hash index do it?
+    lead: "A hash jumps straight to a name, without a tree. It sounds perfect for one exact name. I built one on the same 10 million names:"
+    columns: ["", B-TREE, HASH]
+    widths: "1fr 30mm 30mm"
+    rows:
+      - ["One check, on average", "0.14-0.19 ms", "0.15-0.19 ms"]
+      - ["Pages read", "3 to 4", "2"]
+      - ["Index size", "301 MB", "256 MB"]
+      - ["`CREATE UNIQUE INDEX`", {t: "Works", tone: ok}, {t: "Refused", tone: bad}]
+      - ["Sorted ranges, prefixes", {t: "Yes", tone: ok}, {t: "No: a full scan", tone: bad}]
+    after:
+      - p: "Postgres's answer is one line: **\"access method \"hash\" does not support unique indexes\"**, and its docs say that only B-tree indexes can be declared unique."
+      - callout: "Since you must have the unique index anyway to stop duplicates, it already answers the check. Don't add a second index to answer the same question. On a B-tree, the unique rule and the fast lookup are one thing."
+        label: ONE INDEX, TWO JOBS
+        tone: ok
+
+  - kind: table
+    title: What the index costs you
+    lead: "Nothing's free. Every insert must also find its place in every index. 20,000 inserts, one commit each, on a table of 1 million names:"
+    columns: [INDEXES, INSERTS A SECOND, EACH]
+    widths: "1fr 26mm 24mm"
+    rows:
+      - ["None", "3,700-4,600", "0.22-0.27 ms"]
+      - ["`UNIQUE (username)`", "3,100-4,000", "0.25-0.33 ms"]
+      - ["Plus `UNIQUE (lower(username))`", "3,500-3,700", "0.27-0.29 ms"]
+    after:
+      - p: "Small enough to overlap between runs: each commit's flush to disk costs more than the index does, and signups are rare compared with checks. But an index you don't use is a cost for nothing, on every write, forever."
+      - p: "Postgres's docs put it this way: an index on an expression is \"useful when retrieval speed is more important than insertion and update speed\"."
+
+  # ---------------------------------------------------------------- part 3
+  - kind: part
+    n: "3"
+    title: One word
+    lead: The index is only used if your query asks for exactly what it holds. One function call, and 0.2 ms becomes 3 seconds, with no error and no warning.
+    items:
+      - The query that stopped being fast
+      - 9 ways of asking, measured
+      - Index what you ask for
+      - Building that index on a live table
+      - One lower() forgotten
+      - Alice and alice, under four rules
+      - When duplicates already exist
+      - How to catch this before your users do
+
+  - kind: code
+    title: The query that stopped being fast
+    lead: "Someone gets a bug report: `Alice` could sign up although `alice` exists. The fix looks obvious, and it does fix the bug."
+    from: samples/go/lookup.go
+    lines: [323, 323]
+    notes:
+      - [323, "correct, and over 10,000 times slower without its own index"]
+    after:
+      - code: |
+          before:  Index Only Scan     0.17 to 0.25 ms
+          after:   Parallel Seq Scan   3.3 to 3.9 s   read every name
+      - p: "It passes every test, because test tables have 50 rows. It reaches production, and now each check costs over three seconds of several CPU cores. A handful of people typing at once can use up a small database."
+      - callout: "**Why:** the index stores `username`, in order. It has no idea what `lower(username)` is for any row, except by working it out, row by row."
+        label: THE REASON
+        tone: bad
+
+  - kind: table
+    title: 9 ways of asking, measured
+    lead: "All on the same 10 million names with the same plain index, 10 tries each. Only the `WHERE` differs. Every slow one read the whole table."
+    columns: ["WHERE ...", TIME, "INDEX?"]
+    widths: "1fr 24mm 12mm"
+    rows:
+      - ["`username = $1`", {t: "0.17-0.25 ms", tone: ok}, {t: "Yes", tone: ok}]
+      - ["`username::varchar = $1`", {t: "0.18-0.23 ms", tone: ok}, {t: "Yes", tone: ok}]
+      - ["`username = $1 COLLATE \"C\"`", {t: "0.6-0.7 s", tone: bad}, {t: "No", tone: bad}]
+      - ["`username LIKE 'miga%'`", {t: "0.7 s", tone: bad}, {t: "No", tone: bad}]
+      - ["`username || '' = $1`", {t: "0.8-0.9 s", tone: bad}, {t: "No", tone: bad}]
+      - ["`trim(username) = $1`", {t: "1.4-1.6 s", tone: bad}, {t: "No", tone: bad}]
+      - ["`lower(username) = lower($1)`", {t: "3.3-3.9 s", tone: bad}, {t: "No", tone: bad}]
+      - ["`upper(username) = upper($1)`", {t: "3.3-4.0 s", tone: bad}, {t: "No", tone: bad}]
+      - ["`username ILIKE $1`", {t: "5.5-6.6 s", tone: bad}, {t: "No", tone: bad}]
+    after:
+      - p: "Two surprises. A prefix `LIKE` doesn't use a normal index unless the database uses the `C` locale. An index with `text_pattern_ops` fixes that: I tried it, and `LIKE 'miga%'` became an Index Only Scan. And a different collation means a different sort order, which makes the index useless, even though the letters are the same."
+      - p: "A cast to `varchar` is fine, because Postgres knows it changes nothing. **The rule: if the left side isn't exactly what was indexed, assume the index is gone, and check.**"
+
+  - kind: code
+    title: Index what you ask for
+    lead: "An index doesn't have to be on a column. It can be on the result of an expression, worked out once per row and kept in order."
+    from: samples/go/lookup.go
+    lines: [317, 318]
+    notes:
+      - [318, "the index now holds lower(username), in order"]
+    after:
+      - code: |
+          lower() with its own index:
+            Index Scan using users_lower_key
+            Buffers: shared hit=4
+            average 0.17 to 0.20 ms, names typed in capitals
+      - p: "Back to 0.2 ms. And because it's `UNIQUE`, `Alice` and `alice` can't both exist either. One index fixes the bug and the speed."
+      - p: "The docs say index expressions are not worked out again during a search, since they're already stored in the index. You pay when a row is written."
+      - callout: "With this index in place, the plain index on `username` may be doing nothing. If nothing uses it, drop it, and stop paying for it on every write."
+        label: TIDY UP
+        tone: wait
+
+  - kind: table
+    title: Building that index on a live table
+    lead: "The bug is in production, on a live table. 4 writers inserting all the time, 10 million names, one build each way, three runs:"
+    columns: ["", PLAIN, CONCURRENTLY]
+    widths: "1fr 28mm 28mm"
+    rows:
+      - ["The build took", "16-19 s", "18-21 s"]
+      - ["Longest wait for a write", {t: "16-19 s", tone: bad}, {t: "35-90 ms", tone: ok}]
+      - ["Writes that got through", "~365", "3,800-4,300"]
+      - ["Writes that failed", "0", "0"]
+    after:
+      - from: samples/go/lookup.go
+        lines: [319, 320]
+      - p: "A plain `CREATE INDEX` blocks every write for the whole build; reads carry on. `CONCURRENTLY` takes a little longer, and writers barely notice. **On a live table, always use it.** A real app times out after a few seconds, so that plain build would have been a wall of errors."
+      - p: "Two things to know: it can't run inside a transaction, and if it fails it leaves an `INVALID` index behind. Next pages."
+
+  - kind: text
+    title: One lower() forgotten
+    lead: "This one is worse than slow. The index is on `lower(username)`, and the query forgets to lower what the user typed:"
+    blocks:
+      - code: |
+          SELECT EXISTS (SELECT 1 FROM users
+                         WHERE lower(username) = $1)
+      - p: "It uses the index, and it's fast. And I typed 1,000 taken names in capitals: **1,000 of 1,000 came back \"free\"**."
+      - p: "`lower(username)` holds `alice`, and you've asked for `ALICE`. There's no such thing in the index."
+      - callout: "Wrong and fast is the hardest kind of bug to notice. Keep the cleaning in one function, call it on the way in, and use the same one everywhere. The unique index still refuses the signup, so nothing is corrupted, but the user sees a green tick and then an error."
+        label: FAST AND WRONG
+        tone: bad
+
+  - kind: table
+    title: Alice and alice, under four rules
+    lead: "1,000 names, each signed up twice: once as `alice`, once as `Alice`. Which rules stop the second one?"
+    columns: [RULE, BOTH GOT IN, THE CATCH]
+    widths: "28mm 16mm 1fr"
+    rows:
+      - ["`UNIQUE (username)`", {t: "1,000", tone: bad}, "It compares the exact letters"]
+      - ["`UNIQUE (lower(username))`", {t: "0", tone: ok}, "Every query must say `lower()`"]
+      - ["`CITEXT` column", {t: "0", tone: ok}, "An extension. Docs recommend the next row instead"]
+      - ["ICU collation that ignores case", {t: "0", tone: ok}, "`LIKE` refused on my Postgres 16; docs warn it's slower"]
+    after:
+      - p: "All three fixes work. **I'd use `lower()`**: it's plain SQL, and easy to see in a query. Or store a separate cleaned key column, and put the unique index on that (page 49 says what \"cleaned\" must mean)."
+      - code: |
+          CREATE COLLATION ignore_case (provider = icu,
+            locale = 'und-u-ks-level2', deterministic = false)
+        lang: sql
+      - p: "That's how you make the ICU collation. On Postgres 16, `LIKE` on it fails with: \"nondeterministic collations are not supported for LIKE\", so check your version. The docs warn of a performance penalty, and that B-tree deduplication is off."
+
+  - kind: code
+    title: When duplicates already exist
+    lead: "Real tables are never clean. I added 1,000 capitalised copies of existing names to a table, then tried to build the index:"
+    from: samples/go/claim.go
+    lines: [77, 80]
+    notes:
+      - [79, "finds every name held twice; mine found 1,000"]
+    after:
+      - code: |
+          build:  could not create unique index "old_lower"
+          left behind: valid = false
+      - p: "A failed `CONCURRENTLY` build leaves an **invalid** index. It isn't used for reads, but the docs warn that it still costs on every write, and can still enforce uniqueness. Drop it."
+      - bullets:
+          - "Run the query above, and see how big the problem is."
+          - "Decide who keeps each name. Usually the oldest account, or the one last active. This is a product decision, and it needs someone's name on it."
+          - "Rename the others, and tell those users. Never just delete them."
+          - "`DROP INDEX` the invalid one, and build again. Mine succeeded after the clean-up."
+
+  - kind: text
+    title: How to catch this before your users do
+    lead: "Every slow query in this part looked fine and passed its tests. These catch them."
+    blocks:
+      - h: "Test on a big table"
+      - p: "On 50 rows, Postgres uses a sequential scan anyway, and it's instant. Load a few million rows into staging. Copying 10 million took me about 30 seconds."
+      - h: "Read the plan"
+      - code: |
+          EXPLAIN (ANALYZE, BUFFERS) SELECT 1 FROM users
+           WHERE lower(username) = lower('alice');
+      - bullets:
+          - "`Seq Scan` on a big table: an alarm."
+          - "`Index Scan` or `Index Only Scan`: what you want."
+          - "`shared hit` plus `read` in the thousands: too many pages."
+      - h: "Look at what's already running"
+      - p: "`pg_stat_user_tables` counts `seq_scan` and `idx_scan` per table. A big table with a climbing `seq_scan` is a query you should go and find. Mine showed 1,283 of them after these tests."
+
+  # ---------------------------------------------------------------- part 4
+  - kind: part
+    n: "4"
+    title: The Bloom filter
+    lead: A row of bits that can tell you a name is certainly not there, in a fraction of a microsecond, using 1.2 bytes per name. And what it can't do, tested.
+    items:
+      - A Bloom filter, by hand
+      - The whole thing in Go
+      - How big, how wrong
+      - A real billion names
+      - Filled past its size
+      - What it really saves
+      - Two servers, a filter each
+      - It can't forget
+      - Should you add one?
+
+  - kind: flowchart
+    title: A Bloom filter, by hand
+    lead: "Burton Bloom, 1970. Take a row of 16 bits, all off, and use 3 hash functions: each turns a name into a position in the row."
+    nodes:
+      - {head: "Add alice", body: "The hashes say 2, 7 and 11. Turn those bits on. `0010 0001 0001 0000`. The name itself is thrown away."}
+      - {head: "Add bob", body: "The hashes say 4, 7 and 13. Bit 7 is already on. `0010 1001 0001 0100`."}
+      - {head: "Is carol there?", body: "Her hashes say 2, 5 and 11. Bit 5 is off. If she'd been added it would be on, so she **certainly wasn't**. No database needed.", tone: ok}
+      - {head: "Is dave there?", body: "His hashes say 2, 4 and 13. All on, set by alice and bob. So the filter says \"maybe\", and it's **wrong**: a false positive.", tone: bad}
+    after:
+      - svg: samples/bits.svg
+      - callout: "It can never say \"no\" about a name it was given, because those bits were turned on and stay on. So a \"no\" is final, and only a \"maybe\" needs to ask the database."
+        label: THE PROMISE
+        tone: ok
+
+  - kind: code
+    title: The whole thing in Go
+    lead: "This is the code behind every number in this part. Instead of computing 7 hashes, it computes 2 and combines them, a trick from a 2006 paper by Kirsch and Mitzenmacher."
+    from: samples/go/bloom.go
+    lines: [31, 50]
+    notes:
+      - [36, "each name turns on k bits"]
+      - [46, "any bit off means certainly not added"]
+      - [49, "all on, but maybe by other names"]
+    after:
+      - p: "Add a struct holding the bits and two seeds, and that's all of it. It's lines 10 to 29 of `bloom.go`. No name is ever stored, which is why it's so small, and why it can't list what's in it."
+
+  - kind: table
+    title: How big, how wrong
+    lead: "10 million names, then 2 million names it has never seen. You choose the bits per name; the number of hashes follows. The maths predicts the error: `(1 − e^(−kn/m))^k`."
+    columns: [BITS A NAME, HASHES, MEMORY, PREDICTED, MEASURED]
+    widths: "14mm 13mm 14mm 16mm 1fr"
+    rows:
+      - ["4.8", "3", "6 MB", "10.04%", "10.02-10.09%"]
+      - [{t: "9.6", tone: ok}, {t: "7", tone: ok}, {t: "12 MB", tone: ok}, {t: "0.997%", tone: ok}, {t: "0.986-0.991%", tone: ok}]
+      - ["14.4", "10", "18 MB", "0.099%", "0.099-0.101%"]
+      - ["19.2", "13", "24 MB", "0.0099%", "0.0089-0.0102%"]
+    after:
+      - callout: "**The rule of thumb:** about 10 bits a name gives about 1% wrong, and each extra 5 bits divides that by 10. And across all 10 million names it had been given, it never once said \"no\"."
+        label: EASY TO REMEMBER
+        tone: ok
+      - p: "`n` is the names added, `m` the bits, `k` the hashes. A check took 190 to 270 ns, including making up the test name."
+
+  - kind: text
+    title: A real billion names
+    lead: "This one isn't an estimate. I loaded 1,000,000,000 different names into one filter, on my laptop, three times."
+    blocks:
+      - code: |
+          1000000000 names in 1.20 GB, in 130 to 160 s
+          predicted 0.9965%, measured 0.995% to 0.998%
+            over 10,000,000 names it had never seen
+          said free about a name it was given:
+            0 of 10,000,000 checked (every 100th name)
+      - p: "**1.2 GB. That's 1.2 bytes per name**, whatever the name's length. Those same names in a Go map would need around 60 GB, by multiplying up what I measured on page 35. A filter this size fits in a small server's memory."
+      - callout: "The price: about 1 name in 100 gets a false \"maybe\", and it can't tell you anything about a name but yes or no. It's a very good first question, and never the last."
+        label: THE TRADE
+        tone: ok
+
+  - kind: table
+    title: Filled past its size
+    lead: "A filter is sized for a number of names, and doesn't grow. I sized one for 1 million names (1.2 MB), and kept going."
+    columns: [NAMES ADDED, OF THE PLAN, PREDICTED, MEASURED]
+    widths: "1fr 18mm 18mm 26mm"
+    rows:
+      - ["500,000", "half", {t: "0.02%", tone: ok}, {t: "0.03%", tone: ok}]
+      - ["1,000,000", "as planned", {t: "1.00%", tone: ok}, {t: "0.99-1.01%", tone: ok}]
+      - ["2,000,000", "2×", {t: "15.67%", tone: wait}, {t: "15.68-15.76%", tone: wait}]
+      - ["5,000,000", "5×", {t: "83.10%", tone: bad}, {t: "83.04-83.07%", tone: bad}]
+      - ["10,000,000", "10×", {t: "99.52%", tone: bad}, {t: "99.51-99.54%", tone: bad}]
+    after:
+      - p: "Twice the plan isn't twice as bad. It's **15 times** as bad. Past that, it says \"maybe\" to almost anything and saves nothing, though it's still never wrong about a \"no\"."
+      - callout: "Size it for what you'll have in a year, and alert when you reach 80% of it. To grow, you must rebuild from the table, because names were never stored. Mine rebuilt 10 million names from Postgres in under 6 seconds."
+        label: IN PRACTICE
+        tone: wait
+
+  - kind: code
+    title: What it really saves
+    lead: "Now put it in front of the real table. The database only hears the maybes."
+    from: samples/go/filter.go
+    lines: [98, 110]
+    notes:
+      - [100, "certainly free: no query at all"]
+    after:
+      - h: "1,000 checks, 10 million names, filter of 12 MB"
+      - code: |
+          what people type   queries   wrong    average
+          all free             6-9      0       0.01 ms
+          half free          504-506    0       0.07-0.08 ms
+          all taken            1000     0       0.13-0.14 ms
+          no filter at all     1000     0       0.11-0.17 ms
+      - p: "So it's a saver for free names, and costs a little for taken ones. **If most names your users type are already taken**, such as first names, the filter hardly helps."
+      - callout: "0.13 ms against 0.01 ms isn't something a person can feel. The filter doesn't make the tick faster for anyone. What it saves is **database load**, when you have so many checks that this matters, or when each lookup costs far more than mine (a remote shard, say)."
+        label: THE HONEST VERSION
+        tone: ok
+
+  - kind: table
+    title: Two servers, a filter each
+    lead: "\"It's never wrong about a no\" has a condition: it must have been told about every name. Give each of two servers its own filter, sign a name up on server A, and ask server B."
+    columns: [SETUP, B SAID FREE, UNIQUE INDEX REFUSED]
+    widths: "1fr 24mm 26mm"
+    rows:
+      - ["Each keeps its own", {t: "1,000 of 1,000", tone: bad}, {t: "1,000", tone: ok}]
+      - ["Every signup told to both", {t: "0", tone: ok}, "0"]
+    after:
+      - p: "Server B had never heard of the name, so its bits were off, so it said \"certainly free\". **1,000 wrong answers**, and all 1,000 were stopped at the end by the unique index."
+      - bullets:
+          - "Keep one shared filter, on a service every server calls. Then you've added a network hop to save one."
+          - "Or tell every server about every signup, and accept a short delay, during which \"no\" can be wrong."
+          - "Either way, **the unique index is still the truth**. The filter is only ever an optimisation."
+
+  - kind: table
+    title: It can't forget
+    lead: "Someone deletes their account. Can you take the name out? Bits are shared, so turning off one name's bits breaks the others. I tried: 1 million names, then cleared the bits of 1,000 of them."
+    columns: ["", REAL NAMES CALLED FREE]
+    widths: "1fr 40mm"
+    rows:
+      - ["Before", {t: "0", tone: ok}]
+      - ["After clearing 1,000 names", {t: "~5,100 of 999,000", tone: bad}]
+      - ["If you leave the bits alone", {t: "0", tone: ok}]
+    after:
+      - p: "**Each name you remove wrongly frees about five others.** That's the one promise a filter makes, broken."
+      - p: "Leave the bits alone instead. All 1,000 deleted names still got \"maybe\", and all 1,000 then got \"free\" from the database: the right answer, and just one extra query each."
+      - callout: "Rebuild from the table on a schedule to clear out the dead. A counting Bloom filter can delete, by keeping a small counter in place of each bit, but it costs several times the memory. Few systems need it."
+        label: WHAT TO DO
+        tone: wait
+
+  - kind: table
+    title: A filter, or every name?
+    lead: "If speed's the point, why not keep every name in memory? 10 million names, measured, three runs:"
+    columns: ["", MEMORY, BYTES A NAME, "CAN BE WRONG?"]
+    widths: "1fr 18mm 18mm 26mm"
+    rows:
+      - ["Go `map[string]struct{}`", "607 MB", "61", {t: "No", tone: ok}]
+      - ["Postgres unique index", "301 MB", "30", {t: "No", tone: ok}]
+      - [{t: "Bloom filter, 1%", tone: ok}, {t: "12 MB", tone: ok}, {t: "1.2", tone: ok}, {t: "1 in 100 maybes", tone: wait}]
+    after:
+      - p: "At a billion names, by simple multiplication: about 61 GB for the map and about 30 GB for the index. The filter's 1.2 GB is measured."
+      - p: "A map check took about 310 ns against the filter's 235 ns, and it's always right. So if the names fit in memory, a plain set is simpler, and you won't need to explain false positives to anyone."
+
+  - kind: decide
+    title: Should you add one?
+    lead: "My recommendation: start with the unique index alone, and add a filter when you can point at the number that needs it."
+    rows:
+      - {if: "One database, under a few thousand checks a second", use: "Unique index only", why: "It's 0.2 ms, always right, and you need it anyway. Mine answered 3,000 to 5,000 checks a second over a single connection."}
+      - {if: "Most checks are for free names, and they hammer the database", use: "Add a filter", why: "1,000 free-name checks cost under 10 queries, not 1,000. Keep it sized, and rebuild it on a schedule."}
+      - {if: "Each lookup costs a lot: a remote shard, or disk seeks", use: "Add a filter", why: "It's what they're for. Cassandra uses them to skip files that can't hold a row."}
+      - {if: "Most names people type are taken", use: "Cache instead", why: "A filter says \"maybe\" to all of them. A short cache of recent answers helps popular names, where a filter can't."}
+      - {if: "You have to be right", use: "Unique index", why: "Always the last word, with or without anything in front of it."}
+
+  # ---------------------------------------------------------------- part 5
+  - kind: part
+    n: "5"
+    title: The signup
+    lead: Finding a name fast is the easy half. The green tick can lie, every keystroke asks, deleted users keep their names, and a lookalike letter can steal an account.
+    items:
+      - Two signups, one name
+      - Let the index decide
+      - Every keystroke asks
+      - "\"Taken. Try one of these\""
+      - Deleted users, and old names
+      - The check is an open door
+      - At a billion rows
+      - Names that lie
+      - The rule for a username
+
+  - kind: timeline
+    title: Two signups, one name
+    lead: "The green tick is true when it's sent, and nothing holds the name after that. This is the same race as the last seat in guide #1."
+    lanes: [YOU, SOMEONE ELSE]
+    state: IN THE TABLE
+    events:
+      - {who: 0, text: "Type `alice_7`. Green tick", state: "nothing"}
+      - {who: 1, text: "Type `alice_7`. Green tick too: it's still free"}
+      - {who: 0, text: "Tap Sign up: the server looks again. Still free"}
+      - {who: 1, text: "Tap Sign up: the server looks again. Still free", tone: wait}
+      - {who: 0, text: "`INSERT`", state: "1 row"}
+      - {who: 1, text: "`INSERT`", tone: bad, state: "2 rows"}
+    after:
+      - p: "Looking twice doesn't help, because between any look and any write, someone else can get in. I ran it with two connections, at the same moment, for 1,000 names:"
+      - code: |
+          look, then insert, no unique rule:
+            1000 of 1000 names signed up twice
+
+  - kind: code
+    title: The way most of us write it first
+    lead: "It reads well, and it passes every test with one user."
+    from: samples/go/claim.go
+    lines: [92, 98]
+    notes:
+      - [93, "look first: both people see free"]
+      - [96, "then write: nothing stops the second"]
+    after:
+      - p: "That's 1,000 of 1,000, and it isn't a matter of bad luck. Both looks finish before either write."
+
+  - kind: code
+    title: Let the index decide
+    lead: "Skip the look. One statement tries to claim the name, and the unique index says who got it."
+    from: samples/go/claim.go
+    lines: [87, 89]
+    after:
+      - from: samples/go/claim.go
+        lines: [101, 110]
+      - code: |
+          one INSERT, unique rule:
+            0 of 1000 names signed up twice, 1000 rows
+          both saw a green tick, one tapped first:
+            1000 of 1000 second taps refused
+      - callout: "Keep the check for the tick, because it's nice for the person typing. But treat a refused `INSERT` as a normal outcome: show \"Sorry, someone just took that\", and put them back on the form."
+        label: WHAT TO BUILD
+        tone: ok
+      - p: "`ON CONFLICT` needs to name what it's watching, and it has to match the index: `lower(username)`. Plain `INSERT` gives you error `23505` for the same thing; both work."
+
+  - kind: code
+    title: Every keystroke asks
+    lead: "Someone types `stacknova` at 120 ms a key, pausing now and then. Replies take 20 to 400 ms. Every shorter name is taken, the whole name is free, and whichever reply lands last stays on screen. Real timers and real HTTP, 1,000 people."
+    from: samples/typing.mjs
+    lines: [47, 62]
+    lang: js
+    notes:
+      - [52, "the old question is cancelled, so its answer can't land"]
+      - [55, "no tick while the text hasn't been checked"]
+      - [59, "wait for a pause in the typing"]
+    after:
+      - code: |
+          every key           9.0 requests a name, 186-196 wrong
+          debounce only       3.0 requests a name, 0-1 wrong
+          debounce + cancel   3.0 requests a name, 0 wrong
+      - p: "\"Wrong\" means the person finished typing a free name and the screen said **taken**: nearly 1 in 5 with no pause. Waiting for a pause does most of the work, and cuts requests to a third."
+      - p: "It doesn't close the gap, though: 1 wrong in 3,000 here, and it needs only a reply slower than the pause. Cancelling closes it, and it also hides the old tick while the text is unchecked."
+
+  - kind: code
+    title: "\"Taken. Try one of these\""
+    lead: "Most signup forms offer free names when yours is gone. Don't ask about them one by one."
+    from: samples/go/claim.go
+    lines: [221, 224]
+    after:
+      - code: |
+          one query, 5 names:   0.26 to 0.31 ms
+          five queries:         0.54 to 0.60 ms
+      - p: "One round trip, and the index is used once per name. Try a few at a time, and generate more only if none are free."
+
+  - kind: code
+    title: Deleted users keep their names
+    lead: "With soft delete, the row stays, so a unique index keeps the name forever. If you want names to come back, index only the live rows:"
+    from: samples/go/claim.go
+    lines: [178, 179]
+    after:
+      - code: |
+          unique on every row:  1000 of 1000 deleted names can't be reused
+          unique on live rows:  0 refused, and a second live holder
+                                refused 1000 of 1000
+      - p: "**The trap:** the query has to repeat the `WHERE`, or Postgres can't use this index:"
+      - code: |
+          ... AND deleted_at IS NULL    Index Scan using people_live
+          ... (without it)              Parallel Seq Scan
+      - p: "Back to a full scan, because the index can't answer for rows it doesn't hold."
+
+  - kind: text
+    title: Old names are dangerous
+    lead: "Should a freed name come back at all? The moment someone else can have it, everything that trusted the old name trusts them."
+    blocks:
+      - p: "GitHub's docs are clear about how this works there: after you change your username, the old one is available for anyone to claim. Links to your repositories redirect, but the redirect breaks if someone else takes the name and creates a repository with the same name."
+      - p: "So GitHub permanently retires an owner-and-repository name when it was popular enough: for example more than 100 clones in the week before the rename. Security researchers call the attack \"repojacking\": claim the old name, and code that downloads from the old address now gets yours."
+      - h: "What to do"
+      - bullets:
+          - "Hold freed names for a cooling-off period, weeks or months, in the same unique index. Keep the row, or a `retired_names` table."
+          - "Never free some names at all: anything that's been verified, popular or linked to."
+          - "Never use the username as a key in other tables. Use the id, so a rename changes one row."
+          - "Keep a list of names nobody can have: `admin`, `api`, `support`, `login`, and every path on your website."
+
+  - kind: code
+    title: The check is an open door
+    lead: "`/check?name=...` needs no login, and tells anyone whether a name exists. That's a free list of your users, and a good start for password guessing."
+    from: samples/go/scrape.go
+    lines: [26, 42]
+    notes:
+      - [34, "tokens come back over time, up to the burst"]
+      - [37, "out of tokens: refuse"]
+    after:
+      - code: |
+          no limit:  32,000 to 53,000 answers in 10 s
+                     all of them real usernames
+                     275 to 456 million names a day, one laptop
+          5 a second, burst 20:
+                     70 answers, about 67,000 refused
+      - p: "Limit per client, not per server: a person typing never needs more than a couple of checks a second. It's a token bucket: a client gets a burst to start, then a steady rate."
+      - callout: "This limiter is in one process's memory, fine for one server. With several, keep the buckets somewhere shared. And an attacker has many addresses, so watch for lots of misses across many clients too."
+        label: THE LIMIT OF THIS
+        tone: wait
+
+  - kind: table
+    title: At a billion rows
+    lead: "A very large table is often split into partitions. But each partition has its own index, so Postgres is strict about what a unique rule can look like. Asked for real:"
+    columns: [UNIQUE RULE, POSTGRES SAYS]
+    widths: "1fr 1fr"
+    rows:
+      - ["On the partition key itself", {t: "Accepted", tone: ok}]
+      - ["On another column, such as `id`", {t: "\"must include all partitioning columns\"", tone: bad}]
+      - ["Partition key is `lower(username)`", {t: "\"unsupported UNIQUE constraint with partition key definition\"", tone: bad}]
+      - ["Partition key is a generated column", {t: "\"cannot use generated column in partition key\"", tone: bad}]
+    after:
+      - from: samples/go/claim.go
+        lines: [313, 317]
+      - p: "So store the cleaned name in its own ordinary column, with a `CHECK` to keep it honest. Every name's rows land in exactly one partition, so one partition's index can decide. I tested it on 1 million names across 16 partitions: 0.18 to 0.19 ms, one partition searched, the capitalised copy refused, and a key that doesn't match its name refused by the `CHECK`."
+      - p: "The cost: you can no longer have a unique `id` across partitions without including the key. And with read replicas, a check can be a moment behind: fine for a tick, never for the decision, which always happens on the primary."
+
+  - kind: code
+    title: Names that lie
+    lead: "Spotify's bug, in two lines. The order of two steps decides whether cleaning a name twice changes it."
+    from: samples/go/unicode.go
+    lines: [27, 37]
+    after:
+      - code: |
+          "ᴮᴵᴳᴮᴵᴿᴰ": wrong order  once "BIGBIRD", twice "bigbird"
+          "ᴮᴵᴳᴮᴵᴿᴰ": right order  once "bigbird", twice "bigbird"
+      - p: "`ᴮ` has no lower case, so `lower` leaves it, and only then does normalizing turn it into a capital `B`. I rebuilt the attack: signup, password reset, 1,000 victims:"
+      - code: |
+          wrong order            accepted 1000, passwords changed 1000
+          wrong order, guarded   accepted    0, passwords changed    0
+          right order            accepted    0, passwords changed    0
+      - p: "\"Guarded\" is the fix Spotify added: refuse any name where cleaning it twice gives a different answer than cleaning it once."
+
+  - kind: table
+    title: Four fakes
+    lead: "Now the other way round: names that look identical to a real one, but aren't. 1,000 of each. A number is how many got through as a **new** name."
+    columns: [THE FAKE, "lower() INDEX", "NFKC + LOWER", PRECIS, PLAIN ONLY]
+    widths: "1fr 15mm 15mm 13mm 13mm"
+    rows:
+      - ["Cyrillic `а` for Latin `a`", {t: "1,000", tone: bad}, {t: "1,000", tone: bad}, {t: "1,000", tone: bad}, {t: "0", tone: ok}]
+      - ["A zero-width space inside", {t: "1,000", tone: bad}, {t: "1,000", tone: bad}, {t: "0", tone: ok}, {t: "0", tone: ok}]
+      - ["A space on the end", {t: "1,000", tone: bad}, {t: "1,000", tone: bad}, {t: "0", tone: ok}, {t: "0", tone: ok}]
+      - ["Tiny capitals", {t: "1,000", tone: bad}, {t: "0", tone: ok}, {t: "0", tone: ok}, {t: "0", tone: ok}]
+    after:
+      - p: "**NFKC** is Unicode's normalization that folds lookalike forms of the same letter. It doesn't know that a Cyrillic letter looks like a Latin one, because they're different letters. **PRECIS** (RFC 8265) is the standard's profile for usernames, in Go's `x/text`. It allows Cyrillic, rightly, since there are real Russian users, so it can't refuse the first row by itself."
+      - callout: "The first row is an impersonation waiting to happen. `аdmin` and `admin` look the same in most fonts."
+        label: WHY IT MATTERS
+        tone: bad
+
+  - kind: decide
+    title: The rule for a username
+    lead: "Pick the simplest one your product can live with, and write it down."
+    rows:
+      - {if: "Your users are fine with Latin letters and digits", use: "Allow-list", why: "`^[a-z0-9_]{3,30}$`, checked before anything else. 0 of 4,000 fakes got through, and nothing else to think about. Show a separate display name for everything else."}
+      - {if: "You need names in other scripts", use: "PRECIS + mixed-script check", why: "`precis.UsernameCaseMapped`, plus refusing names that mix scripts, such as Latin with Cyrillic. More work, and more ways to be wrong."}
+      - {if: "You store it as typed", use: "Two columns", why: "One as typed, for display, and one cleaned, with the unique index. Clean once, on the way in. Refuse a name that changes when it's cleaned again."}
+    after:
+      - h: "One more trap: your app and your database disagree"
+      - code: |
+          Go        strings.ToLower("İ")           "i"
+          Postgres  lower('İ')                     "i̇"  (i + a dot)
+          Postgres  lower('İ' COLLATE "tr-x-icu")  "i"
+          Postgres  lower('I' COLLATE "tr-x-icu")  "ı"
+      - p: "Same letter, three answers. If Go cleans a name and Postgres cleans it too, they can differ. Clean in **one** place, and an allow-list means it never comes up."
+
+  # ---------------------------------------------------------------- part 6
+  - kind: part
+    n: "6"
+    title: Interview kit
+    lead: "\"Design username availability for a billion users\" is a common system design question. Here's a real answer, with numbers behind it."
+    items:
+      - Your 2-minute answer
+      - 12 interview questions
+      - The mistakes people ship
+      - Checklist for a username system
+      - The one-page cheat sheet
+      - Collect the series
+
+  - kind: steps
+    title: Your 2-minute answer
+    lead: "When the interviewer asks \"how would you check username availability at a billion users?\", walk through this."
+    steps:
+      - head: Start with the rule
+        body: "A unique index on the cleaned name. It's the only thing that can stop duplicates, so we need it whatever else we add."
+      - head: Say why it's already fast
+        body: "It's a B-tree. A page holds a couple of hundred entries, so a billion names is about 4 pages deep. A fraction of a millisecond, if the pages are in memory."
+      - head: Name the trap
+        body: "The query must match the index. `lower(username)` needs an index on `lower(username)`, or it reads the whole table. Build it `CONCURRENTLY`."
+      - head: Separate the check from the claim
+        body: "The check is only for the green tick. The `INSERT` decides. A refused insert is a normal outcome, not an error."
+      - head: Then scale what actually hurts
+        body: "Read replicas for checks. Debounce and rate-limit the endpoint. A Bloom filter if free-name checks are what's hammering the database, sized and rebuilt on a schedule. Partition by the cleaned name if the table outgrows one machine."
+      - head: Finish with security
+        body: "Allow-list the characters, reserve names like `admin`, hold freed names for a while, and rate-limit, because the endpoint lists your users."
+
+  - kind: qa
+    title: 12 interview questions
+    items:
+      - q: How can 4 pages find one name among a billion?
+        a: "A B-tree page holds a couple of hundred entries, and each level multiplies by that. 200⁴ is 1.6 billion. Add 100 times the data, and you add about one level."
+      - q: Why did adding lower() make the query slow?
+        a: "The index stores `username`, in order. It can't find `lower(username)` without working it out row by row, so Postgres reads the table. Fix: an index on `lower(username)`."
+      - q: "Does a unique index help reads, or only writes?"
+        a: "Both. It's a normal B-tree that also refuses duplicates. Don't add a second index for the same lookup."
+      - q: Why can't Postgres use a hash index for this?
+        a: "Only B-tree indexes can be declared unique. A hash index on the same data was no faster in my test, and can't do ranges."
+      - q: "What's a Bloom filter's one guarantee?"
+        a: "No false negatives: it never says \"no\" about a name it was given. \"Yes\" only means maybe. The guarantee needs the filter to have seen every write."
+      - q: How big is a Bloom filter for a billion names at 1%?
+        a: "9.6 bits a name, so 1.2 GB with 7 hashes. I measured 0.995% to 0.998%. Every 5 more bits or so divides the error by 10."
+      - q: Why can't you delete from a Bloom filter?
+        a: "Bits are shared. Clearing 1,000 names' bits made about 5,100 other real names look free in my test. Leave them, and rebuild on a schedule, or use a counting filter."
+      - q: Does a Bloom filter replace the database check?
+        a: "No. It can skip the database for \"certainly free\". A \"maybe\" still has to ask, and only the unique index can stop a duplicate."
+      - q: The tick said available, but signup failed. Bug?
+        a: "No, it's expected. A check holds nothing. Two people can see the same tick, so the `INSERT` must be able to fail, and the form must handle it."
+      - q: What does ON CONFLICT DO NOTHING give you over check-then-insert?
+        a: "No gap. The check and the write are one statement, decided by the index. 0 of 1,000 double signups, against 1,000 of 1,000."
+      - q: How would you add a unique index to a live table?
+        a: "`CREATE UNIQUE INDEX CONCURRENTLY`, after finding and fixing duplicates. Writes barely wait. If it fails, drop the `INVALID` index it leaves and retry."
+      - q: "What's the danger in cleaning a username?"
+        a: "A function that isn't idempotent. Spotify's gave different answers on the first and second pass, and accounts were taken over. Clean once, and refuse names that change when cleaned again."
+
+  - kind: table
+    title: The mistakes people ship
+    lead: "Each one of these passes its tests on a small table with one user."
+    columns: [THE MISTAKE, WHAT HAPPENS, DO THIS]
+    widths: "1fr 1fr 1fr"
+    rows:
+      - ["`lower()` in the query, plain index", {t: "3+ s, full scan", tone: bad}, "Index `lower(username)`"]
+      - ["`lower()` on only one side", {t: "Taken names said free", tone: bad}, "One cleaning function"]
+      - ["Plain `UNIQUE` on a case-blind site", {t: "`Alice` and `alice`", tone: bad}, "Unique on the cleaned name"]
+      - ["Check, then insert, no rule", {t: "1,000 of 1,000 twice", tone: bad}, "Let the index decide"]
+      - ["`CREATE INDEX` on a live table", {t: "Writes stop for the build", tone: bad}, "`CONCURRENTLY`"]
+      - ["Bloom filter as the last word", {t: "Wrong answers", tone: bad}, "Maybe still asks the database"]
+      - ["A filter on each server", {t: "\"Free\" for taken names", tone: bad}, "Share it, or tell them all"]
+      - ["Clearing bits on delete", {t: "Real names called free", tone: bad}, "Rebuild on a schedule"]
+      - ["An open `/check`", {t: "A list of your users", tone: bad}, "Rate-limit per client"]
+      - ["Any Unicode allowed", {t: "`аdmin` and `admin`", tone: bad}, "Allow-list"]
+      - ["Cleaning twice, differently", {t: "Accounts stolen", tone: bad}, "Clean once, test it's stable"]
+
+  - kind: checklist
+    title: Checklist for a username system
+    items:
+      - "A unique index on the cleaned name, and it's the only thing that decides who gets a name."
+      - "The check query matches the index exactly, and `EXPLAIN` shows it."
+      - "A refused signup shows a kind message, and returns to the form."
+      - "Characters are allow-listed, or PRECIS plus a mixed-script check."
+      - "Cleaning happens once, in one function, and is tested to be stable when repeated."
+      - "`admin`, `api`, `support`, `login` and your site's paths can't be registered."
+      - "Freed names wait before anyone else can have them, and some never come back."
+      - "Other tables use the id, never the username."
+      - "The page waits for a pause, cancels old requests, and shows no tick until it has checked."
+      - "`/check` is rate-limited per client."
+      - "If there's a Bloom filter: it's sized, watched and rebuilt, and a maybe always asks the database."
+      - "Any new index on a live table is built `CONCURRENTLY`."
+
+  - kind: table
+    title: The one-page cheat sheet
+    lead: "Screenshot this one."
+    columns: [NEED, USE, REMEMBER]
+    widths: "1fr 1fr 1fr"
+    rows:
+      - ["Find one name fast", "B-tree index", "~200 a page, so 4 deep at a billion"]
+      - ["No duplicates, ever", "`UNIQUE` index", "Also does the lookup"]
+      - ["Ignore case", "`UNIQUE (lower(name))`", "Query must say `lower()` too"]
+      - ["Add it to a live table", "`CONCURRENTLY`", "Drop `INVALID` on failure"]
+      - ["Is it using the index?", "`EXPLAIN (ANALYZE, BUFFERS)`", "`Seq Scan` is the alarm"]
+      - ["Claim the name", "`ON CONFLICT DO NOTHING`", "A refusal is normal"]
+      - ["Reuse deleted names", "`... WHERE deleted_at IS NULL`", "Repeat it in the query"]
+      - ["Skip the database", "Bloom filter", "No = certain; yes = maybe"]
+      - ["Filter size", "10 bits a name = 1%", "Each 5 more bits: ÷ 10"]
+      - ["Typing", "Debounce + cancel", "Only cancelling stops old answers"]
+      - ["Safe characters", "`^[a-z0-9_]{3,30}$`", "Clean once; must be stable"]
+
+  - kind: table
+    title: Collect the series
+    lead: "Every Behind the Button video comes with its own free guide like this one. Comment the keyword shown in each video to get it, and build the whole set."
+    columns: ["#", THE GUIDES]
+    widths: "8mm 1fr"
+    rows:
+      - ["1", "The last seat: race conditions in SQL (comment SEAT on that video)"]
+      - ["2", "You tapped Pay twice: idempotency keys (comment PAY on that video)"]
+      - ["3", "Why your OTP dies in 30 seconds: how TOTP works (comment OTP on that video)"]
+      - ["4", "One more view: integer overflow and running out of IDs (comment VIEWS on that video)"]
+      - [{t: "5", tone: ok}, {t: "Four pages to a billion: indexes and Bloom filters (this guide)", tone: ok}]
+      - ["6", "Why \"typing…\" shows up instantly: WebSockets and presence"]
+      - ["7", "The reset link that only works once: single-use tokens"]
+
+end:
+  video: "Behind the Button #5, A billion usernames, and it opens four pages: on Instagram @stacknova.dev and YouTube @StackNovaDev."
+  next: "This is guide #5 of the Behind the Button collection. Missed one? Comment SEAT, PAY, OTP or VIEWS on those videos. Follow, and comment the keyword on the next video to get guide #6."
+  more: "Run EXPLAIN (ANALYZE, BUFFERS) on your own signup check today, on a table with real data. If it says Seq Scan, you've just found this week's easiest win."
+
+sources_lead: Every claim in this guide comes from one of these, or from the tests in it (2 Nov 2026).
+extra_sources:
+  - {title: "Spotify Engineering — Creative usernames and Spotify account hijacking (18 June 2013)", url: "https://engineering.atspotify.com/2013/6/creative-usernames"}
+  - {title: "PostgreSQL 18 — 11.6 Unique Indexes (only B-tree can be unique)", url: "https://www.postgresql.org/docs/18/indexes-unique.html"}
+  - {title: "PostgreSQL 18 — 11.7 Indexes on Expressions (lower(col), write cost)", url: "https://www.postgresql.org/docs/18/indexes-expressional.html"}
+  - {title: "PostgreSQL 18 — 11.9 Index-Only Scans and Covering Indexes (visibility map)", url: "https://www.postgresql.org/docs/18/indexes-index-only-scans.html"}
+  - {title: "PostgreSQL 18 — 11.10 Operator Classes (text_pattern_ops, non-C locales)", url: "https://www.postgresql.org/docs/18/indexes-opclass.html"}
+  - {title: "PostgreSQL 18 — 65.1 B-Tree Indexes (pages, leaf and internal, over 99% leaf)", url: "https://www.postgresql.org/docs/18/btree.html"}
+  - {title: "PostgreSQL 18 — CREATE INDEX (building indexes concurrently, invalid indexes)", url: "https://www.postgresql.org/docs/18/sql-createindex.html"}
+  - {title: "PostgreSQL 18 — INSERT (ON CONFLICT, unique index inference)", url: "https://www.postgresql.org/docs/18/sql-insert.html"}
+  - {title: "PostgreSQL 18 — citext (and its tip to prefer nondeterministic collations)", url: "https://www.postgresql.org/docs/18/citext.html"}
+  - {title: "PostgreSQL 18 — 23.2 Collation Support (nondeterministic collations, und-u-ks-level2)", url: "https://www.postgresql.org/docs/18/collation.html"}
+  - {title: "PostgreSQL 18 — 5.12 Table Partitioning (limits on unique constraints)", url: "https://www.postgresql.org/docs/18/ddl-partitioning.html"}
+  - {title: "PostgreSQL 18 — pageinspect", url: "https://www.postgresql.org/docs/18/pageinspect.html"}
+  - {title: "PostgreSQL 18 — pg_prewarm", url: "https://www.postgresql.org/docs/18/pgprewarm.html"}
+  - {title: "PostgreSQL 18 — 27.2 The Cumulative Statistics System (pg_stat_user_tables)", url: "https://www.postgresql.org/docs/18/monitoring-stats.html"}
+  - {title: "Bayer and McCreight — Organization and maintenance of large ordered indexes, Acta Informatica 1 (1972)", url: "https://doi.org/10.1007/BF00288683"}
+  - {title: "Burton H. Bloom — Space/time trade-offs in hash coding with allowable errors, CACM 13(7), July 1970", url: "https://doi.org/10.1145/362686.362692"}
+  - {title: "Kirsch and Mitzenmacher — Less Hashing, Same Performance: Building a Better Bloom Filter (2006)", url: "https://www.eecs.harvard.edu/~michaelm/postscripts/rsa2008.pdf"}
+  - {title: "Apache Cassandra — Bloom filters (skipping SSTables, tuning false positives)", url: "https://cassandra.apache.org/doc/latest/cassandra/managing/operating/bloom_filters.html"}
+  - {title: "RFC 8265 — PRECIS for usernames and passwords (October 2017)", url: "https://www.rfc-editor.org/rfc/rfc8265.html"}
+  - {title: "Go — golang.org/x/text/secure/precis", url: "https://pkg.go.dev/golang.org/x/text/secure/precis"}
+  - {title: "GitHub Docs — Username changes (old names can be claimed; redirects)", url: "https://docs.github.com/en/account-and-profile/concepts/username-changes"}
+  - {title: "GitHub Docs — Username reference (retired owner/repository names)", url: "https://docs.github.com/en/account-and-profile/reference/username-reference"}
+  - {title: "Checkmarx — Attacking the software supply chain with a simple rename (repojacking)", url: "https://zero.checkmarx.com/attacking-the-software-supply-chain-with-a-simple-rename-1d9a9a126217"}
+  - {title: "MDN — AbortController", url: "https://developer.mozilla.org/en-US/docs/Web/API/AbortController"}
+  - {title: "LogRocket — Bloom filters for username checks (a design pattern, not a report on any company)", url: "https://blog.logrocket.com/how-to-check-username-availability-at-scale-with-bloom-filters/"}

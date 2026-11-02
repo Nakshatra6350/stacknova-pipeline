@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 176" style="width:122mm;height:auto" font-family="JetBrains Mono, monospace">
+  <!-- The worked example on the page: 16 bits, alice at 2 7 11, bob at 4 7 13, carol asks 2 5 11, dave asks 2 4 13. -->
+  <g font-size="11" fill="#a29bc4" text-anchor="middle">
+    <text x="113" y="12">0</text><text x="139" y="12">1</text><text x="165" y="12">2</text><text x="191" y="12">3</text><text x="217" y="12">4</text><text x="243" y="12">5</text><text x="269" y="12">6</text><text x="295" y="12">7</text><text x="321" y="12">8</text><text x="347" y="12">9</text><text x="373" y="12">10</text><text x="399" y="12">11</text><text x="425" y="12">12</text><text x="451" y="12">13</text><text x="477" y="12">14</text><text x="503" y="12">15</text>
+  </g>
+  <g fill="#110d24" stroke="#2a2350">
+    <rect x="101" y="18" width="24" height="24" rx="4"/><rect x="127" y="18" width="24" height="24" rx="4"/><rect x="153" y="18" width="24" height="24" rx="4" fill="#7b5cff" stroke="#7b5cff"/><rect x="179" y="18" width="24" height="24" rx="4"/><rect x="205" y="18" width="24" height="24" rx="4" fill="#ff4d8d" stroke="#ff4d8d"/><rect x="231" y="18" width="24" height="24" rx="4"/><rect x="257" y="18" width="24" height="24" rx="4"/><rect x="283" y="18" width="24" height="24" rx="4" fill="#ff4d8d" stroke="#7b5cff" stroke-width="2.5"/><rect x="309" y="18" width="24" height="24" rx="4"/><rect x="335" y="18" width="24" height="24" rx="4"/><rect x="361" y="18" width="24" height="24" rx="4"/><rect x="387" y="18" width="24" height="24" rx="4" fill="#7b5cff" stroke="#7b5cff"/><rect x="413" y="18" width="24" height="24" rx="4"/><rect x="439" y="18" width="24" height="24" rx="4" fill="#ff4d8d" stroke="#ff4d8d"/><rect x="465" y="18" width="24" height="24" rx="4"/><rect x="491" y="18" width="24" height="24" rx="4"/>
+  </g>
+  <g font-size="12">
+    <text x="0" y="35" fill="#f4f1ff" font-weight="700">the bits</text>
+    <text x="0" y="68" fill="#7b5cff" font-weight="700">alice</text><text x="60" y="68" fill="#a29bc4">turned on 2, 7, 11</text>
+    <text x="0" y="88" fill="#ff4d8d" font-weight="700">bob</text><text x="60" y="88" fill="#a29bc4">turned on 4, 7, 13 (7 was on already)</text>
+    <line x1="0" y1="100" x2="515" y2="100" stroke="#2a2350"/>
+    <text x="0" y="122" fill="#f4f1ff" font-weight="700">carol?</text><text x="60" y="122" fill="#a29bc4">looks at 2, 5, 11</text><text x="515" y="122" text-anchor="end" fill="#5fe3a8" font-weight="700">bit 5 is off: certainly never added</text>
+    <text x="0" y="146" fill="#f4f1ff" font-weight="700">dave?</text><text x="60" y="146" fill="#a29bc4">looks at 2, 4, 13</text><text x="515" y="146" text-anchor="end" fill="#ffd24d" font-weight="700">all on: "maybe" (and it's wrong)</text>
+    <text x="0" y="170" fill="#a29bc4">Bits 2 and 11 are alice's, and 4 and 13 are bob's. Dave was never added.</text>
+  </g>
+</svg>

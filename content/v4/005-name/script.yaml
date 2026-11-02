@@ -1,0 +1,50 @@
+# Behind the Button #5 (look v4): "username taken" in a millisecond. How one name is found among a
+# billion, in about a minute: reading them all, the index and its pages (a real route through a real
+# index, samples/go), the one word that breaks it and the fix, the Bloom filter, why the green tick is
+# only a guess, the real case (Spotify's own write-up), and the call to action. `scene` names the
+# visual each line plays over (studio-v4); `say` is spoken, `show` (when present) is the on-screen
+# caption text.
+id: 005-name
+keyword: NAME
+title: "A Billion Usernames, and It Opens Four Pages"
+youtube_title: "Database Index Explained: Why \"Username Taken\" Is Instant"
+lines:
+  - {id: l1, scene: hook, say: "A billion usernames, and it opens four pages.",
+     show: "A billion usernames, and it opens 4 pages."}
+  - {id: l2, scene: scan, say: "I tested reading every name. Ten million: almost a second, each check.",
+     show: "I tested reading every name. 10 million: almost a second, each check."}
+  - {id: l3, scene: tree, say: "An index is sorted pages. The top page says which page to open next, and each one splits into hundreds."}
+  - {id: l4, scene: depth, say: "Ten million names: three pages, point two milliseconds. A billion needs just one more.",
+     show: "10 million names: 3 pages, 0.2 milliseconds. A billion needs just one more."}
+  - {id: l5, scene: bug, say: "Then someone adds lower, so Alice and alice match. Over three seconds. The index holds the name, not lower of the name.",
+     show: "Then someone adds lower(), so Alice and alice match. Over 3 seconds. The index holds the name, not lower of the name."}
+  - {id: l6, scene: fix, say: "So index lower of the name. Point two milliseconds again, and Alice and alice can't both sign up.",
+     show: "So index lower of the name. 0.2 milliseconds again, and Alice and alice can't both sign up."}
+  - {id: l7, scene: bloom, say: "The Bloom filter everyone mentions? A real billion fit in one point two gigabytes. No means free, for sure. Yes only means maybe.",
+     show: "The Bloom filter everyone mentions? A real billion fit in 1.2 gigabytes. No means free, for sure. Yes only means maybe."}
+  - {id: l8, scene: tick, say: "The green tick is only a guess. Two people, same moment: a thousand of a thousand signed up twice. With a unique index, zero.",
+     show: "The green tick is only a guess. Two people, same moment: 1,000 of 1,000 signed up twice. With a unique index, 0."}
+  - {id: l9, scene: spotify, say: "Spotify learned the hard way. A name in tiny capitals became someone else's at password reset, and that account was taken over."}
+  - {id: l10, scene: cta, say: "Comment name for the free guide: every case tested, in real Go and SQL. Because a billion names is only four pages.",
+     show: "Comment NAME for the free guide: every case tested, in real Go and SQL. Because a billion names is only 4 pages.",
+     # YouTube has no comment-to-DM, so the Short ends on a follow
+     say_youtube: "Follow for one of these every day. Because a billion names is only four pages.",
+     show_youtube: "Follow for one of these every day. Because a billion names is only 4 pages."}
+
+fact_check:
+  - claim: "An index on 10 million names is 3 pages deep; a free name reads 3 pages"
+    source: "derived from code sample samples/go, modes tree and scale (PostgreSQL 16.13, 2 Nov 2026)"
+  - claim: "A billion names would be 4 index pages deep (estimate: 262 names a leaf and 204 ranges a branch, the index's own averages)"
+    source: "derived from code sample samples/go, mode tree; labelled as an estimate on screen"
+  - claim: "One check takes about 0.2 ms with the index (0.14 to 0.29 ms across modes and runs) and 0.7 to 0.8 s with no index, on 10 million names"
+    source: "derived from code sample samples/go, modes scale, traps and hash"
+  - claim: "lower(username) = lower($1) with only a plain index takes 3.3 to 3.9 s, a Parallel Seq Scan; with an index on lower(username), 0.17 to 0.20 ms"
+    source: "derived from code sample samples/go, modes traps and lower"
+  - claim: "A unique index on lower(col) stops rows that differ only in case"
+    source: "https://www.postgresql.org/docs/18/indexes-expressional.html"
+  - claim: "A real billion names in a 1.2 GB Bloom filter: 0.995 to 0.998% false positives, 0 false negatives in 10,000,000 checked"
+    source: "derived from code sample samples/go, mode billion"
+  - claim: "Look, then insert, with no unique rule: 1,000 of 1,000 names signed up twice; with a unique index, 0"
+    source: "derived from code sample samples/go, mode race"
+  - claim: "A name in tiny capitals was cleaned once at signup and again at password reset, setting the new password on another account"
+    source: "https://engineering.atspotify.com/2013/6/creative-usernames"
