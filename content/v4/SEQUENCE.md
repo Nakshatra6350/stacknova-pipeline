@@ -40,3 +40,12 @@ why Netflix doesn't buffer (adaptive bitrate).
 Platform split: the Instagram Reel ends on "comment KEYWORD for the free guide"; the YouTube Short
 gets the same video with a follow ending (YouTube has no comment-to-DM), and its title leads with
 the search phrase (e.g. "Race Condition in SQL: Who Gets the Last Seat?").
+
+After the seven: two from that list. DRIVER (Thu 5 Nov) goes out as "Your nearest driver is in the
+wrong square": geohash cells, the edge problem and an outward search that's always right, degrees that
+shrink (Oslo), and a GiST index on ll_to_earth, in Java + Postgres on 1,000,000 made-up drivers around
+five real cities. Uber's own H3 post is its real case (hexagons, surge pricing), and the title says
+"apps", not Uber, because the video doesn't show Uber's dispatch. BUFFER (Fri 6 Nov) goes out as
+"Netflix tested a player that mostly ignores your internet speed": a bitrate ladder made with ffmpeg
+and a player in Go, on simulated connections (said in the video), with Netflix's own A/B test
+(SIGCOMM 2014, 10 to 20% fewer rebuffers) as the real-world number.

@@ -1,0 +1,454 @@
+# The free guide for "Behind the Button #8: Your nearest driver is in the wrong square" (keyword
+# DRIVER). Built by studio/scripts/pack.py content/v4/008-driver into out/release/packs/. Every result
+# comes from samples/ run on 3 Nov 2026 (java Drivers <mode>, three runs of each, on PostgreSQL 16.13
+# and JDK 17.0.18); code is cut from those files by line range. Real city centres, made-up drivers.
+keyword: DRIVER
+file: stacknova-next-square-guide
+lang: java
+kicker: "BEHIND THE BUTTON · FREE GUIDE #8"
+title: The Next Square
+subtitle: How an app finds the nearest driver among a million, why the obvious grid gets it wrong a third of the time, why degrees aren't kilometres, and the one index that does it right. Every case tested.
+versions: Tested on PostgreSQL 16.13 with cube and earthdistance, pgJDBC 42.7.4 and JDK 17.0.18, on one Windows laptop, on 3 Nov 2026. Real city centres; the drivers and riders are made up, from fixed seeds.
+inside:
+  - "Part 1 · The moment: tapping Request, every test result, Uber's hexagons"
+  - "Part 2 · Distance: the real formula, degrees that shrink, and the date line"
+  - "Part 3 · Cells: geohash by hand, the edge problem, and a search that's always right"
+  - "Part 4 · In the database: three indexes, nearest-first queries, moving drivers"
+  - "Part 5 · Interview kit: a 2-minute answer, 12 questions, a one-page cheat sheet"
+
+sections:
+  # ---------------------------------------------------------------- part 1
+  - kind: part
+    n: "1"
+    title: The moment
+    lead: You tap Request, and a second later a driver is on the way. Somewhere, a server just found the closest car among thousands, and it had to be right.
+    items:
+      - What tapping Request sets off
+      - "My test: every result"
+      - Every driver, every time
+      - Uber's hexagons
+
+  - kind: flowchart
+    title: What tapping Request sets off
+    lead: "Five steps, and the third one is what this guide is about."
+    nodes:
+      - {head: "Your phone sends where you are", body: "A latitude and a longitude, in degrees. Page 9 explains why degrees can't be used as distances."}
+      - {head: "Drivers keep sending where they are", body: "Every few seconds, from every car. That's a lot of writes (page 24)."}
+      - {head: "The server finds the nearest few", body: "Among a million drivers, in a few milliseconds, without reading them all. Parts 3 and 4."}
+      - {head: "It offers the trip to one of them", body: "Usually not just the nearest by straight line: road distance, direction and other things matter too. This guide stops at the straight line."}
+      - {head: "If they say no, it tries the next", body: "So the search returns several, nearest first, which is exactly what an index can do (page 22).", tone: ok}
+
+  - kind: numbers
+    title: "My test: every result"
+    lead: "Five real cities, made-up drivers in a 30 km square around each, 1,000 riders a city unless noted. Three runs each. **Lower is better.**"
+    rows:
+      - ["~600 ms", "To find the nearest driver by checking all 1,000,000 in SQL"]
+      - ["~1.4 ms", "The same, with a GiST index on the real Earth"]
+      - ["34%", "Riders given a further driver, or none: own cell only, quiet city"]
+      - [0, "Wrong, searching outward until nothing closer can exist"]
+      - ["14%", "Wrong with the 9 cells around you, in a very quiet city"]
+      - [280, "Of 1,000 riders in Oslo given the wrong driver by degrees"]
+      - [0, "The same in Singapore, on the equator"]
+      - ["7 m", "Apart in Greenwich, with 0 geohash characters in common"]
+      - ["164", "Of 341 drivers found by a box across 180 degrees"]
+    after:
+      - p: "To run any of them: `java Drivers grid`, with the list of modes at the top of `Drivers.java`."
+
+  - kind: text
+    title: Every driver, every time
+    lead: "The simplest correct answer: measure the distance to every driver, keep the smallest. On 1,000,000 drivers:"
+    blocks:
+      - code: |
+          SQL, no index:        about 600 ms a rider
+          Java, in memory:      about 1 s a rider
+      - p: "Correct, and hopeless. A city with a few hundred requests a second would need a few hundred seconds of work every second."
+      - p: "Every faster method in this guide does the same thing in the end: **rule out most drivers without measuring them.** The only question is how, and how to be sure you didn't rule out the nearest one."
+
+  - kind: text
+    title: Uber's hexagons
+    lead: "Uber's engineers wrote about their own answer in June 2018: a grid of hexagons covering the whole Earth, called H3, which they had open-sourced earlier that year."
+    blocks:
+      - bullets:
+          - "**Why hexagons:** in their words, \"hexagons have only one distance between a hexagon centerpoint and its neighbors'\". A square has two: the side neighbours and the corner ones."
+          - "**What for:** they \"calculate surge pricing by measuring supply and demand in hexagons\" in each city."
+          - "**Many sizes:** each finer level has cells a seventh of the area of the level above, so the same idea works for a city or a street."
+      - callout: "It's the same idea as the squares in this guide: name a patch of ground, and count or search inside it. Hexagons just make \"the cells around me\" a fairer ring. The edge problem in Part 3 still applies, and so does its fix."
+        label: THE CONNECTION
+        tone: ok
+
+  # ---------------------------------------------------------------- part 2
+  - kind: part
+    n: "2"
+    title: Distance
+    lead: Latitude and longitude are angles, not distances. Get this wrong and the nearest driver changes with how far north you are.
+    items:
+      - The real distance
+      - Degrees shrink
+      - When a flat map is fine
+      - The date line
+
+  - kind: code
+    title: The real distance
+    lead: "The great-circle distance, by the haversine formula, on a round Earth. Every result in this guide is checked against it."
+    from: samples/java/Geo.java
+    lines: [4, 13]
+    notes:
+      - [4, "the Earth's mean radius"]
+      - [11, "the cos(latitude) term: east-west distances shrink away from the equator"]
+    after:
+      - p: "The Earth isn't a perfect sphere, so this is a close approximation. Redis's docs give the worst case for the same formula as up to 0.5%: fine for finding a nearby car, not for surveying."
+
+  - kind: table
+    title: Degrees shrink
+    lead: "A degree of latitude is always about 111 km. A degree of longitude shrinks towards the poles. Treat both as the same, and the 'nearest' driver depends on the direction. 5,000 drivers and 1,000 riders a city:"
+    columns: [CITY, LATITUDE, 1° OF LONGITUDE, WRONG DRIVER]
+    widths: "1fr 18mm 26mm 26mm"
+    rows:
+      - ["Singapore", "1°N", "111.2 km", {t: "0", tone: ok}]
+      - ["Mumbai", "19°N", "105.1 km", "29"]
+      - ["Sao Paulo", "24°S", "101.9 km", "39"]
+      - ["London", "52°N", "69.2 km", {t: "177", tone: bad}]
+      - ["Oslo", "60°N", "55.7 km", {t: "280", tone: bad}]
+    after:
+      - from: samples/java/Geo.java
+        lines: [15, 19]
+      - p: "In Oslo, a degree east is only half as far as a degree north. Measuring in degrees makes drivers to the east look twice as far as they are, so riders get someone due north instead: **28% of the time**, in my test."
+      - callout: "It works on the equator, which is exactly how this bug survives testing. If your test city is near 0°, you'll never see it."
+        label: WHY IT SHIPS
+        tone: bad
+
+  - kind: text
+    title: When a flat map is fine
+    lead: "Over a few kilometres, the Earth is flat enough. You just have to scale longitude first."
+    blocks:
+      - code: |
+          x = (lon2 - lon1) * cos(latitude) * 111.2   // km east
+          y = (lat2 - lat1) * 111.2                   // km north
+          distance = sqrt(x*x + y*y)
+      - p: "That's the equirectangular approximation. It fixes the Oslo problem with one cosine, and for a 30 km city it's very close to the real distance. It gets worse over long distances and near the poles."
+      - p: "That's reasoning, not a test of mine. What I tested is the two ends: degrees as they are (wrong), and the full haversine (right)."
+
+  - kind: table
+    title: The date line
+    lead: "At 180 degrees, longitude jumps from +180 to -180. Fiji's islands straddle it. A rider on 180 degrees, 1,000 drivers within about 2 km:"
+    columns: [SEARCH BOX, DRIVERS WITHIN 1.5 KM FOUND]
+    widths: "1fr 44mm"
+    rows:
+      - ["The real answer", "341"]
+      - ["`lon - 0.02` to `lon + 0.02`, as written", {t: "164", tone: bad}]
+      - ["The same, wrapping around 180°", {t: "341", tone: ok}]
+    after:
+      - p: "A naive box ends at +180.019, a longitude that doesn't exist, and misses everyone just past the line, who are at -179.98-something. Half the drivers vanished."
+      - p: "Postgres's earthdistance docs warn that latitude and longitude need care near the poles and near ±180° of longitude, and say its cube-based representation avoids those discontinuities. That's the index Part 4 uses."
+
+  # ---------------------------------------------------------------- part 3
+  - kind: part
+    n: "3"
+    title: Cells
+    lead: Cut the map into named squares, and only look in the squares near you. Fast, simple, and wrong in a way that's easy to miss, until you search properly.
+    items:
+      - A geohash, by hand
+      - The code
+      - How big is a cell?
+      - The edge problem
+      - The cells around you
+      - A search that's always right
+      - Near on the map, far in the name
+
+  - kind: flowchart
+    title: A geohash, by hand
+    lead: "A geohash names a cell by halving the world again and again. London, 51.5072° N, 0.1276° W:"
+    nodes:
+      - {head: "Is it east of 0° longitude?", body: "No: write 0. Now we only consider -180 to 0."}
+      - {head: "Is it north of 0° latitude?", body: "Yes: write 1. Now 0 to 90."}
+      - {head: "East of -90°?", body: "Yes: 1. Then north of 45°? Yes: 1. And so on, alternating longitude and latitude."}
+      - {head: "Every 5 bits become one character", body: "From 32 symbols, `0-9` and `b-z` without a, i, l, o. London starts `gcpvj`."}
+      - {head: "Each character makes the cell smaller", body: "6 characters is a cell about 1.2 km by 0.6 km at the equator. Names that share a start are usually close."}
+    after:
+      - p: "Gustavo Niemeyer published it in 2008, and it's the same idea Redis uses inside its geo commands: its docs say latitude and longitude bits are interleaved into a 52-bit integer."
+
+  - kind: code
+    title: The code
+    lead: "The whole of it: halve, write a bit, repeat."
+    from: samples/java/Geo.java
+    lines: [23, 47]
+    notes:
+      - [28, "longitude first, then latitude, taking turns"]
+      - [33, "the upper half: write a 1"]
+      - [40, "every 5 bits make one character"]
+
+  - kind: table
+    title: How big is a cell?
+    lead: "At the equator. Cells get narrower east-west as you go north, for the same reason degrees do."
+    columns: [CHARACTERS, CELL SIZE, ABOUT, "AT 200,000 A CITY"]
+    widths: "18mm 1fr 1fr 1fr"
+    rows:
+      - ["4", "39 km × 20 km", "A whole city", "-"]
+      - ["5", "4.9 km × 4.9 km", "A district", "-"]
+      - [{t: "6", tone: ok}, {t: "1.2 km × 0.6 km", tone: ok}, "A few streets", "about 160"]
+      - ["7", "153 m × 153 m", "A block", "about 5"]
+    after:
+      - p: "The sizes are the standard geohash cell dimensions; the last column is my own arithmetic for 200,000 drivers in a 900 km² city, the size used in Part 4. Too small, and many cells are empty. Too big, and you measure too many drivers."
+
+  - kind: table
+    title: The edge problem
+    lead: "Look only in the rider's own 6-character cell. 1,000 riders a city, five cities, three densities:"
+    columns: [DRIVERS A CITY, GAVE A FURTHER DRIVER, FOUND NONE, RIDERS]
+    widths: "26mm 1fr 1fr 18mm"
+    rows:
+      - ["500 (very quiet)", "210", {t: "3,633", tone: bad}, "5,000"]
+      - ["5,000 (quiet)", {t: "1,411", tone: bad}, {t: "299", tone: bad}, "5,000"]
+      - ["50,000 (busy)", {t: "561", tone: bad}, "0", "5,000"]
+    after:
+      - p: "**A rider near the edge of a cell often has their nearest driver just over the line.** The busier the city, the smaller the error, but it never goes away: even at 50,000 drivers, 11% of riders got someone further."
+      - p: "When the own-cell answer was wrong, the driver given was on average 173 m further in the quiet city, and 47 m in the busy one."
+
+  - kind: table
+    title: The cells around you
+    lead: "The usual fix: search your cell and the 8 around it. Same riders:"
+    columns: [DRIVERS A CITY, WRONG WITH 9 CELLS]
+    widths: "1fr 40mm"
+    rows:
+      - ["500 (very quiet)", {t: "697 of 5,000", tone: bad}]
+      - ["5,000 (quiet)", {t: "0", tone: ok}]
+      - ["50,000 (busy)", {t: "0", tone: ok}]
+    after:
+      - svg: samples/rings.svg
+      - p: "Nine cells fixed it where drivers are plentiful. In the very quiet city, 14% were still wrong: when the best driver in the 9 cells is far away, a closer one can be just outside the block, in ring 2. (Redis's geo search also checks 1 + 8 areas, but it sizes them from the radius you ask for, so they always cover the whole circle.)"
+      - callout: "\"Search the 9 cells\" is the answer most people give. It's right for busy areas, and wrong late at night in the suburbs, which is exactly when there are fewest drivers and the wrong one costs most."
+        label: WHERE IT BREAKS
+        tone: bad
+
+  - kind: code
+    title: A search that's always right
+    lead: "Keep going outward, ring by ring, until the best driver found is closer than anything outside the searched block could be."
+    from: samples/java/Drivers.java
+    lines: [85, 103]
+    notes:
+      - [93, "the best so far is closer than the block's nearest edge: nothing outside can win"]
+      - [97, "otherwise, add the next ring of cells"]
+    after:
+      - code: |
+          drivers a city   wrong   cells looked at, on average
+          500              0       16.4
+          5,000            0        7.0
+          50,000           0        3.7
+      - p: "**0 wrong at every density**, and it looks at few cells where drivers are plentiful. That's the rule that makes cells safe: you can stop only when it's proven that nothing closer exists."
+
+  - kind: table
+    title: Near on the map, far in the name
+    lead: "Close cells usually share a long start to their names. Not always."
+    columns: [WHERE, APART, GEOHASHES, IN COMMON]
+    widths: "1fr 14mm 1fr 18mm"
+    rows:
+      - ["Central London", "7 m", "`gcpvj0e54` `gcpvj0e5j`", {t: "8", tone: ok}]
+      - ["Greenwich, across 0°", "7 m", "`gcpuzgrbw` `u10hb5209`", {t: "0", tone: bad}]
+      - ["Across the equator", "11 m", "`w210pb423` `qrcpzzfr9`", {t: "0", tone: bad}]
+    after:
+      - p: "The very first bit splits east from west at 0° longitude, so two points either side of the Greenwich meridian disagree from the first character. A search by name prefix (`LIKE 'gcpv%'`) would never find one from the other."
+      - p: "That's why the neighbour search on the code page works from coordinates, not from names: it finds each neighbouring cell's centre, and works out that cell's name from it."
+
+  # ---------------------------------------------------------------- part 4
+  - kind: part
+    n: "4"
+    title: In the database
+    lead: All of this in Postgres, on 1,000,000 drivers, with three indexes, timed, and checked against the slow exact answer.
+    items:
+      - The table and three indexes
+      - Nearest first
+      - "Three ways, measured"
+      - Drivers that move
+
+  - kind: table
+    title: The table and three indexes
+    lead: "1,000,000 drivers, 200,000 around each city, loaded with COPY in about 8 seconds."
+    columns: [INDEX, BUILT IN, SIZE]
+    widths: "1fr 24mm 24mm"
+    rows:
+      - ["B-tree on the geohash cell", "~2 s", "7 MB"]
+      - ["GiST on `point(lon, lat)`, degrees", "~6 s", "64 MB"]
+      - [{t: "GiST on `ll_to_earth(lat, lon)`", tone: ok}, "~2 min", "79 MB"]
+    after:
+      - from: samples/java/Drivers.java
+        lines: [256, 263]
+        lang: sql
+      - p: "The table itself is 69 MB. `ll_to_earth` comes from the `earthdistance` extension: it turns a latitude and longitude into a point in 3D, on a sphere, using the `cube` type."
+
+  - kind: code
+    title: Nearest first
+    lead: "`<->` means distance. With a GiST index, Postgres can hand back rows nearest first, without measuring every driver."
+    from: samples/java/Drivers.java
+    lines: [277, 281]
+    lang: sql
+    after:
+      - code: |
+          Index Scan using drivers_earth on drivers
+          Buffers: shared hit=15
+          Execution Time: ~1 ms
+      - p: "15 pages, out of a table and index of nearly 150 MB. The index keeps nearby points in the same branches, and walks them closest first."
+      - p: "**Why this is exact on the curved Earth:** `ll_to_earth` gives points in 3D, and the straight-line distance between two points on a sphere always ranks them in the same order as the distance along the surface. So nearest-by-chord is nearest-by-ground. The module treats the Earth as a perfect sphere; its docs point to PostGIS when that isn't accurate enough."
+      - p: "Ask for `LIMIT 5` and you get the five nearest, in order: what you need when the first driver says no."
+
+  - kind: table
+    title: "Three ways, measured"
+    lead: "1,000 riders across the five cities, against 1,000,000 drivers. Every 20th answer checked against the exact full scan, so 50 checks:"
+    columns: [WAY, A RIDER, WRONG OF 50]
+    widths: "1fr 24mm 28mm"
+    rows:
+      - [{t: "GiST on the Earth", tone: ok}, {t: "1.3-1.5 ms", tone: ok}, {t: "0", tone: ok}]
+      - ["GiST on degrees", "~0.5 ms", {t: "5: Oslo, London, Sao Paulo", tone: bad}]
+      - ["9 geohash cells, then exact distance", "~5 ms", {t: "0", tone: ok}]
+      - ["Every driver", {t: "~600 ms", tone: bad}, "0 (it is the check)"]
+    after:
+      - p: "The degrees index is fastest and wrong: it's the Oslo problem again, just faster. At 200,000 drivers a city, drivers are so close that the error is rarer than in Part 2, but it's still there."
+      - p: "The 9-cell query is right here because these cities are busy. Page 17 shows when it isn't."
+      - callout: "**My pick: the GiST index on the Earth.** It's exact, it's a few lines, and it handles the date line and nearest-first by itself. Use cells when you need to count per area, as Uber does for pricing, or in a store such as Redis."
+        label: MY VIEW
+        tone: ok
+
+  - kind: table
+    title: Drivers that move
+    lead: "Drivers report where they are every few seconds, so this table is written to constantly. 20,000 single-row location updates on 200,000 drivers, one commit each:"
+    columns: [INDEXES ON THE TABLE, UPDATES A SECOND]
+    widths: "1fr 40mm"
+    rows:
+      - ["Primary key only", "1,700-2,000"]
+      - ["Plus the geohash B-tree", "1,600-1,700"]
+      - [{t: "Plus the GiST on the Earth", tone: bad}, {t: "800-950", tone: bad}]
+    after:
+      - p: "With one commit per update, waiting for each commit sets the pace, so the small B-tree costs little. The GiST index halves the rate: every move changes the position it indexes, so every update writes a new entry into it."
+      - p: "Real systems batch updates, and many keep live positions in memory, Redis for example, writing to a database far less often."
+      - p: "A rough sum: 100,000 drivers reporting every 4 seconds is 25,000 updates a second. That's beyond one Postgres doing one commit each, which is why the live map usually lives in memory."
+
+  # ---------------------------------------------------------------- part 5
+  - kind: part
+    n: "5"
+    title: Interview kit
+    lead: "\"Design Uber\" is one of the most asked system design questions, and \"find nearby drivers\" is its heart. Here's a real answer, with numbers behind it."
+    items:
+      - Your 2-minute answer
+      - 12 interview questions
+      - The mistakes people ship
+      - Checklist for location search
+      - The one-page cheat sheet
+      - Collect the series
+
+  - kind: steps
+    title: Your 2-minute answer
+    lead: "When the interviewer asks \"how do you find the nearest drivers?\", walk through this."
+    steps:
+      - head: Say why not scan
+        body: "Measuring every driver is correct and slow: about 600 ms for one rider among a million in my test."
+      - head: Use real distance
+        body: "Latitude and longitude are angles. Degrees as distance picked the wrong driver 28% of the time in Oslo. Use haversine, or 3D points on a sphere."
+      - head: Index space
+        body: "Either cells (geohash, H3) or a spatial index (GiST, R-tree). A GiST index on the Earth gave nearest-first in about 1.5 ms, exact."
+      - head: Name the edge problem
+        body: "Your own cell misses drivers just over the line: a third of riders in a quiet city. Nine cells fix busy areas; a ring-by-ring search with a proof of safety is always right."
+      - head: Handle the writes
+        body: "Drivers move every few seconds: keep live positions in memory, sharded by area, and persist far less often."
+      - head: Finish with the product
+        body: "Return several candidates nearest first, then rank by road time and offer in turn. Use cells to count supply and demand per area, as Uber does for surge."
+
+  - kind: qa
+    title: 12 interview questions
+    items:
+      - q: Why can't you measure distance in degrees?
+        a: "A degree of longitude shrinks with latitude: 111 km at the equator, 56 km in Oslo. In Oslo that picked the wrong driver 280 times in 1,000."
+      - q: What's a geohash?
+        a: "A name for a cell, made by halving longitude and latitude in turn and writing 5 bits per character. 6 characters is about 1.2 km by 0.6 km at the equator."
+      - q: What's the edge problem?
+        a: "The nearest driver can be just over a cell boundary. Own cell only: 34% of riders got a further driver, or none, in a quiet city."
+      - q: Is searching 9 cells enough?
+        a: "In busy areas, yes: 0 wrong at 5,000 and 50,000 drivers a city. In a very quiet one, 14% wrong. Search outward until it's proven nothing closer exists."
+      - q: How do you know when to stop searching?
+        a: "When the best driver found is closer than the nearest edge of the searched block. Then anyone outside is further away."
+      - q: Why can two close points have unrelated geohashes?
+        a: "The first bit splits at 0° longitude. 7 m apart across the Greenwich meridian: 0 characters in common."
+      - q: How does Postgres find the nearest without scanning?
+        a: "A GiST index supports `ORDER BY ... <-> ... LIMIT k`, walking the index nearest first: about 1.5 ms among a million, 15 pages read."
+      - q: Why use ll_to_earth instead of point(lon, lat)?
+        a: "It works on a sphere in 3D, so distance ranks correctly anywhere. `point` treats degrees as flat: 5 wrong of 50 in my checks, in the northern and southern cities."
+      - q: What goes wrong at the date line?
+        a: "A box from lon - d to lon + d runs past 180. My naive box found 164 of 341 nearby drivers. Wrap longitudes, or use 3D points."
+      - q: Why hexagons, as in Uber's H3?
+        a: "Every neighbour is the same distance from the centre, so rings are fair. Uber uses them for supply, demand and surge pricing."
+      - q: How do you handle constant location updates?
+        a: "In memory, sharded by area, with batched or occasional persistence. One commit per update managed 1,700 to 2,000 a second in my test, and 800 to 950 with the GiST index."
+      - q: Why return several drivers, not one?
+        a: "The nearest may say no, or be far by road. Nearest-first with `LIMIT k` gives the next candidates at no extra cost."
+
+  - kind: table
+    title: The mistakes people ship
+    lead: "Each one of these passes its tests in a sunny city on the equator."
+    columns: [THE MISTAKE, WHAT HAPPENS, DO THIS]
+    widths: "1fr 1fr 1fr"
+    rows:
+      - ["Scanning every driver", {t: "~600 ms a rider", tone: bad}, "A spatial index"]
+      - ["Degrees as distance", {t: "28% wrong in Oslo", tone: bad}, "Haversine, or 3D"]
+      - ["Own cell only", {t: "34% further or none", tone: bad}, "Search outward"]
+      - ["Always exactly 9 cells", {t: "14% wrong when quiet", tone: bad}, "Stop only when it's safe"]
+      - ["Prefix search on geohash", {t: "Misses across 0°", tone: bad}, "Neighbours by coordinates"]
+      - ["A box across 180°", {t: "Half the drivers gone", tone: bad}, "Wrap, or use 3D points"]
+      - ["One write per position", {t: "Write-bound", tone: bad}, "Keep live positions in memory"]
+      - ["Only the nearest one", {t: "Nobody when they say no", tone: bad}, "Nearest few, in order"]
+
+  - kind: checklist
+    title: Checklist for location search
+    items:
+      - "Distances are great-circle, or come from 3D points, never raw degrees."
+      - "There's a spatial index, or a cell grid with a proven stopping rule."
+      - "Cell searches expand outward until nothing outside can be closer."
+      - "Neighbouring cells are found from coordinates, not from name prefixes."
+      - "Longitudes wrap at 180°, and the poles are handled or ruled out."
+      - "Queries return several candidates, nearest first."
+      - "Live positions are in memory; the database gets them less often."
+      - "Tests include a northern city, a quiet night, the Greenwich meridian and the date line."
+
+  - kind: table
+    title: The one-page cheat sheet
+    lead: "Screenshot this one."
+    columns: [NEED, USE, REMEMBER]
+    widths: "1fr 1fr 1fr"
+    rows:
+      - ["Real distance", "Haversine", "Degrees shrink north"]
+      - ["Nearest, in Postgres", "GiST on `ll_to_earth`", "`ORDER BY <-> LIMIT k`"]
+      - ["Name an area", "Geohash or H3", "6 chars ≈ 1.2 × 0.6 km"]
+      - ["Search by cells", "Outward, ring by ring", "Stop when it's proven"]
+      - ["9 cells", "Busy areas only", "14% wrong when quiet"]
+      - ["Neighbours", "From coordinates", "Prefixes break at 0°"]
+      - ["Date line", "Wrap longitude", "Or use 3D points"]
+      - ["Moving drivers", "In memory", "Thousands of writes a second"]
+      - ["Pricing by area", "Hexagons (H3)", "One distance to every neighbour"]
+
+  - kind: table
+    title: Collect the series
+    lead: "Every Behind the Button video comes with its own free guide like this one. Comment the keyword shown in each video to get it, and build the whole set."
+    columns: ["#", THE GUIDES]
+    widths: "8mm 1fr"
+    rows:
+      - ["1", "The last seat: race conditions in SQL (comment SEAT)"]
+      - ["2", "You tapped Pay twice: idempotency keys (comment PAY)"]
+      - ["3", "Why your OTP dies in 30 seconds: how TOTP works (comment OTP)"]
+      - ["4", "One more view: integer overflow and running out of IDs (comment VIEWS)"]
+      - ["5", "Four pages to a billion: indexes and Bloom filters (comment NAME)"]
+      - ["6", "Built to get lost: WebSockets and presence (comment TYPING)"]
+      - ["7", "A link is a password: single-use reset tokens (comment RESET)"]
+      - [{t: "8", tone: ok}, {t: "The next square: finding the nearest driver (this guide)", tone: ok}]
+      - ["9", "The buffer knows: why video doesn't stall (comment BUFFER)"]
+
+end:
+  video: "Behind the Button #8, Your nearest driver is in the wrong square: on Instagram @stacknova.dev and YouTube @StackNovaDev."
+  next: "This is guide #8 of the Behind the Button collection. Missed one? Comment the keyword on those videos. Follow, and comment the keyword on the next video to get guide #9."
+  more: "Search your own code for a distance worked out from raw latitude and longitude. If you find one, test it in Oslo."
+
+sources_lead: Every claim in this guide comes from one of these, or from the tests in it (3 Nov 2026).
+extra_sources:
+  - {title: "Uber Engineering — H3: Uber's Hexagonal Hierarchical Spatial Index (Isaac Brodsky, 27 June 2018)", url: "https://www.uber.com/blog/h3/"}
+  - {title: "PostgreSQL 18 — earthdistance (ll_to_earth, earth_distance, earth_box; sphere; edges near the poles and 180°)", url: "https://www.postgresql.org/docs/18/earthdistance.html"}
+  - {title: "PostgreSQL 18 — cube", url: "https://www.postgresql.org/docs/18/cube.html"}
+  - {title: "PostgreSQL 18 — GiST indexes (nearest-neighbour searches, the distance method, point_ops <->)", url: "https://www.postgresql.org/docs/18/gist.html"}
+  - {title: "Redis — GEOADD (geohash, 52-bit interleaved scores, haversine, up to 0.5% error)", url: "https://redis.io/docs/latest/commands/geoadd/"}
+  - {title: "Wikipedia — Geohash (Gustavo Niemeyer, 2008; cell dimensions by length)", url: "https://en.wikipedia.org/wiki/Geohash"}
+  - {title: "Wikipedia — Haversine formula", url: "https://en.wikipedia.org/wiki/Haversine_formula"}
+  - {title: "Wikipedia — Equirectangular projection", url: "https://en.wikipedia.org/wiki/Equirectangular_projection"}

@@ -1,0 +1,38 @@
+# Behind the Button #8 (look v4): the nearest driver, in milliseconds. In about a minute: reading every
+# driver, cutting the map into cells, the cell edge that hides the nearest driver, the eight cells
+# around, degrees that aren't kilometres, the index that does it on the real Earth (real runs,
+# samples/java), and the real case (Uber's own H3 post). `scene` names the visual each line plays over
+# (studio-v4); `say` is spoken, `show` (when present) is the on-screen caption text.
+id: 008-driver
+keyword: DRIVER
+title: "Your Nearest Driver Is in the Wrong Square"
+youtube_title: "Geospatial Search: How Apps Find the Nearest Driver"
+lines:
+  - {id: l1, scene: hook, say: "Your nearest driver is in the wrong square."}
+  - {id: l2, scene: scan, say: "Checking every driver works. A million drivers: over half a second, for one rider.",
+     show: "Checking every driver works. 1 million drivers: over half a second, for 1 rider."}
+  - {id: l3, scene: grid, say: "So apps cut the map into squares, and look only in yours."}
+  - {id: l4, scene: bug, say: "I tested a quiet city. A third of riders got a driver further away, or none at all. The nearest was just over the line."}
+  - {id: l5, scene: fix, say: "So search outward: the eight squares around yours, then further, until nothing closer can exist. Wrong answers: zero.",
+     show: "So search outward: the 8 squares around yours, then further, until nothing closer can exist. Wrong answers: 0."}
+  - {id: l6, scene: degrees, say: "And don't measure in degrees. They shrink as you go north. In Oslo, that picked the wrong driver almost three times in ten.",
+     show: "And don't measure in degrees. They shrink as you go north. In Oslo, that picked the wrong driver almost 3 times in 10."}
+  - {id: l7, scene: index, say: "Postgres does it with one index on the real Earth: nearest first, under two milliseconds, none wrong.",
+     show: "Postgres does it with one index on the real Earth: nearest first, under 2 milliseconds, none wrong."}
+  - {id: l8, scene: uber, say: "Uber went further: hexagons. Every neighbour is the same distance away, and they price surge in them."}
+  - {id: l9, scene: cta, say: "Comment driver for the free guide: every case tested, in real Java and SQL. Because the nearest driver is often in the next square.",
+     show: "Comment DRIVER for the free guide: every case tested, in real Java and SQL. Because the nearest driver is often in the next square.",
+     # YouTube has no comment-to-DM, so the Short ends on a follow
+     say_youtube: "Follow for one of these every day. Because the nearest driver is often in the next square."}
+
+fact_check:
+  - claim: "Checking all 1,000,000 drivers for one rider took 577-627 ms in SQL and 930-1,024 ms in Java's memory (three runs)"
+    source: "derived from code sample samples/java, mode scan (PostgreSQL 16.13, JDK 17.0.18, 3 Nov 2026)"
+  - claim: "Own geohash cell only, 5,000 drivers a city: 1,411 wrong and 299 empty of 5,000 riders (about a third); searching outward until nothing closer can exist: 0 wrong at 500, 5,000 and 50,000 drivers a city (9 cells alone: 697 wrong at 500)"
+    source: "derived from code sample samples/java, mode grid"
+  - claim: "Nearest by raw degrees: 280 of 1,000 riders got the wrong driver in Oslo, 0 in Singapore"
+    source: "derived from code sample samples/java, mode degrees"
+  - claim: "GiST index on ll_to_earth with <->: 1.35-1.49 ms a rider over three runs, 0 wrong of 50 checked against a full exact scan"
+    source: "derived from code sample samples/java, mode knn; https://www.postgresql.org/docs/18/earthdistance.html"
+  - claim: "Uber's H3 uses hexagons; neighbours are all the same distance from the centre; Uber measures supply and demand for surge pricing in hexagons"
+    source: "https://www.uber.com/blog/h3/"

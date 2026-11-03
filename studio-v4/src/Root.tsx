@@ -1,6 +1,10 @@
 import React from "react";
 import { Composition } from "remotion";
+import { BufferCover } from "./buffer/Cover";
+import { BUFFER_VERSIONS, Buffer, bufferDuration } from "./buffer/Buffer";
 import { Cover } from "./Cover";
+import { DriverCover } from "./driver/Cover";
+import { DRIVER_VERSIONS, Driver, driverDuration } from "./driver/Driver";
 import { LastSeat, VERSIONS, duration } from "./LastSeat";
 import { NameCover } from "./name/Cover";
 import { NAME_VERSIONS, Name, nameDuration } from "./name/Name";
@@ -53,5 +57,15 @@ export const RemotionRoot: React.FC = () => (
     <Composition id="ResetShort" component={Reset} defaultProps={{ version: "youtube" as const }}
                  durationInFrames={resetDuration(RESET_VERSIONS.youtube.tl)} fps={FPS} width={1080} height={1920} />
     <Composition id="ResetCover" component={ResetCover} durationInFrames={1} fps={FPS} width={1080} height={1920} />
+    <Composition id="DriverReel" component={Driver} defaultProps={{ version: "reel" as const }}
+                 durationInFrames={driverDuration(DRIVER_VERSIONS.reel.tl)} fps={FPS} width={1080} height={1920} />
+    <Composition id="DriverShort" component={Driver} defaultProps={{ version: "youtube" as const }}
+                 durationInFrames={driverDuration(DRIVER_VERSIONS.youtube.tl)} fps={FPS} width={1080} height={1920} />
+    <Composition id="DriverCover" component={DriverCover} durationInFrames={1} fps={FPS} width={1080} height={1920} />
+    <Composition id="BufferReel" component={Buffer} defaultProps={{ version: "reel" as const }}
+                 durationInFrames={bufferDuration(BUFFER_VERSIONS.reel.tl)} fps={FPS} width={1080} height={1920} />
+    <Composition id="BufferShort" component={Buffer} defaultProps={{ version: "youtube" as const }}
+                 durationInFrames={bufferDuration(BUFFER_VERSIONS.youtube.tl)} fps={FPS} width={1080} height={1920} />
+    <Composition id="BufferCover" component={BufferCover} durationInFrames={1} fps={FPS} width={1080} height={1920} />
   </>
 );

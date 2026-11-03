@@ -1,0 +1,448 @@
+# The free guide for "Behind the Button #9: Netflix tested a player that mostly ignores your internet
+# speed" (keyword BUFFER). Built by studio/scripts/pack.py content/v4/009-buffer into out/release/packs/.
+# The pieces are real (samples/encode.sh, ffmpeg); the connections are simulated and seeded, so every
+# run gives the same numbers (go run . -mode=<mode>, 3 Nov 2026). Code is cut from samples by line range.
+keyword: BUFFER
+file: stacknova-the-buffer-knows-guide
+lang: go
+kicker: "BEHIND THE BUTTON · FREE GUIDE #9"
+title: The Buffer Knows
+subtitle: How a video player decides what to download next, why measuring your speed leads to stalls, and what Netflix tested instead. A real player in Go, every case tested.
+versions: Tested on Go 1.24.6 and ffmpeg 7 with x264, on one Windows laptop, on 3 Nov 2026. The video pieces are real files; the 1,000 connections are simulated, with fixed seeds, so every run gives the same numbers.
+inside:
+  - "Part 1 · The moment: pressing play, every test result, Netflix's own A/B test"
+  - "Part 2 · The pieces: a ladder of qualities, real sizes, and why one ladder doesn't fit"
+  - "Part 3 · The choice: picking by speed, picking by buffer, and the settings that matter"
+  - "Part 4 · Beyond the player: start-up, buffer size, the network, and what I couldn't test"
+  - "Part 5 · Interview kit: a 2-minute answer, 12 questions, a one-page cheat sheet"
+
+sections:
+  # ---------------------------------------------------------------- part 1
+  - kind: part
+    n: "1"
+    title: The moment
+    lead: You press play, and a second later there's a picture. Ten minutes later, on a train, it's still going. That's not luck. It's one small decision, made again every few seconds.
+    items:
+      - What happens when you press play
+      - "My test: every result"
+      - Netflix's own test
+
+  - kind: flowchart
+    title: What happens when you press play
+    lead: "Streaming services such as Netflix and YouTube don't send one big file. They send pieces, and your player asks for them one at a time."
+    nodes:
+      - {head: "The film was cut up in advance", body: "Into pieces a few seconds long (4 s here), each made at several qualities: a ladder. Page 7."}
+      - {head: "The player fetches a list", body: "A small file (a manifest) naming every piece at every quality. Page 9."}
+      - {head: "It picks a quality for the next piece", body: "This is the whole game. Pick too high and the piece arrives late. Too low and the picture is blurry. Part 3."}
+      - {head: "It downloads it, and adds it to the buffer", body: "The buffer is the seconds of film already downloaded but not yet shown."}
+      - {head: "The picture plays from the buffer", body: "While the next piece downloads, the buffer drains at one second per second."}
+      - {head: "If the buffer empties, the picture stops", body: "That's a stall, or rebuffer: the spinning wheel. Everything here is about avoiding it.", tone: bad}
+
+  - kind: numbers
+    title: "My test: every result"
+    lead: "1,000 ten-minute sessions on the same 1,000 bumpy connections for each player. Real pieces from ffmpeg; simulated connections. **Lower stalls are better.**"
+    rows:
+      - ["80,634", "Stalls when always asking for 1080p"]
+      - [655, "Stalls picking by measured speed (in 374 of 1,000 sessions)"]
+      - [95, "Stalls picking by the buffer (in 61 sessions)"]
+      - ["3.0", "Mbps of average quality, picking by speed"]
+      - ["3.4", "Mbps of average quality, picking by the buffer"]
+      - ["37%", "Pieces where the speed estimate was over 50% too low"]
+      - ["16%", "Pieces where it was over 50% too high"]
+      - ["1.4 s", "To the first frame, starting at the lowest quality"]
+      - ["15.7 s", "To the first frame, starting at 1080p"]
+      - ["7×", "Bitrate a busy film needed over a calm one at the same quality setting"]
+    after:
+      - p: "Every number in this guide comes from `go run . -mode=pickers` and its neighbours, listed at the top of `main.go`. The connections use fixed seeds, so the same pieces always give these numbers. Another ffmpeg build makes slightly different pieces, so expect numbers close to these, not identical."
+
+  - kind: text
+    title: Netflix's own test
+    lead: "In 2014, researchers from Stanford and Netflix published the experiment this video is about, at SIGCOMM, the main networking conference."
+    blocks:
+      - bullets:
+          - "**The idea:** \"rather than presuming that capacity estimation is required\", start from the buffer alone, and ask when an estimate is actually needed."
+          - "**The test:** Netflix's browser player, two A/B tests with over half a million real users each, on three continents, over two weekends in May to September 2013."
+          - "**The result:** a 10 to 20% lower rebuffer rate than Netflix's then-default algorithm, at a similar average video rate, and a higher one once the buffer had built up."
+          - "**The catch they found:** estimates aren't needed once the buffer is full, but a simple estimate from recent downloads is important at the start, while the buffer is still filling from empty."
+      - callout: "My simulation showed a far bigger gap: 655 stalls against 95. Don't read that as the real-world number. My connections are simpler and my players are simpler. **The real number is Netflix's: 10 to 20% fewer rebuffers, on real people.** My test shows why; theirs shows how much."
+        label: READ IT CAREFULLY
+        tone: wait
+      - p: "Their player had a 240-second buffer, which the paper notes is bigger than players on many other devices have. Page 22 shows what buffer size does."
+
+  # ---------------------------------------------------------------- part 2
+  - kind: part
+    n: "2"
+    title: The pieces
+    lead: Before anyone presses play, the film has been made several times over, at different qualities, and cut into pieces. Here's what those pieces really weigh.
+    items:
+      - The ladder
+      - Real pieces aren't all the same size
+      - The list of pieces
+      - One ladder doesn't fit every film
+      - Why a few seconds a piece?
+
+  - kind: table
+    title: The ladder
+    lead: "The same minute of busy test film, made at five qualities by ffmpeg and x264, cut into 4-second pieces. The script is `encode.sh`."
+    columns: [QUALITY, MADE FOR, AVERAGE, SMALLEST, LARGEST]
+    widths: "16mm 1fr 1fr 1fr 1fr"
+    rows:
+      - ["270p", "300 kbps", "424 kbps", "287", "750"]
+      - ["360p", "750 kbps", "969 kbps", "583", "1,707"]
+      - ["540p", "1,500 kbps", "1,860 kbps", "1,022", "3,306"]
+      - ["720p", "3,000 kbps", "3,715 kbps", "1,819", "6,541"]
+      - [{t: "1080p", tone: ok}, "5,800 kbps", "7,098 kbps", "3,416", {t: "13,147", tone: bad}]
+    after:
+      - p: "Those top rungs, 5,800 kbps at 1080p and 3,000 at 720p, are a common fixed ladder, widely reported as the one Netflix used for every title before it started tuning each one. I used them as round numbers, not as anyone's current settings."
+      - callout: "The pieces came out **20 to 40% bigger** than the rate they were made for, because the test film is hard to compress and I allowed peaks of 1.5 times the target. That's realistic: a player has to cope with pieces bigger than their label."
+        label: NOTICE
+        tone: wait
+
+  - kind: text
+    title: Real pieces aren't all the same size
+    lead: "At 1080p, the largest piece was 3.8 times the smallest, though both are 4 seconds of the same film at the same setting."
+    blocks:
+      - p: "Video compression spends bits where the picture changes. A still moment costs little; a fast zoom costs a lot. So a piece's size depends on what's in it."
+      - p: "That's why a player can't just divide: \"my speed is 6 Mbps, the piece is 5.8 Mbps, so it fits.\" The next piece might be twice its label."
+      - callout: "Measure speed by **bytes and time of real downloads**, not by labels. My player records each download's real throughput, which is what the speed-based picker then uses."
+        label: IN PRACTICE
+        tone: ok
+
+  - kind: text
+    title: The list of pieces
+    lead: "The player starts by fetching a small text file. In Apple's HTTP Live Streaming (RFC 8216), the top-level one lists the qualities, and each quality's own list names its pieces."
+    blocks:
+      - code: |
+          #EXTM3U
+          #EXT-X-STREAM-INF:BANDWIDTH=8700000,RESOLUTION=1920x1080
+          1080p/index.m3u8
+          #EXT-X-STREAM-INF:BANDWIDTH=4500000,RESOLUTION=1280x720
+          720p/index.m3u8
+          #EXT-X-STREAM-INF:BANDWIDTH=450000,RESOLUTION=480x270
+          270p/index.m3u8
+      - p: "That's an illustration of the format, not a file from my test. `BANDWIDTH` is the peak rate in bits a second. A player that believed the average label would ask for too much."
+      - p: "DASH (MPEG-DASH) does the same job with an XML file. The idea is identical: a list of qualities, and pieces of each."
+
+  - kind: table
+    title: One ladder doesn't fit every film
+    lead: "Same encoder, same quality setting (x264, CRF 23), 60 seconds at 1080 wide. One busy film, one calm one:"
+    columns: [FILM, BITRATE IT NEEDED]
+    widths: "1fr 36mm"
+    rows:
+      - ["Busy: the Mandelbrot test film", {t: "4,589 kbps", tone: bad}]
+      - ["Calm: one of our own explainer videos", {t: "652 kbps", tone: ok}]
+    after:
+      - p: "**Seven times the bits for the same look.** With one fixed ladder, the calm film wastes bandwidth at the top, and the busy film looks blocky even at the top."
+      - p: "Netflix described moving away from one ladder for everything in a 2015 post on per-title encoding: each title gets its own ladder. I couldn't fetch that post directly, so I'll only say what it's widely reported to describe, and show the reason with my own two films."
+
+  - kind: decide
+    title: Why a few seconds a piece?
+    lead: "A trade-off, not a rule. These are the forces, reasoned rather than tested here."
+    rows:
+      - {if: "Pieces are short (2 s)", use: "Quick reactions", why: "The player can change quality sooner and start faster. But there are more requests, and each needs a keyframe, which costs compression."}
+      - {if: "Pieces are long (10 s)", use: "Efficient", why: "Fewer requests and better compression. But a wrong pick lasts longer, and the first frame takes longer."}
+      - {if: "Most services", use: "A few seconds", why: "Apple's HLS authoring spec says target durations should be 6 seconds; I used 4. Its example ladder tops out at 7,800 kbps for 1080p H.264."}
+
+  # ---------------------------------------------------------------- part 3
+  - kind: part
+    n: "3"
+    title: The choice
+    lead: Every few seconds, one decision. Here are the two ways to make it, the code for each, and what happened on 1,000 connections.
+    items:
+      - Picking by speed
+      - Why the speed is wrong
+      - Picking by buffer
+      - "The result, in full"
+      - A steady connection
+      - Its two settings
+      - The quick start
+
+  - kind: code
+    title: Picking by speed
+    lead: "Estimate the speed from the last few pieces, keep a margin, take the best quality that fits. It's what most people would write first."
+    from: samples/go/player.go
+    lines: [41, 61]
+    notes:
+      - [49, "a harmonic mean: one slow piece pulls it down a lot"]
+      - [53, "keep a 10% margin (Safety is 0.9)"]
+    after:
+      - p: "The harmonic mean is the kind choice: an ordinary average would let one fast piece hide a slow one. It still wasn't enough."
+
+  - kind: text
+    title: Why the speed is wrong
+    lead: "I compared each estimate (from the last 5 pieces) with the speed the very next piece actually got."
+    blocks:
+      - code: |
+          too high by over 50%:  16.4% of pieces
+          too low by over 50%:   37.4% of pieces
+      - p: "**More than half the time, the estimate was badly off one way or the other.** On a moving phone the speed changes faster than four pieces can follow."
+      - p: "Too high means a piece arrives late: the buffer drains, and if it empties, a stall. Too low means a blurry picture for no reason. A picker that trusts the estimate pays both prices."
+      - callout: "These connections are simulated. Real ones may be better or worse, but the paper's starting point is the same: \"capacity can vary widely over time\"."
+        label: SIMULATED
+        tone: wait
+
+  - kind: code
+    title: Picking by buffer
+    lead: "Forget the speed. Look at how many seconds are already downloaded. Below the reserve, the lowest quality. Above reserve plus cushion, the highest. A straight line in between."
+    from: samples/go/player.go
+    lines: [63, 84]
+    notes:
+      - [69, "the reserve: get pieces in quickly, whatever they look like"]
+      - [72, "a full enough buffer: the best quality there is"]
+      - [76, "in between, quality rises with the buffer"]
+    after:
+      - p: "It works because the buffer already holds the speed inside it: if pieces arrive faster than they play, it grows, and quality rises. If they don't, it shrinks, and quality drops before the picture stops."
+      - p: "The paper calls this a rate map. Theirs started with a reservoir and a cushion too, scaled to a 240-second buffer."
+
+  - kind: table
+    title: "The result, in full"
+    lead: "1,000 sessions of 10 minutes each, buffer up to 60 seconds, the same connections for every player."
+    columns: [PLAYER, STALLS, SESSIONS HIT, FROZEN, AVERAGE, SWITCHES]
+    widths: "1fr 13mm 15mm 14mm 15mm 15mm"
+    rows:
+      - ["Always 1080p", {t: "80,634", tone: bad}, "969", "585,418 s", "5.8 Mbps", "0"]
+      - ["By speed", {t: "655", tone: bad}, "374", "1,663 s", "3.0 Mbps", "23"]
+      - [{t: "By buffer", tone: ok}, {t: "95", tone: ok}, {t: "61", tone: ok}, {t: "186 s", tone: ok}, {t: "3.4 Mbps", tone: ok}, {t: "35", tone: wait}]
+      - ["By buffer, quick start", "97", "63", "230 s", "3.4 Mbps", "36"]
+    after:
+      - p: "Fewer stalls **and** higher average quality. The speed-based player wasted quality whenever its estimate was too low, and stalled whenever it was too high."
+      - callout: "The price is in the last column: the buffer-based player changed quality more often, 35 times a session against 23. Some of that is just the straight-line map stepping between neighbouring qualities. Next page."
+        label: THE COST
+        tone: wait
+
+  - kind: table
+    title: A steady connection
+    lead: "What if the speed never changes? Two steady connections, 10 minutes each:"
+    columns: [CONNECTION, PLAYER, STALLS, AVERAGE, SWITCHES]
+    widths: "22mm 1fr 14mm 18mm 16mm"
+    rows:
+      - ["2 Mbps", "By speed", "0", "1.5 Mbps", {t: "1", tone: ok}]
+      - ["2 Mbps", "By buffer", "0", "1.5 Mbps", {t: "16", tone: wait}]
+      - ["6.5 Mbps", "By speed", "0", {t: "3.0 Mbps", tone: bad}, {t: "1", tone: ok}]
+      - ["6.5 Mbps", "By buffer", "0", {t: "4.8 Mbps", tone: ok}, {t: "66", tone: bad}]
+    after:
+      - p: "On a steady line, the speed-based player never wobbles, but at 6.5 Mbps it settled for 720p: with its 10% margin and pieces bigger than their labels, 1080p never quite fit. The buffer-based player found the higher quality, and kept switching between neighbours to get it."
+      - p: "Real players smooth this out: don't step up again until the buffer has grown by a whole piece, or don't change more often than every few pieces. My simple version doesn't."
+
+  - kind: table
+    title: Its two settings
+    lead: "The reserve (below it, always the lowest) and the cushion (the range over which quality climbs). Same 1,000 connections, buffer up to 60 seconds:"
+    columns: [RESERVE, CUSHION, STALLS, SESSIONS HIT, AVERAGE]
+    widths: "18mm 18mm 1fr 1fr 1fr"
+    rows:
+      - ["4 s", "10 s", {t: "5,083", tone: bad}, "742", "3.6 Mbps"]
+      - ["8 s", "30 s", "95", "61", "3.4 Mbps"]
+      - [{t: "16 s", tone: ok}, "30 s", {t: "8", tone: ok}, {t: "7", tone: ok}, "3.3 Mbps"]
+      - ["8 s", "45 s", "28", "19", "3.2 Mbps"]
+    after:
+      - p: "**A bigger reserve buys safety for very little quality.** At 16 seconds, stalls fell from 95 to 8, and the average dropped by only 0.1 Mbps. A tiny reserve and cushion is almost as bad as picking by speed, because it reacts to every wobble."
+      - p: "The reserve has to cover at least the slowest piece you might download: if a piece can take 10 seconds on a bad patch, a 4-second reserve isn't one."
+
+  - kind: code
+    title: The quick start
+    lead: "At the very start the buffer is empty, so a pure buffer-based player sits at the lowest quality until it fills. The paper's fix: during start-up only, step up when pieces are arriving fast."
+    from: samples/go/player.go
+    lines: [86, 109]
+    notes:
+      - [100, "the start is over once the buffer stops growing"]
+      - [105, "a piece came twice as fast as the next quality needs: step up"]
+    after:
+      - p: "In my simulation it changed little: 97 stalls against 95, the same average. My first version had a bug: it never left start-up, so it kept climbing and never stepped down. That one stalled 10,559 times, which shows how much the ending condition matters."
+      - p: "In the real test, the paper reports that the estimate is what matters during start-up. My connections may simply be too kind at the start to show it."
+
+  # ---------------------------------------------------------------- part 4
+  - kind: part
+    n: "4"
+    title: Beyond the player
+    lead: How fast the first frame appears, how much buffer is worth having, and the parts of real streaming this test doesn't reach.
+    items:
+      - The first frame
+      - How much buffer?
+      - Getting the pieces close
+      - What this test doesn't show
+
+  - kind: table
+    title: The first frame
+    lead: "The first piece has to arrive before anything plays. Starting at each quality, averaged over the same 1,000 connections:"
+    columns: [FIRST PIECE, FIRST FRAME AFTER]
+    widths: "1fr 40mm"
+    rows:
+      - [{t: "270p", tone: ok}, {t: "1.4 s", tone: ok}]
+      - ["360p", "2.7 s"]
+      - ["540p", "4.6 s"]
+      - ["720p", "8.2 s"]
+      - [{t: "1080p", tone: bad}, {t: "15.7 s", tone: bad}]
+    after:
+      - p: "That's why video so often starts a little blurry and sharpens within seconds: **a fast start at low quality beats a slow start at high quality.**"
+      - p: "The paper's quick start does the same job: begin low, and climb as soon as the downloads show there's room."
+
+  - kind: table
+    title: How much buffer?
+    lead: "The same buffer-based player, with the reserve and cushion scaled to the buffer (15% and 50%), on the same 1,000 connections:"
+    columns: [BUFFER UP TO, STALLS, SESSIONS HIT, AVERAGE]
+    widths: "1fr 1fr 1fr 1fr"
+    rows:
+      - ["12 s", {t: "30,283", tone: bad}, {t: "1,000", tone: bad}, "3.5 Mbps"]
+      - ["30 s", {t: "2,059", tone: bad}, "546", "3.4 Mbps"]
+      - ["60 s", "60", "41", "3.4 Mbps"]
+      - [{t: "120 s", tone: ok}, {t: "5", tone: ok}, {t: "4", tone: ok}, "3.2 Mbps"]
+    after:
+      - p: "Buffer is time to recover. A dip that lasts 10 seconds is invisible with a minute downloaded, and a stall with 12 seconds downloaded. Netflix's browser player in the paper held up to 240 seconds."
+      - p: "The cost is memory and data: if someone stops watching, everything downloaded ahead is wasted. That's the reason not to make it endless."
+
+  - kind: text
+    title: Getting the pieces close
+    lead: "The player's choice matters less if the pieces are near. That part is the network, and Netflix built its own."
+    blocks:
+      - p: "Netflix's Open Connect program puts its own servers, called Open Connect Appliances, inside internet providers' networks, at no charge to qualifying providers, and its site says it partners with over 1,000 of them. Your film is often coming from a box in your provider's building, not from across an ocean."
+      - p: "Pieces are just files, which is the clever part of the whole design: any web cache can hold them, the same piece serves everyone who asks for it, and a player that can't get one from one server can ask another."
+      - callout: "Streaming that works is three things at once: a good ladder for the film, pieces stored close to people, and a player that picks well. This guide's tests covered the third."
+        label: THE WHOLE SYSTEM
+        tone: ok
+
+  - kind: text
+    title: What this test doesn't show
+    lead: "To be clear about the limits:"
+    blocks:
+      - bullets:
+          - "**The connections are simulated.** Shaped like a phone on the move, with dips, from fixed seeds. Real networks have their own patterns."
+          - "**There's no real network in the timings.** A piece's download time comes from its real size and the simulated speed, plus a fixed 50 ms round trip."
+          - "**My players are simple.** Real ones add smoothing, limits on switching, and estimates that weigh recent pieces more. Production algorithms such as BOLA or model-predictive control go further."
+          - "**One film.** A busy test film. A calm film would make every player look better."
+      - p: "What the tests do show is the shape of the problem, and the code is short enough to change and run again. Try your own connection shapes in `network.go`."
+
+  # ---------------------------------------------------------------- part 5
+  - kind: part
+    n: "5"
+    title: Interview kit
+    lead: "\"Design YouTube\" or \"design Netflix\" is a classic system design question, and adaptive streaming is the part most answers skip. Here's a real answer, with numbers behind it."
+    items:
+      - Your 2-minute answer
+      - 12 interview questions
+      - The mistakes people ship
+      - Checklist for a video player
+      - The one-page cheat sheet
+      - Collect the series
+
+  - kind: steps
+    title: Your 2-minute answer
+    lead: "When the interviewer asks \"how does video streaming avoid buffering?\", walk through this."
+    steps:
+      - head: Cut it into pieces
+        body: "Each video is encoded at several qualities (a ladder) and cut into pieces of a few seconds. A manifest lists them. Pieces are ordinary files, so CDNs cache them."
+      - head: Let the player choose
+        body: "The player downloads one piece at a time, choosing the quality for each. The server doesn't decide; the client does."
+      - head: Say why speed alone fails
+        body: "Measured speed is noisy and late. In my test the estimate was over 50% off in more than half of the pieces, and a speed-based player stalled 655 times in 1,000 sessions."
+      - head: Use the buffer
+        body: "Choose from buffer occupancy: lowest below a reserve, highest above a cushion. 95 stalls on the same connections, at slightly better quality. Netflix's A/B test: 10 to 20% fewer rebuffers."
+      - head: Start fast
+        body: "First piece at a low quality, so the first frame comes in about a second. Use a quick estimate only while the buffer fills for the first time."
+      - head: Cover the system
+        body: "Per-title ladders, pieces stored in CDNs inside ISPs, and limits on switching so the picture doesn't shimmer between qualities."
+
+  - kind: qa
+    title: 12 interview questions
+    items:
+      - q: What's a bitrate ladder?
+        a: "The same video encoded at several resolution and bitrate pairs, such as 270p at 300 kbps up to 1080p at 5,800 kbps. The player moves up and down it."
+      - q: Why cut video into pieces?
+        a: "So the quality can change mid-video, so ordinary web caches can serve them, and so playback can start before the whole file arrives."
+      - q: Who decides the quality, server or client?
+        a: "The client, in HLS and DASH. The server only serves files. That's what lets a CDN do the heavy lifting."
+      - q: Why not pick from measured speed?
+        a: "It's noisy and always behind. A few fast pieces lead to a high pick, then the speed drops, the next piece is slow, and the buffer empties. 655 stalls against 95 in my test."
+      - q: What is buffer-based adaptation?
+        a: "Choose the next quality from how many seconds are already downloaded: a reserve at the bottom, a cushion over which quality rises, the best above it."
+      - q: What did Netflix find?
+        a: "In two A/B tests with over half a million users each, a buffer-based approach cut rebuffers by 10 to 20% at a similar average quality."
+      - q: When do you still need a speed estimate?
+        a: "At the start, while the buffer fills from empty. The paper found it unnecessary in steady state and important during start-up."
+      - q: Why start at a low quality?
+        a: "The first frame needs one whole piece. At 270p it came in 1.4 s on average, at 1080p in 15.7 s."
+      - q: How big should the buffer be?
+        a: "Big enough to ride out dips. 12 s stalled in every session in my test; 120 s in 4. Bigger costs memory and wasted data."
+      - q: What's the downside of buffer-based picking?
+        a: "It can switch more often: 35 times a session against 23 here, and 66 on a steady line. Real players add limits on switching."
+      - q: What's per-title encoding?
+        a: "A separate ladder for each video. A calm film needed 652 kbps where a busy one needed 4,589 at the same quality setting."
+      - q: How does Netflix get pieces close to viewers?
+        a: "Open Connect: its own servers placed inside internet providers' networks, at over 1,000 partner providers."
+
+  - kind: table
+    title: The mistakes people ship
+    lead: "Each one of these looks fine on office Wi-Fi."
+    columns: [THE MISTAKE, WHAT HAPPENS, DO THIS]
+    widths: "1fr 1fr 1fr"
+    rows:
+      - ["One quality for everyone", {t: "80,634 stalls", tone: bad}, "A ladder"]
+      - ["Trusting the speed estimate", {t: "Late pieces, stalls", tone: bad}, "Let the buffer decide"]
+      - ["Trusting labels on pieces", {t: "Pieces bigger than expected", tone: bad}, "Measure real downloads"]
+      - ["Starting at high quality", {t: "15.7 s to the first frame", tone: bad}, "Start low, climb fast"]
+      - ["A tiny reserve", {t: "5,083 stalls", tone: bad}, "Cover the slowest piece"]
+      - ["A tiny buffer", {t: "Every session stalls", tone: bad}, "As much as you can afford"]
+      - ["Switching freely", {t: "Shimmering quality", tone: bad}, "Limit how often"]
+      - ["One ladder for every film", {t: "Wasted or blocky", tone: bad}, "Per-title ladders"]
+      - ["Pieces from far away", {t: "Slow, costly", tone: bad}, "A CDN near people"]
+
+  - kind: checklist
+    title: Checklist for a video player
+    items:
+      - "Every video has a ladder from a few hundred kbps upwards."
+      - "Pieces are a few seconds long, each starting on a keyframe."
+      - "The manifest gives peak rates, and the player knows pieces vary in size."
+      - "The first piece is at a low quality."
+      - "Quality is chosen from the buffer once it has filled for the first time."
+      - "The reserve covers the slowest piece you expect to download."
+      - "Quality doesn't change more often than every few pieces."
+      - "Stalls, their length, start-up time and switches are all measured, per session."
+      - "Pieces are served from a CDN close to viewers."
+      - "Calm and busy films get their own ladders."
+
+  - kind: table
+    title: The one-page cheat sheet
+    lead: "Screenshot this one."
+    columns: [THE PART, DO THIS, BECAUSE]
+    widths: "1fr 1fr 1fr"
+    rows:
+      - ["The film", "A ladder of qualities", "One size fits nobody"]
+      - ["The pieces", "A few seconds each", "Switch, cache, start early"]
+      - ["The list", "A manifest (HLS, DASH)", "The player chooses"]
+      - ["First piece", "Low quality", "1.4 s against 15.7 s"]
+      - ["Steady state", "Pick by buffer", "95 stalls against 655"]
+      - ["Start-up", "A quick estimate", "The buffer is still empty"]
+      - ["The reserve", "Cover the slowest piece", "16 s: 8 stalls"]
+      - ["Switching", "Limit it", "35 switches a session"]
+      - ["Buffer size", "As much as you can", "12 s: every session stalled"]
+      - ["Delivery", "A CDN in the ISP", "Netflix: Open Connect"]
+      - ["Real result", "10-20% fewer rebuffers", "Netflix, 1M+ people"]
+
+  - kind: table
+    title: Collect the series
+    lead: "Every Behind the Button video comes with its own free guide like this one. Comment the keyword shown in each video to get it, and build the whole set."
+    columns: ["#", THE GUIDES]
+    widths: "8mm 1fr"
+    rows:
+      - ["1", "The last seat: race conditions in SQL (comment SEAT)"]
+      - ["2", "You tapped Pay twice: idempotency keys (comment PAY)"]
+      - ["3", "Why your OTP dies in 30 seconds: how TOTP works (comment OTP)"]
+      - ["4", "One more view: integer overflow and running out of IDs (comment VIEWS)"]
+      - ["5", "Four pages to a billion: indexes and Bloom filters (comment NAME)"]
+      - ["6", "Built to get lost: WebSockets and presence (comment TYPING)"]
+      - ["7", "A link is a password: single-use reset tokens (comment RESET)"]
+      - ["8", "The next square: finding the nearest driver (comment DRIVER)"]
+      - [{t: "9", tone: ok}, {t: "The buffer knows: adaptive streaming (this guide)", tone: ok}]
+
+end:
+  video: "Behind the Button #9, Netflix tested a player that mostly ignores your internet speed: on Instagram @stacknova.dev and YouTube @StackNovaDev."
+  next: "This is guide #9 of the Behind the Button collection. Missed one? Comment the keyword on those videos. Follow, and comment the keyword on the next video to get the next guide."
+  more: "Change the connection shapes in network.go to match a network you know, and run the pickers again. It takes seconds, and you'll see the trade-off for yourself."
+
+sources_lead: Every claim in this guide comes from one of these, or from the tests in it (3 Nov 2026).
+extra_sources:
+  - {title: "Huang, Johari, McKeown, Trunnell, Watson — A Buffer-Based Approach to Rate Adaptation: Evidence from a Large Video Streaming Service, SIGCOMM 2014", url: "https://web.stanford.edu/class/cs244/papers/sigcomm2014-video.pdf"}
+  - {title: "Netflix Open Connect — appliances inside ISP networks, over 1,000 partner ISPs", url: "https://openconnect.netflix.com/en/"}
+  - {title: "RFC 8216 — HTTP Live Streaming (master playlists, EXT-X-STREAM-INF, BANDWIDTH)", url: "https://www.rfc-editor.org/rfc/rfc8216.html"}
+  - {title: "Apple — HTTP Live Streaming authoring specification for Apple devices", url: "https://developer.apple.com/documentation/http-live-streaming/hls-authoring-specification-for-apple-devices"}
+  - {title: "Streaming Learning Center — How Netflix pioneered per-title video encoding optimization (reporting the 2015 Netflix post)", url: "https://streaminglearningcenter.com/articles/how-netflix-pioneered-per-title-video-encoding-optimization.html"}
+  - {title: "FFmpeg — segment muxer, libx264 and the mandelbrot source", url: "https://ffmpeg.org/ffmpeg-all.html"}

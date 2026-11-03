@@ -1,0 +1,33 @@
+# Behind the Button #9 (look v4): why your video doesn't buffer. In about a minute: the film in 4-second
+# pieces at five qualities, picking by measured speed and why it stalls, picking by the buffer instead
+# (real pieces made by ffmpeg, simulated connections, samples/go), and the real case (Netflix's own A/B
+# test, SIGCOMM 2014). `scene` names the visual each line plays over (studio-v4); `say` is spoken,
+# `show` (when present) is the on-screen caption text.
+id: 009-buffer
+keyword: BUFFER
+title: "Ignore the Speed Test. Watch the Buffer."
+youtube_title: "Adaptive Bitrate Streaming Explained: Why Video Buffers"
+lines:
+  - {id: l1, scene: hook, say: "Netflix tested a player that mostly ignores your internet speed. It stalled less."}
+  - {id: l2, scene: pieces, say: "A film arrives in four-second pieces, each made at five qualities. The player picks one piece at a time.",
+     show: "A film arrives in 4-second pieces, each made at 5 qualities. The player picks one piece at a time."}
+  - {id: l3, scene: speed, say: "The obvious way: measure your speed, and take the best that fits. A thousand bumpy connections: six hundred and fifty-five stalls.",
+     show: "The obvious way: measure your speed, and take the best that fits. 1,000 bumpy connections: 655 stalls."}
+  - {id: l4, scene: why, say: "Speed jumps around. A few fast downloads, and it picks HD. Then the speed drops, the next piece takes too long, and the picture stops."}
+  - {id: l5, scene: fix, say: "So watch the buffer instead: how many seconds are already downloaded. Plenty? Go higher. Running low? Drop quality before it runs out."}
+  - {id: l6, scene: proof, say: "Same connections: ninety-five stalls, and slightly better quality.",
+     show: "Same connections: 95 stalls, and slightly better quality."}
+  - {id: l7, scene: netflix, say: "That was my simulation. Netflix tested the idea for real on half a million people per test, in twenty thirteen: ten to twenty percent fewer rebuffers.",
+     show: "That was my simulation. Netflix tested the idea for real on half a million people per test, in 2013: 10 to 20% fewer rebuffers."}
+  - {id: l8, scene: cta, say: "Comment buffer for the free guide: a real player in Go, every case tested. Because the buffer knows more than a speed test.",
+     show: "Comment BUFFER for the free guide: a real player in Go, every case tested. Because the buffer knows more than a speed test.",
+     # YouTube has no comment-to-DM, so the Short ends on a follow
+     say_youtube: "Follow for one of these every day. Because the buffer knows more than a speed test."}
+
+fact_check:
+  - claim: "1,000 simulated 10-minute sessions over the same bumpy connections, real pieces from ffmpeg: speed-based 655 stalls (374 sessions), 3,031 kbps on average; buffer-based 95 stalls (61 sessions), 3,406 kbps"
+    source: "derived from code sample samples/go, mode pickers (Go 1.24.6, seeded, 3 Nov 2026)"
+  - claim: "Capacity estimation is unnecessary in steady state, but simple estimation matters during startup; Netflix's browser player had a 240-second buffer"
+    source: "https://web.stanford.edu/class/cs244/papers/sigcomm2014-video.pdf (Huang et al., SIGCOMM 2014)"
+  - claim: "Netflix's buffer-based approach cut rebuffers by 10 to 20% against its then-default algorithm, at a similar video rate, in two A/B tests with over half a million users each, May to September 2013"
+    source: "https://web.stanford.edu/class/cs244/papers/sigcomm2014-video.pdf (Huang et al., SIGCOMM 2014)"
