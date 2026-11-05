@@ -155,7 +155,7 @@ export const Why: React.FC<SceneProps> = ({ line }) => {
         {frame >= fast && <circle cx={x(4)} cy={y(7.2)} r={18} fill={C.green} />}
         {frame >= next && <circle cx={x(5)} cy={y(1.1)} r={18} fill={C.red} />}
         {frame >= fast && <text x={x(4) - 70} y={y(7.2) - 34} fill={C.green} style={{ font: `800 34px "${FONT.mono}"` }}>picks HD</text>}
-        {frame >= next && <text x={x(5) + 26} y={y(1.1) + 10} fill={C.red} style={{ font: `800 34px "${FONT.mono}"` }}>then this</text>}
+        {frame >= next && <text x={x(5) - 40} y={y(1.1) + 58} fill={C.red} style={{ font: `800 34px "${FONT.mono}"` }}>then this</text>}
       </svg>
       <div style={{ opacity: ramp(frame, stops - 4, 6) }}>
         <Player y={640} quality="1080p" buffered={0} played={0.42} stalled={frame >= stops} />
