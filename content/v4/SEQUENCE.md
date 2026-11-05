@@ -49,3 +49,13 @@ five real cities. Uber's own H3 post is its real case (hexagons, surge pricing),
 "Netflix tested a player that mostly ignores your internet speed": a bitrate ladder made with ffmpeg
 and a player in Go, on simulated connections (said in the video), with Netflix's own A/B test
 (SIGCOMM 2014, 10 to 20% fewer rebuffers) as the real-world number.
+
+Then three more from the list, or close to it (owner, 5 Nov: "start making content for 7, 8, 9 Nov"):
+CACHE (Sat 7 Nov) "One key expired, and the database got 1,000 queries": a cache stampede on a real
+Postgres in Go, with one-request-loads and serve-the-old-value as the fixes, and Facebook's own write-up
+of its 2010 outage as the real case. RATE (Sun 8 Nov) "My limit was 100 a minute. 200 got through":
+four rate limiters in Node on a virtual clock, a real 429 server, and Stripe's and GitHub's own docs;
+the shared store in the race test is simulated, and the guide says so. PAGE (Mon 9 Nov) "Page 1 is
+instant. Page 100,000 isn't": OFFSET against keyset in Java on 2,000,000 posts, with Slack's own
+write-up as the real case. Atomic stock was dropped as too close to SEAT; TTL stories and the 2021
+Facebook outage are still open.

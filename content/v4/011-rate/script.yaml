@@ -1,0 +1,46 @@
+# Behind the Button #11 (look v4): why the 101st request gets a 429, and why some limits let 200
+# through. In about a minute: the fixed-window edge, the token bucket, four servers counting alone,
+# read-then-write against one atomic increment, one limit for everybody against one per account, the
+# 429 answer (samples/node, real HTTP plus a virtual clock), and the real case (Stripe's and GitHub's
+# own docs). `scene` names the visual each line plays over; `say` is spoken, `show` is the caption.
+id: 011-rate
+keyword: RATE
+title: "My Limit Was 100 a Minute. 200 Got Through."
+youtube_title: "Rate Limiting Explained: 200 Requests Past a Limit of 100"
+lines:
+  - {id: l1, scene: hook, say: "The limit was a hundred requests a minute. I sent two hundred in two seconds, and all of them got through.",
+     show: "The limit was 100 requests a minute. I sent 200 in 2 seconds, and all of them got through."}
+  - {id: l2, scene: edge, say: "It counted per minute, and went back to zero when the minute ended. So: a hundred just before, a hundred just after.",
+     show: "It counted per minute, and went back to 0 when the minute ended. So: 100 just before, 100 just after."}
+  - {id: l3, scene: bucket, say: "A token bucket fixes that: each request spends a token, and tokens drip back in. Same test: a hundred and three.",
+     show: "A token bucket fixes that: each request spends a token, and tokens drip back in. Same test: 103."}
+  - {id: l4, scene: servers, say: "Then four servers, each counting alone. A thousand requests: four hundred got through.",
+     show: "Then 4 servers, each counting alone. 1,000 requests: 400 got through."}
+  - {id: l5, scene: race, say: "So share one count. But read it, then write it, and fifty requests on the last slot all got in. One atomic increment: one.",
+     show: "So share one count. But read it, then write it, and 50 requests on the last slot all got in. One atomic increment: 1."}
+  - {id: l6, scene: accounts, say: "And limit each account. With one limit for everybody, one loud account got quiet users refused forty-four percent of the time.",
+     show: "And limit each account. With one limit for everybody, one loud account got quiet users refused 44% of the time."}
+  - {id: l7, scene: answer, say: "Over the limit, answer four twenty-nine, and say when to come back.",
+     show: "Over the limit, answer 429, and say when to come back."}
+  - {id: l8, scene: real, say: "Stripe runs its limiters on Redis, with a token bucket. GitHub gives you five thousand requests an hour.",
+     show: "Stripe runs its limiters on Redis, with a token bucket. GitHub gives you 5,000 requests an hour."}
+  - {id: l9, scene: cta, say: "Comment rate for the free guide: every case tested, in real Node. Because a limit of a hundred can let two hundred through.",
+     show: "Comment RATE for the free guide: every case tested, in real Node. Because a limit of 100 can let 200 through.",
+     # YouTube has no comment-to-DM, so the Short ends on a follow
+     say_youtube: "Follow for one of these every day. Because a limit of a hundred can let two hundred through."}
+
+fact_check:
+  - claim: "Fixed window, 100 a minute: 100 requests in the last second of a minute and 100 in the first of the next: 200 of 200 let through; token bucket (burst 100): 103; sliding log: 100"
+    source: "derived from code sample samples/node, mode boundary (Node 22.17.1, virtual clock, 5 Nov 2026)"
+  - claim: "4 app servers each counting alone: 400 of 1,000 let through; one shared count: 100"
+    source: "derived from code sample samples/node, mode servers"
+  - claim: "Read, check, write on a shared store 1 ms away, 1 request left, 50 at once: 50 let through in all 100 trials; one atomic increment: 1"
+    source: "derived from code sample samples/node, mode race (the store is simulated in process, 1 ms a round trip)"
+  - claim: "One limit of 5,000 a minute for everybody, one account sending 100 a second: 100 quiet accounts refused 44.4% of their requests; 100 a minute per account: 0%"
+    source: "derived from code sample samples/node, mode noisy"
+  - claim: "Real server: request 101 got 429 with Retry-After: 1; a second account was unaffected"
+    source: "derived from code sample samples/node, mode http; RFC 6585 section 4 (429, Retry-After)"
+  - claim: "Stripe implements its rate limiters using Redis, with the token bucket algorithm (Paul Tarjan, 30 March 2017)"
+    source: "https://stripe.com/blog/rate-limiters"
+  - claim: "GitHub REST API: 5,000 requests per hour for an authenticated user; x-ratelimit-* headers; 403 or 429 when exceeded"
+    source: "https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api"

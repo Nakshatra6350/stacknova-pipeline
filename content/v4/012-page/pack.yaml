@@ -1,0 +1,389 @@
+# The free guide for "Behind the Button #12: Page 1 is instant. Page 100,000 isn't" (keyword PAGE).
+# Built by studio/scripts/pack.py content/v4/012-page into out/release/packs/. Every result comes from
+# samples/java (java Pages <mode>, three runs each, on PostgreSQL 16.13, pgJDBC 42.7.4 and JDK
+# 17.0.18, 5 Nov 2026); code is cut from those files by line range.
+keyword: PAGE
+file: stacknova-page-after-page-guide
+lang: java
+kicker: "BEHIND THE BUTTON · FREE GUIDE #12"
+title: Page After Page
+subtitle: Why deep pages get slow, why scrolling shows the same post twice, and the pagination that fixes both. Real Java and SQL on 2,000,000 posts, every case tested.
+versions: Tested on PostgreSQL 16.13, pgJDBC 42.7.4 and JDK 17.0.18, on one Windows laptop, on 5 Nov 2026. 2,000,000 made-up posts, three a second; timings are the median of 5 tries, and three runs.
+inside:
+  - "Part 1 · The moment: scrolling a feed, every test result, Slack's switch"
+  - "Part 2 · OFFSET: what page 50,000 really reads"
+  - "Part 3 · Keyset: start after the last post shown, and the cursor an API returns"
+  - "Part 4 · When the data moves: posts shown twice, posts never shown, ties, totals"
+  - "Part 5 · Interview kit: a 2-minute answer, 12 questions, a one-page cheat sheet"
+
+sections:
+  # ---------------------------------------------------------------- part 1
+  - kind: part
+    n: "1"
+    title: The moment
+    lead: You scroll a feed, and the app asks for the next 20 posts. How it asks decides whether page 1,000 is as fast as page 1, and whether you see the same post twice.
+    items:
+      - What scrolling a feed asks
+      - "My test: every result"
+      - Slack's switch
+
+  - kind: flowchart
+    title: What scrolling a feed asks
+    lead: "2,000,000 posts, newest first, 20 a page."
+    nodes:
+      - {head: "Page 1: the newest 20", body: "Fast either way: about 1.5 ms in my test."}
+      - {head: "The usual next page: OFFSET", body: "\"Skip 20, give me 20\", then skip 40, 60... Easy to write, and it's how most tutorials page."}
+      - {head: "Deep pages get slow", body: "Page 100,000 took about a quarter of a second, because skipping isn't free (Part 2).", tone: bad}
+      - {head: "New posts shift everything", body: "While you read, new posts push the old ones down, and the next page repeats some (Part 4).", tone: bad}
+      - {head: "Keyset: start after the last one", body: "\"Posts older than the last one I showed\": under 1 ms on every page, and nothing repeats (Part 3).", tone: ok}
+
+  - kind: numbers
+    title: "My test: every result"
+    lead: "2,000,000 posts. Three runs each. **Lower is better.**"
+    rows:
+      - ["~1.5 ms", "Page 1, either way"]
+      - ["266 ms", "Page 100,000 by OFFSET (median of 3 runs: 204-281 ms)"]
+      - ["0.9 ms", "Page 100,000 by keyset, the same 20 posts"]
+      - ["1 million", "Rows read to show page 50,000 by OFFSET"]
+      - ["4,443", "Posts shown twice to 200 readers, as new posts arrived"]
+      - ["1,712", "Posts never shown, as seen posts were deleted"]
+      - [0, "Either, with keyset"]
+      - [499, "Of 10,000 posts skipped by a cursor with no tie-breaker"]
+      - ["~200 ms", "For the total behind \"page 3 of 100,000\""]
+    after:
+      - p: "To run any of them: `java Pages depth`, with the list of modes at the top of `Pages.java`. It needs Postgres and the pgJDBC driver."
+
+  - kind: text
+    title: Slack's switch
+    lead: "In August 2017, Michael Hahn wrote on Slack's engineering blog about moving Slack's API from offsets to cursors. His two reasons are the two halves of this guide."
+    blocks:
+      - bullets:
+          - "**Speed:** \"Using LIMIT <count> OFFSET <offset> doesn't scale well for large datasets.\" The database reads every row up to the offset, then throws them away."
+          - "**Stability:** when items are written often, the page window becomes unreliable, and can skip results or return duplicates."
+          - "**The fix:** each response carries a `next_cursor`, an opaque string pointing at where the next page starts. The client sends it back as `cursor`, with a `limit`."
+      - callout: "Slack's two problems are the two things my tests measured: 266 ms for page 100,000 by OFFSET, and 4,443 posts shown twice while new ones arrived. Keyset, the idea behind a cursor, fixed both."
+        label: THE CONNECTION
+        tone: ok
+
+  # ---------------------------------------------------------------- part 2
+  - kind: part
+    n: "2"
+    title: OFFSET
+    lead: OFFSET reads like a jump to page 50,000. It isn't a jump. It's a walk.
+    items:
+      - The table and the usual query
+      - Deeper is slower
+      - What page 50,000 really reads
+
+  - kind: code
+    title: The table and the usual query
+    lead: "Posts, newest first. The index is on `(created_at, id)`, so the newest posts are at one end of it, ready in order."
+    from: samples/java/Pages.java
+    lines: [30, 46]
+    lang: sql
+    notes:
+      - [40, "time first, then id: the feed's order, with no two rows equal"]
+      - [46, "page n skips (n - 1) × 20 rows"]
+    after:
+      - p: "2,000,000 rows, three posts every second: a 146 MB table and a 60 MB index, loaded in about 20 seconds."
+
+  - kind: table
+    title: Deeper is slower
+    lead: "The same query, deeper and deeper. Median of 5 tries; three runs:"
+    columns: [PAGE, SKIPS, RUN 1, RUN 2, RUN 3]
+    widths: "22mm 1fr 20mm 20mm 20mm"
+    rows:
+      - ["1", "0", "1.6 ms", "2.0 ms", "1.4 ms"]
+      - ["100", "1,980", "0.8 ms", "1.0 ms", "1.4 ms"]
+      - ["1,000", "19,980", "4.3 ms", "5.1 ms", "4.3 ms"]
+      - ["10,000", "199,980", "18 ms", "26 ms", "28 ms"]
+      - [{t: "50,000", tone: bad}, "999,980", {t: "99 ms", tone: bad}, {t: "138 ms", tone: bad}, {t: "130 ms", tone: bad}]
+      - [{t: "100,000", tone: bad}, "1,999,980", {t: "204 ms", tone: bad}, {t: "281 ms", tone: bad}, {t: "266 ms", tone: bad}]
+    after:
+      - p: "**The time grows with the page number**, about 0.13 ms per 1,000 rows skipped. Page 100,000 costs over 100 times page 1."
+      - p: "Few people read page 100,000 by hand. Programs do: exports, sync jobs, scrapers and \"load all\" buttons walk every page, and their last pages are the slowest."
+
+  - kind: text
+    title: What page 50,000 really reads
+    lead: "`EXPLAIN (ANALYZE, BUFFERS)` shows the work. Page 50,000 by OFFSET:"
+    blocks:
+      - code: |
+          Limit (actual rows=20)
+            Buffers: shared hit=3838
+            ->  Index Only Scan Backward using posts_feed on posts
+                  (actual rows=1000000)
+          Execution Time: 212.348 ms
+      - p: "**The index scan handed 1,000,000 rows to the Limit, which kept the last 20.** Postgres's own docs say it plainly: \"The rows skipped by an OFFSET clause still have to be computed inside the server; therefore a large OFFSET might be inefficient.\""
+      - p: "The same page by keyset, for comparison: 20 rows read, 4 buffers, 0.137 ms."
+
+  # ---------------------------------------------------------------- part 3
+  - kind: part
+    n: "3"
+    title: Keyset
+    lead: Instead of counting from the top, remember where you stopped, and ask for what comes after it.
+    items:
+      - The keyset query
+      - In Java
+      - Same posts, every depth
+      - A cursor for your API
+
+  - kind: code
+    title: The keyset query
+    lead: "\"Posts older than the last one I showed.\" The last post's time and id are the cursor."
+    from: samples/java/Pages.java
+    lines: [48, 53]
+    lang: sql
+    notes:
+      - [51, "a row comparison: (time, id) pairs compared in order, time first"]
+    after:
+      - code: |
+          Index Cond: (ROW(created_at, id) < ROW('2026-01-05 02:05:40+05:30', 1000021))
+          Index Only Scan Backward ... (actual rows=20)
+          Buffers: shared hit=4      Execution Time: 0.137 ms
+      - p: "The row comparison matches the index `(created_at, id)`, so Postgres starts right at the cursor and reads 20 entries. It doesn't matter how deep the page is."
+      - p: "The `ORDER BY` must match the cursor exactly: `created_at DESC, id DESC` with `(created_at, id) <`. Mix the directions, and the row comparison no longer describes \"after\"."
+
+  - kind: code
+    title: In Java
+    lead: "The same query from JDBC. The cursor is a record of the last post's id and time."
+    from: samples/java/Pages.java
+    lines: [102, 111]
+    notes:
+      - [105, "the tie-breaker can be switched off, for the test on page 18"]
+      - [107, "the last post's time..."]
+      - [108, "...and its id"]
+
+  - kind: table
+    title: Same posts, every depth
+    lead: "OFFSET against keyset, the same page each way. Both returned exactly the same 20 posts at every depth. Medians of 3 runs:"
+    columns: [PAGE, OFFSET, KEYSET]
+    widths: "1fr 32mm 32mm"
+    rows:
+      - ["1,000", "4.3 ms", {t: "0.8 ms", tone: ok}]
+      - ["10,000", "26 ms", {t: "0.7 ms", tone: ok}]
+      - ["50,000", {t: "130 ms", tone: bad}, {t: "0.6 ms", tone: ok}]
+      - ["100,000", {t: "266 ms", tone: bad}, {t: "0.9 ms", tone: ok}]
+    after:
+      - p: "Keyset stayed under a millisecond from page 10 to page 100,000. The cost of keyset is what it can't do: jump straight to page 4,817. It goes forward (or back) from where you are, which is what scrolling does anyway."
+
+  - kind: text
+    title: A cursor for your API
+    lead: "Clients shouldn't build the cursor themselves. Give them an opaque string, as Slack does with `next_cursor`."
+    blocks:
+      - code: |
+          GET /posts?limit=20
+          → { "posts": [...20 posts...],
+              "next_cursor": "MjAyNi0wMS0wNFQyMDozNTo0MFp8MTAwMDAyMQ" }
+
+          GET /posts?limit=20&cursor=MjAyNi0wMS0wNFQyMDozNTo0MFp8MTAwMDAyMQ
+      - bullets:
+          - "**What's inside:** the last post's time and id, encoded (here, URL-safe base64 of `2026-01-04T20:35:40Z|1000021`, the post at the end of page 50,000). Signing it stops clients editing it."
+          - "**The end:** an empty `next_cursor` means there's nothing more. Slack's API does exactly that."
+          - "**Going back:** flip the comparison and the order (`>` and `ASC`), then reverse the 20 rows before returning them."
+          - "**Filters belong in the cursor too**, or a client can change the filter mid-scroll and get nonsense."
+      - p: "The format above is an example of the idea, not code from the tests."
+
+  # ---------------------------------------------------------------- part 4
+  - kind: part
+    n: "4"
+    title: When the data moves
+    lead: A feed isn't a frozen list. Posts arrive and vanish while people read, and OFFSET counts positions, not posts.
+    items:
+      - New posts arrive
+      - Seen posts are deleted
+      - Ties in the cursor
+      - "\"Page 3 of 100,000\""
+      - What this test doesn't show
+
+  - kind: table
+    title: New posts arrive
+    lead: "200 readers each read 10 pages. Between pages, 0 to 5 new posts arrive (random, fixed seed). Each reader runs in a transaction that's rolled back, so the table never changes. Three runs, the same answer:"
+    columns: [WAY, NEW POSTS, POSTS SHOWN TWICE]
+    widths: "1fr 30mm 40mm"
+    rows:
+      - [{t: "OFFSET", tone: bad}, "4,966", {t: "4,443", tone: bad}]
+      - [{t: "Keyset", tone: ok}, "4,966", {t: "0", tone: ok}]
+    after:
+      - p: "Each new post at the top pushes everything down one place, so the next OFFSET page starts one post earlier, on a post the reader has already seen. (New posts after the last page don't cause a repeat, which is why it's 4,443 and not 4,966.)"
+      - p: "Apps hide repeats by dropping ids they've already shown. That hides the symptom; with deletes, there's no symptom to hide."
+
+  - kind: table
+    title: Seen posts are deleted
+    lead: "Same readers. Between pages, the author deletes 0 to 2 posts the reader has already seen:"
+    columns: [WAY, DELETED, POSTS NEVER SHOWN]
+    widths: "1fr 30mm 40mm"
+    rows:
+      - [{t: "OFFSET", tone: bad}, "1,988", {t: "1,712", tone: bad}]
+      - [{t: "Keyset", tone: ok}, "1,988", {t: "0", tone: ok}]
+    after:
+      - p: "**This one nobody notices.** Each delete above the reader shifts everything up a place, so one post slides past the page boundary and is never shown. No error, no duplicate, just a post the reader never saw."
+      - p: "Keyset doesn't care: \"older than the last post I showed\" means the same thing however many posts were deleted above it."
+
+  - kind: code
+    title: Ties in the cursor
+    lead: "Keyset needs a cursor that points at exactly one row. Three posts a second share a timestamp. Use only the time:"
+    from: samples/java/Pages.java
+    lines: [55, 60]
+    lang: sql
+    after:
+      - code: |
+          paging through the newest 10,000 posts, 20 a page
+          cursor: created_at only     499 posts skipped
+          cursor: (created_at, id)      0 posts skipped
+      - p: "When a page ends partway through a second, `created_at < last time` skips the rest of that second's posts. With 20 a page and 3 posts a second, that happens on most pages: 499 posts in 500 pages."
+      - p: "**The fix is the id, as a tie-breaker**, in the index, the ORDER BY and the cursor. Postgres's docs make the same point about OFFSET: use an ORDER BY that \"constrains the result rows into a unique order\"."
+
+  - kind: table
+    title: "\"Page 3 of 100,000\""
+    lead: "Showing a total needs counting every row, on every request that shows it:"
+    columns: [QUERY, TIME, ANSWER]
+    widths: "1fr 30mm 30mm"
+    rows:
+      - [{t: "SELECT count(*) FROM posts", tone: bad}, {t: "156-245 ms", tone: bad}, "2,000,000"]
+      - [{t: "reltuples from pg_class", tone: ok}, {t: "~1 ms", tone: ok}, "2,000,000"]
+    after:
+      - p: "The planner's estimate (`reltuples`) was right here because the table had just been analysed. It drifts between ANALYZE runs, so show it as \"about 2 million\", or not at all."
+      - p: "Most feeds show no total: just a \"more\" button or endless scroll, which is all keyset needs."
+
+  - kind: text
+    title: What this test doesn't show
+    lead: "To be clear about the limits:"
+    blocks:
+      - bullets:
+          - "**One laptop, warm cache.** Every page was in memory (\"shared hit\"). From disk, deep OFFSET pages would be slower still."
+          - "**One table, one order.** Feeds sorted by something else (likes, a score) need that column in the index and the cursor, plus the id."
+          - "**Made-up posts**, three per second for about a week. The queries and their costs are real."
+          - "**Simulated readers.** The drift test inserts and deletes inside rolled-back transactions; real feeds change from other connections, which shifts OFFSET pages in the same way."
+      - p: "What the tests do show: OFFSET's cost grows with depth, and its pages shift when the data does; keyset does neither."
+
+  # ---------------------------------------------------------------- part 5
+  - kind: part
+    n: "5"
+    title: Interview kit
+    lead: "\"How would you paginate this API?\" comes up in API design and system design interviews. Here's an answer with numbers behind it."
+    items:
+      - Your 2-minute answer
+      - 12 interview questions
+      - The mistakes people ship
+      - Checklist for pagination
+      - The one-page cheat sheet
+      - Collect the series
+
+  - kind: steps
+    title: Your 2-minute answer
+    lead: "When the interviewer asks \"how would you paginate a feed?\", walk through this."
+    steps:
+      - head: Say why not OFFSET
+        body: "It reads and throws away every skipped row: page 100,000 took 266 ms against 1.5 ms for page 1, on 2 million rows."
+      - head: And it shifts
+        body: "New posts push old ones down: 200 readers saw 4,443 posts twice. Deletes make posts vanish: 1,712 never shown."
+      - head: Use keyset
+        body: "WHERE (created_at, id) < (last_time, last_id) ORDER BY created_at DESC, id DESC LIMIT 20, on an index (created_at, id). Under 1 ms at any depth."
+      - head: Add a tie-breaker
+        body: "Timestamps repeat. Without the id, 499 of 10,000 posts were skipped."
+      - head: Make the cursor opaque
+        body: "Return next_cursor (encoded, ideally signed); empty when done. Slack moved to exactly this."
+      - head: Skip the total
+        body: "count(*) took about 200 ms on 2 million rows. Show an estimate, or none."
+
+  - kind: qa
+    title: 12 interview questions
+    items:
+      - q: Why is a large OFFSET slow?
+        a: "The rows it skips are still read inside the server. Page 50,000 read 1,000,000 rows to return 20."
+      - q: What's keyset pagination?
+        a: "Start after the last row shown, using an indexed sort key: WHERE (created_at, id) < (?, ?) ... LIMIT 20."
+      - q: How fast is keyset at depth?
+        a: "Under a millisecond at page 100,000 in my test, against 266 ms by OFFSET."
+      - q: Why do posts repeat with OFFSET?
+        a: "New rows at the top shift every position down; the next page starts on rows already shown. 4,443 repeats across 200 readers."
+      - q: Can rows be missed?
+        a: "Yes: deleting rows above the reader shifts everything up, so rows slide past the boundary. 1,712 never shown."
+      - q: Why include the id in the cursor?
+        a: "Sort keys repeat. With only the timestamp, 499 of 10,000 posts were skipped."
+      - q: What index does keyset need?
+        a: "One matching the ORDER BY and the cursor: (created_at, id). Then Postgres starts at the cursor and reads 20 entries."
+      - q: What can't keyset do?
+        a: "Jump to an arbitrary page number. It moves forward or back from a position."
+      - q: How do you page backwards?
+        a: "Flip the comparison and the order, then reverse the results before returning them."
+      - q: What goes in an API cursor?
+        a: "The sort key values of the last row (and any filters), encoded and ideally signed, returned as next_cursor."
+      - q: How do you show "page X of Y"?
+        a: "Avoid it, or use an estimate. count(*) on 2 million rows took 156-245 ms; the planner's estimate about 1 ms."
+      - q: Who moved from offsets to cursors?
+        a: "Slack, for its API (2017): offsets don't scale for large datasets, and frequent writes cause skips and duplicates."
+
+  - kind: table
+    title: The mistakes people ship
+    lead: "Each one passes a test on page 1 of a table that isn't changing."
+    columns: [THE MISTAKE, WHAT HAPPENS, DO THIS]
+    widths: "1fr 1fr 1fr"
+    rows:
+      - ["OFFSET for deep pages", {t: "266 ms at page 100,000", tone: bad}, "Keyset"]
+      - ["OFFSET on a live feed", {t: "Repeats and gaps", tone: bad}, "Keyset"]
+      - ["Cursor without a tie-breaker", {t: "1 in 20 skipped", tone: bad}, "(time, id)"]
+      - ["ORDER BY that isn't unique", {t: "Unstable pages", tone: bad}, "Add the id"]
+      - ["Index that doesn't match", {t: "A sort, every page", tone: bad}, "Index (time, id)"]
+      - ["count(*) on every page", {t: "~200 ms each time", tone: bad}, "Estimate, or no total"]
+      - ["Clients building cursors", {t: "Fragile, editable", tone: bad}, "Opaque next_cursor"]
+
+  - kind: checklist
+    title: Checklist for pagination
+    items:
+      - "The ORDER BY is unique: the sort column plus the id."
+      - "An index matches it exactly."
+      - "Next pages start after the last row shown, not at an offset."
+      - "The cursor holds every sort value, and any filters."
+      - "The cursor is opaque to clients, ideally signed."
+      - "An empty next_cursor means the end."
+      - "Totals are estimates, or left out."
+      - "Tests include rows inserted and deleted between pages, and rows sharing a timestamp."
+
+  - kind: table
+    title: The one-page cheat sheet
+    lead: "Screenshot this one."
+    columns: [NEED, USE, REMEMBER]
+    widths: "1fr 1fr 1fr"
+    rows:
+      - ["Next page", "Keyset", "Under 1 ms at any depth"]
+      - ["The cursor", "(created_at, id)", "Time alone skips 1 in 20"]
+      - ["The index", "(created_at, id)", "Matches ORDER BY"]
+      - ["Deep OFFSET", "Avoid", "Reads every skipped row"]
+      - ["Live feeds", "Keyset", "OFFSET: 4,443 repeats"]
+      - ["Deletes", "Keyset", "OFFSET: 1,712 never shown"]
+      - ["Previous page", "Flip > and order", "Then reverse"]
+      - ["Totals", "Estimate", "count(*): ~200 ms"]
+      - ["APIs", "Opaque next_cursor", "Slack, 2017"]
+
+  - kind: table
+    title: Collect the series
+    lead: "Every Behind the Button video comes with its own free guide like this one. Comment the keyword shown in each video to get it, and build the whole set."
+    columns: ["#", THE GUIDES]
+    widths: "8mm 1fr"
+    rows:
+      - ["1", "The last seat: race conditions in SQL (comment SEAT)"]
+      - ["2", "You tapped Pay twice: idempotency keys (comment PAY)"]
+      - ["3", "Why your OTP dies in 30 seconds: how TOTP works (comment OTP)"]
+      - ["4", "One more view: integer overflow and running out of IDs (comment VIEWS)"]
+      - ["5", "Four pages to a billion: indexes and Bloom filters (comment NAME)"]
+      - ["6", "Built to get lost: WebSockets and presence (comment TYPING)"]
+      - ["7", "A link is a password: single-use reset tokens (comment RESET)"]
+      - ["8", "The next square: finding the nearest driver (comment DRIVER)"]
+      - ["9", "The buffer knows: why video doesn't stall (comment BUFFER)"]
+      - ["10", "Stop the stampede: when a cache key expires (comment CACHE)"]
+      - ["11", "The 101st request: rate limiting (comment RATE)"]
+      - [{t: "12", tone: ok}, {t: "Page after page: OFFSET and keyset pagination (this guide)", tone: ok}]
+
+end:
+  video: "Behind the Button #12, Page 1 is instant. Page 100,000 isn't: on Instagram @stacknova.dev and YouTube @StackNovaDev."
+  next: "This is guide #12 of the Behind the Button collection. Missed one? Comment the keyword on those videos. Follow, and comment the keyword on the next video to get guide #13."
+  more: "Search your code for OFFSET. For each one, ask: can this page be deep, and can the rows change while someone pages? If either answer is yes, it's a keyset job."
+
+sources_lead: Every claim in this guide comes from one of these, or from the tests in it (5 Nov 2026).
+extra_sources:
+  - {title: "Slack Engineering — Evolving API Pagination at Slack (Michael Hahn, 15 Aug 2017)", url: "https://slack.engineering/evolving-api-pagination-at-slack/"}
+  - {title: "PostgreSQL 18 — 7.6 LIMIT and OFFSET (skipped rows are still computed; ORDER BY for a unique order)", url: "https://www.postgresql.org/docs/18/queries-limit.html"}
+  - {title: "PostgreSQL 18 — Row and Array Comparisons (row constructor comparison)", url: "https://www.postgresql.org/docs/18/functions-comparisons.html"}
+  - {title: "PostgreSQL 18 — Using EXPLAIN (ANALYZE, BUFFERS)", url: "https://www.postgresql.org/docs/18/using-explain.html"}
+  - {title: "PostgreSQL 18 — pg_class (reltuples: the planner's estimate)", url: "https://www.postgresql.org/docs/18/catalog-pg-class.html"}

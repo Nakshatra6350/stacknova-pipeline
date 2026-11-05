@@ -1,0 +1,384 @@
+# The free guide for "Behind the Button #11: My limit was 100 a minute. 200 got through" (keyword
+# RATE). Built by studio/scripts/pack.py content/v4/011-rate into out/release/packs/. Every result
+# comes from samples/node (node main.mjs <mode>, three runs each, on Node 22.17.1, 5 Nov 2026); code
+# is cut from those files by line range.
+keyword: RATE
+file: stacknova-101st-request-guide
+lang: js
+kicker: "BEHIND THE BUTTON · FREE GUIDE #11"
+title: The 101st Request
+subtitle: How an API says "slow down", why the obvious limit lets twice as many through, and what breaks when the count lives on more than one server. Real Node, every case tested.
+versions: Tested on Node 22.17.1 on one Windows laptop, on 5 Nov 2026. The limiters run on a virtual clock, so every run gives the same answer; the 429 comes from a real HTTP server. The shared store is simulated in the same process, 1 ms a round trip.
+inside:
+  - "Part 1 · The moment: the 101st request, every test result, Stripe and GitHub"
+  - "Part 2 · Four limiters: fixed window, sliding log, sliding counter, token bucket"
+  - "Part 3 · Many servers: counting alone, read-then-write, one atomic step"
+  - "Part 4 · Fair limits: per account, the 429 answer, what this test doesn't show"
+  - "Part 5 · Interview kit: a 2-minute answer, 12 questions, a one-page cheat sheet"
+
+sections:
+  # ---------------------------------------------------------------- part 1
+  - kind: part
+    n: "1"
+    title: The moment
+    lead: Your app calls an API in a loop. Request 100 works. Request 101 comes back with 429 Too Many Requests. Something counted, and said no.
+    items:
+      - What happens at request 101
+      - "My test: every result"
+      - Stripe and GitHub
+
+  - kind: flowchart
+    title: What happens at request 101
+    lead: "My test server: 100 requests a minute per account, in bursts of up to 100."
+    nodes:
+      - {head: "The request names its account", body: "An API key in a header. The limit belongs to that account, not to the server (page 18)."}
+      - {head: "The limiter checks the count", body: "Four ways to count, each with its own trade-off: Part 2."}
+      - {head: "Under the limit: 200 OK", body: "With a header saying how many are left, so polite clients slow down before they hit the wall."}
+      - {head: "Over the limit: 429", body: "Too Many Requests, with Retry-After: how many seconds to wait. My server said 1.", tone: bad}
+      - {head: "Other accounts don't notice", body: "A second account sent 10 requests at the same time: all 10 got 200 OK.", tone: ok}
+
+  - kind: numbers
+    title: "My test: every result"
+    lead: "A limit of 100 requests a minute everywhere. Every test ran three times and gave the same answer."
+    rows:
+      - [200, "Let through in 2 seconds by a fixed window: 100 before the minute, 100 after"]
+      - [103, "The same test, token bucket"]
+      - [100, "The same test, sliding log"]
+      - [400, "Of 1,000 let through by 4 servers, each counting alone"]
+      - [50, "Of 50 let through at once on the last slot: read, then write"]
+      - [1, "The same, with one atomic increment"]
+      - ["44%", "Of quiet accounts' requests refused, with one limit for everybody"]
+      - ["0%", "The same, with a limit per account"]
+      - ["1.2 KB", "Kept per account by a sliding log, against ~120 bytes for the others"]
+    after:
+      - p: "To run any of them: `node main.mjs boundary`, with the list of modes at the top of `main.mjs`. Nothing to install."
+
+  - kind: text
+    title: Stripe and GitHub
+    lead: "Two companies whose APIs millions of programs call, in their own words."
+    blocks:
+      - bullets:
+          - "**Stripe** (Paul Tarjan, March 2017): \"We implement our rate limiters using Redis.\" Their request limiter uses the token bucket, and they let it \"briefly burst above the cap for sudden spikes in usage\". They run four kinds of limiter, two of them load shedders that protect the whole fleet."
+          - "**GitHub** (REST API docs): an authenticated user gets 5,000 requests an hour. Every response carries `x-ratelimit-limit`, `-remaining`, `-used` and `-reset`. Over the limit, you get a 403 or a 429, and if a `retry-after` header is present, you shouldn't retry until that many seconds have passed."
+      - callout: "Both match what the tests show: count per account, in one shared store, with a bucket that allows a short burst, and tell the client when to come back."
+        label: THE CONNECTION
+        tone: ok
+
+  # ---------------------------------------------------------------- part 2
+  - kind: part
+    n: "2"
+    title: Four limiters
+    lead: All four say "100 a minute". They disagree about what a minute is, and about how much they remember.
+    items:
+      - The fixed window
+      - The edge of the minute
+      - The sliding log
+      - The sliding counter
+      - The token bucket
+      - Four limiters, measured
+
+  - kind: code
+    title: The fixed window
+    lead: "Count this minute's requests. When the minute changes, start again at 0. Two numbers per account."
+    from: samples/node/limiters.mjs
+    lines: [5, 21]
+    notes:
+      - [11, "which minute is it? 0, 1, 2..."]
+      - [13, "a new minute: forget the old count"]
+      - [17, "the 101st request this minute"]
+
+  - kind: table
+    title: The edge of the minute
+    lead: "Send 100 requests in the last second of a minute, then 100 in the first second of the next. Every limiter set to 100 a minute:"
+    columns: [LIMITER, LET THROUGH OF 200, IN]
+    widths: "1fr 30mm 24mm"
+    rows:
+      - [{t: "Fixed window", tone: bad}, {t: "200", tone: bad}, "2 s"]
+      - [{t: "Sliding log", tone: ok}, {t: "100", tone: ok}, "2 s"]
+      - ["Sliding counter", "102", "2 s"]
+      - ["Token bucket, burst 100", "103", "2 s"]
+      - ["Token bucket, burst 10", "13", "2 s"]
+    after:
+      - p: "**The fixed window let twice the limit through in two seconds.** Each minute saw only 100, so by its own rules nothing was wrong."
+      - p: "That matters when the limit protects something: a login form against guessing, a database that can take 100 a minute. An attacker who knows where the minute ends gets double."
+
+  - kind: code
+    title: The sliding log
+    lead: "Remember the time of every request. Before each new one, drop the ones older than a minute and count the rest. Exact: never more than 100 in any 60 seconds."
+    from: samples/node/limiters.mjs
+    lines: [23, 36]
+    notes:
+      - [30, "forget requests more than a minute old"]
+      - [33, "remember this one"]
+    after:
+      - p: "Exactness costs memory: 100 timestamps per busy account. For 100,000 accounts at their limit, 124 MB, against 11-13 MB for the others (page 12)."
+
+  - kind: code
+    title: The sliding counter
+    lead: "Keep this minute's count and last minute's. Assume last minute's requests were spread evenly, and count the part that still falls inside the past 60 seconds."
+    from: samples/node/limiters.mjs
+    lines: [38, 57]
+    notes:
+      - [52, "how much of the previous minute is still inside the window"]
+      - [53, "an estimate: last minute's share, plus this minute's count"]
+    after:
+      - p: "Three numbers per account, and close to exact: 102 at the edge of the minute, where the log allowed 100. It's an estimate because real requests aren't spread evenly."
+
+  - kind: code
+    title: The token bucket
+    lead: "A bucket holds up to `burst` tokens. Tokens drip in at 100 a minute. Each request takes one; an empty bucket says no."
+    from: samples/node/limiters.mjs
+    lines: [59, 83]
+    notes:
+      - [68, "add the tokens that dripped in since last time"]
+      - [71, "less than one token: refuse"]
+      - [81, "how long until the next token: what Retry-After should say"]
+    after:
+      - p: "The burst is the design choice. With a burst of 100, a client that's been quiet can send 100 at once, then 1 every 0.6 s. With a burst of 10, the edge test let 13 through in 2 seconds."
+
+  - kind: table
+    title: Four limiters, measured
+    lead: "A client that tries every millisecond for 10 minutes, starting 30 s into a minute. The most each let through in any 2 seconds and in any 60:"
+    columns: [LIMITER, ANY 2 S, ANY 60 S, MEMORY EACH]
+    widths: "1fr 18mm 20mm 26mm"
+    rows:
+      - ["Fixed window", "100", {t: "200", tone: bad}, "109 bytes"]
+      - [{t: "Sliding log", tone: ok}, "100", {t: "100", tone: ok}, {t: "1,237 bytes", tone: bad}]
+      - ["Sliding counter", "100", "150", "118 bytes"]
+      - ["Token bucket, burst 100", "103", "199", "125 bytes"]
+      - [{t: "Token bucket, burst 10", tone: ok}, {t: "13", tone: ok}, "109", "125 bytes"]
+    after:
+      - p: "Memory is for 100,000 accounts each at 100 requests, measured with Node's heap after a forced garbage collection, so it's an approximate figure for this code, not a law."
+      - p: "**No limiter is \"right\".** The log is exact and heavy. The fixed window is light and leaky at the edge. The bucket with a small burst smooths traffic, and its 60-second count includes the starting burst. Pick by what the limit protects."
+
+  # ---------------------------------------------------------------- part 3
+  - kind: part
+    n: "3"
+    title: Many servers
+    lead: One server counting in memory is easy. Real APIs run many servers behind a load balancer, and that's where limits quietly break.
+    items:
+      - Counting alone
+      - Read, then write
+      - One atomic step
+
+  - kind: table
+    title: Counting alone
+    lead: "4 app servers behind a round-robin load balancer, each with its own fixed window of 100 a minute. One client sends 1,000 requests in 50 seconds:"
+    columns: [WHERE THE COUNT LIVES, "LET THROUGH, OF 1,000"]
+    widths: "1fr 40mm"
+    rows:
+      - [{t: "In each server's memory", tone: bad}, {t: "400", tone: bad}]
+      - [{t: "In one shared store", tone: ok}, {t: "100", tone: ok}]
+    after:
+      - p: "Each server saw a quarter of the traffic and counted to 100. **With N servers, a per-server limit is N times the limit.** Add a server for capacity, and every client's limit goes up too."
+      - p: "So the count moves to one place every server can see: in practice Redis, as Stripe does. In my test, a store simulated in the same process, 1 ms a round trip."
+
+  - kind: code
+    title: Read, then write
+    lead: "The obvious way to keep a count in a store: read it, check it, write it back plus one."
+    from: samples/node/store.mjs
+    lines: [30, 37]
+    notes:
+      - [33, "round trip 1: read the count"]
+      - [35, "round trip 2: write it back. Between the two, others read the same count"]
+    after:
+      - code: |
+          99 of 100 used. 50 requests arrive at once, on different servers.
+          read, check, write:  50 let through  (all 100 trials)
+          one atomic increment: 1 let through  (all 100 trials)
+      - p: "Every one of the 50 read 99 before any of them wrote 100. The same race as the last seat in guide #1, and the same kind of fix."
+
+  - kind: code
+    title: One atomic step
+    lead: "Ask the store to add one and tell you the new count, in one step. Then check what came back."
+    from: samples/node/store.mjs
+    lines: [20, 42]
+    notes:
+      - [22, "one round trip; the store does the adding, so no two callers get the same number"]
+      - [41, "count first, then decide"]
+    after:
+      - p: "In Redis this is `INCR`, plus an expiry on the key so each minute's counter cleans itself up. Rejected requests still add to the count, which is harmless: the key expires with its minute."
+      - p: "For a token bucket in a shared store, the read-refill-take has to happen in one step too. With Redis, that usually means a small Lua script that runs atomically. That's a design note, not something this guide tested."
+
+  # ---------------------------------------------------------------- part 4
+  - kind: part
+    n: "4"
+    title: Fair limits
+    lead: A limit protects your servers, and it should also protect your users from each other.
+    items:
+      - One limit for everybody
+      - Saying no properly
+      - What this test doesn't show
+
+  - kind: table
+    title: One limit for everybody
+    lead: "100 quiet accounts send a request every 2 seconds each. One loud account sends 100 a second. The API can take 5,000 a minute. Five minutes:"
+    columns: [LIMIT, QUIET REQUESTS REFUSED, LOUD LET THROUGH]
+    widths: "1fr 36mm 34mm"
+    rows:
+      - [{t: "5,000 a minute, for everybody", tone: bad}, {t: "6,665 of 15,000 (44.4%)", tone: bad}, "16,665 of 30,000"]
+      - [{t: "100 a minute per account, plus 5,000 overall", tone: ok}, {t: "0 of 15,000", tone: ok}, "500 of 30,000"]
+    after:
+      - p: "With one shared limit, the loud account used up the minute's 5,000 in about 33 seconds, and everyone was refused until the next minute. With a limit per account, the loud one was held to 100 a minute and nobody else noticed."
+      - callout: "Every limit, cache key and lock named after a client belongs to that client's account. One shared bucket lets one bad actor, or one buggy loop, take the service away from everyone."
+        label: SCOPE IT
+        tone: ok
+
+  - kind: code
+    title: Saying no properly
+    lead: "The real server in the test. Over the limit: 429, Retry-After, and a body that says what happened."
+    from: samples/node/server.mjs
+    lines: [7, 25]
+    notes:
+      - [9, "the limit is per account"]
+      - [16, "seconds until the bucket has a token again"]
+      - [18, "Retry-After is in seconds"]
+    after:
+      - code: |
+          acme: 150 requests -> 100 x 200, 50 x 429
+            first 429: request 101, Retry-After: 1
+          beta: 10 requests  -> 10 x 200
+      - p: "429 Too Many Requests comes from RFC 6585 (2012), which says the response may include a Retry-After header saying how long to wait. Clients that respect it, and back off with some randomness, stop the next stampede of retries."
+
+  - kind: text
+    title: What this test doesn't show
+    lead: "To be clear about the limits:"
+    blocks:
+      - bullets:
+          - "**A virtual clock.** The limiter tests call `allow(key, now)` with made-up times, so they're exact and repeatable, not timing measurements."
+          - "**A simulated store.** The race and the shared count used a store in the same process with 1 ms round trips, standing in for Redis. The race needs only the gap between read and write, which any network store has."
+          - "**One machine.** No real load balancer or Redis; the 4 servers are 4 limiters in one process."
+          - "**Clocks.** Across real servers, clocks differ slightly. A shared store that does the counting avoids depending on them."
+      - p: "What the tests show is the shape of each failure, and that each fix removes it."
+
+  # ---------------------------------------------------------------- part 5
+  - kind: part
+    n: "5"
+    title: Interview kit
+    lead: "\"Design a rate limiter\" is a classic system design question. Here's an answer with numbers behind it."
+    items:
+      - Your 2-minute answer
+      - 12 interview questions
+      - The mistakes people ship
+      - Checklist for a rate limiter
+      - The one-page cheat sheet
+      - Collect the series
+
+  - kind: steps
+    title: Your 2-minute answer
+    lead: "When the interviewer says \"design a rate limiter for our API\", walk through this."
+    steps:
+      - head: Per account
+        body: "Key the limit by API key or user, not globally. One loud account got 44% of quiet users' requests refused under a shared limit; 0% per account."
+      - head: Pick the algorithm
+        body: "Fixed window is cheap but lets 2× through at the minute's edge (200 of 200 in 2 s). A token bucket allows a chosen burst and a steady rate; Stripe uses one."
+      - head: Shared state
+        body: "Many servers counting alone multiply the limit: 4 servers let 400 through. Keep the count in one store, such as Redis."
+      - head: Atomic updates
+        body: "Read-then-write let all 50 racing requests through; an atomic increment let 1. Use INCR, or a script that runs atomically."
+      - head: Say no properly
+        body: "429 with Retry-After and remaining-count headers, as GitHub does, so clients back off."
+      - head: Plan for failure
+        body: "Decide what happens if the store is down: usually let traffic through and alert, rather than refuse everyone."
+
+  - kind: qa
+    title: 12 interview questions
+    items:
+      - q: What status code means "rate limited"?
+        a: "429 Too Many Requests (RFC 6585), ideally with Retry-After. GitHub may also answer 403 for some limits."
+      - q: What's wrong with a fixed window?
+        a: "Bursts at the boundary: 100 at the end of one minute and 100 at the start of the next. 200 of 200 got through in 2 s."
+      - q: How does a token bucket work?
+        a: "Tokens drip in at a steady rate up to a burst size; each request takes one. Two numbers per key."
+      - q: Sliding log or sliding counter?
+        a: "The log is exact but stores every timestamp: about 1.2 KB per busy account. The counter is an estimate in three numbers."
+      - q: Why not count in each server's memory?
+        a: "Each server only sees part of the traffic: 4 servers let 400 through a limit of 100."
+      - q: Why is read-then-write wrong?
+        a: "Racing requests all read the same count. 50 requests on the last slot: all 50 got in. Use an atomic increment."
+      - q: How do you make a token bucket atomic in Redis?
+        a: "Do the refill and the take in one step, typically a Lua script that Redis runs atomically."
+      - q: Why limit per account and not globally?
+        a: "So one client can't use up everyone's capacity. Globally, quiet users had 44% of requests refused."
+      - q: What should the client do on a 429?
+        a: "Wait at least Retry-After, then retry with exponential backoff and jitter, so clients don't all return at once."
+      - q: What if the rate-limit store is down?
+        a: "Choose deliberately: usually fail open (allow) and alert, unless the limit protects something critical, like login attempts."
+      - q: Which headers would you return?
+        a: "The limit, what's remaining and when it resets, like GitHub's x-ratelimit-limit, -remaining, -used and -reset."
+      - q: How does Stripe do it?
+        a: "Rate limiters on Redis, a token bucket for requests that can briefly burst, plus a concurrency limiter and load shedders."
+
+  - kind: table
+    title: The mistakes people ship
+    lead: "Each one passes a test with one client and one server."
+    columns: [THE MISTAKE, WHAT HAPPENS, DO THIS]
+    widths: "1fr 1fr 1fr"
+    rows:
+      - ["Fixed window on a sensitive limit", {t: "2× at the edge", tone: bad}, "Sliding window or bucket"]
+      - ["Counting per server", {t: "N servers, N× the limit", tone: bad}, "One shared count"]
+      - ["Read, then write", {t: "50 of 50 got in", tone: bad}, "Atomic increment"]
+      - ["One limit for everybody", {t: "Quiet users refused", tone: bad}, "Per account"]
+      - ["429 with no Retry-After", {t: "Clients retry at once", tone: bad}, "Say when to come back"]
+      - ["Sliding log for millions of keys", {t: "~1.2 KB each", tone: bad}, "Counter or bucket"]
+      - ["No plan for the store failing", {t: "Everyone refused", tone: bad}, "Decide: open or closed"]
+
+  - kind: checklist
+    title: Checklist for a rate limiter
+    items:
+      - "Limits are per account or API key, with an overall cap on top."
+      - "The count lives in one store every server shares."
+      - "Every update is a single atomic step."
+      - "The algorithm fits what's protected: exact for logins, bursty for normal API use."
+      - "Over the limit: 429, Retry-After, and remaining-count headers."
+      - "Clients back off with jitter after a 429."
+      - "Keys expire with their window, so memory doesn't grow forever."
+      - "There's a decision, written down, for when the limit store is unreachable."
+
+  - kind: table
+    title: The one-page cheat sheet
+    lead: "Screenshot this one."
+    columns: [NEED, USE, REMEMBER]
+    widths: "1fr 1fr 1fr"
+    rows:
+      - ["Cheap and simple", "Fixed window", "2× at the edge"]
+      - ["Exact", "Sliding log", "~1.2 KB a key"]
+      - ["Nearly exact, small", "Sliding counter", "102 at the edge"]
+      - ["Bursts, then steady", "Token bucket", "Stripe's choice"]
+      - ["Many servers", "One shared count", "4 servers: 400"]
+      - ["Racing requests", "Atomic INCR", "Read-then-write: 50"]
+      - ["Fairness", "Per account", "44% refused when shared"]
+      - ["Saying no", "429 + Retry-After", "RFC 6585"]
+      - ["Telling clients", "x-ratelimit headers", "GitHub: 5,000 an hour"]
+
+  - kind: table
+    title: Collect the series
+    lead: "Every Behind the Button video comes with its own free guide like this one. Comment the keyword shown in each video to get it, and build the whole set."
+    columns: ["#", THE GUIDES]
+    widths: "8mm 1fr"
+    rows:
+      - ["1", "The last seat: race conditions in SQL (comment SEAT)"]
+      - ["2", "You tapped Pay twice: idempotency keys (comment PAY)"]
+      - ["3", "Why your OTP dies in 30 seconds: how TOTP works (comment OTP)"]
+      - ["4", "One more view: integer overflow and running out of IDs (comment VIEWS)"]
+      - ["5", "Four pages to a billion: indexes and Bloom filters (comment NAME)"]
+      - ["6", "Built to get lost: WebSockets and presence (comment TYPING)"]
+      - ["7", "A link is a password: single-use reset tokens (comment RESET)"]
+      - ["8", "The next square: finding the nearest driver (comment DRIVER)"]
+      - ["9", "The buffer knows: why video doesn't stall (comment BUFFER)"]
+      - ["10", "Stop the stampede: when a cache key expires (comment CACHE)"]
+      - [{t: "11", tone: ok}, {t: "The 101st request: rate limiting (this guide)", tone: ok}]
+      - ["12", "Page after page: OFFSET and keyset pagination (comment PAGE)"]
+
+end:
+  video: "Behind the Button #11, My limit was 100 a minute. 200 got through: on Instagram @stacknova.dev and YouTube @StackNovaDev."
+  next: "This is guide #11 of the Behind the Button collection. Missed one? Comment the keyword on those videos. Follow, and comment the keyword on the next video to get guide #12."
+  more: "Find your own rate limiter and check two things: where its count lives, and whether one update is one atomic step. Then try 100 requests just before the minute ends, and 100 just after."
+
+sources_lead: Every claim in this guide comes from one of these, or from the tests in it (5 Nov 2026).
+extra_sources:
+  - {title: "Stripe — Scaling your API with rate limiters (Paul Tarjan, 30 March 2017)", url: "https://stripe.com/blog/rate-limiters"}
+  - {title: "GitHub Docs — Rate limits for the REST API (5,000 an hour, x-ratelimit headers, 403 or 429, retry-after)", url: "https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api"}
+  - {title: "RFC 6585 — Additional HTTP Status Codes, section 4: 429 Too Many Requests (Nottingham, Fielding, April 2012)", url: "https://www.rfc-editor.org/rfc/rfc6585#section-4"}
+  - {title: "Redis — INCR (atomic increment; the rate limiter pattern)", url: "https://redis.io/docs/latest/commands/incr/"}
+  - {title: "Wikipedia — Token bucket", url: "https://en.wikipedia.org/wiki/Token_bucket"}

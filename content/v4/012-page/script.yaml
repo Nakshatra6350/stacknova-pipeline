@@ -1,0 +1,45 @@
+# Behind the Button #12 (look v4): page 1 is instant, page 100,000 isn't, and pages can show a post
+# twice. In about a minute: what OFFSET really reads, keyset pagination, posts that arrive or vanish
+# while someone pages, the missing tie-breaker, the cost of "page 3 of 100,000" (samples/java on
+# 2,000,000 posts, three runs), and the real case (Slack's own write-up). `scene` names the visual each
+# line plays over; `say` is spoken, `show` is the caption.
+id: 012-page
+keyword: PAGE
+title: "Page 1 Is Instant. Page 100,000 Isn't."
+youtube_title: "Pagination Explained: Why OFFSET Gets Slow (Use Keyset)"
+lines:
+  - {id: l1, scene: hook, say: "Page one loads instantly. Page one hundred thousand takes about a quarter of a second. Same query.",
+     show: "Page 1 loads instantly. Page 100,000 takes about a quarter of a second. Same query."}
+  - {id: l2, scene: offset, say: "Because OFFSET doesn't jump. To show twenty posts on page fifty thousand, Postgres read a million, and threw them away.",
+     show: "Because OFFSET doesn't jump. To show 20 posts on page 50,000, Postgres read a million, and threw them away."}
+  - {id: l3, scene: keyset, say: "Keyset pagination remembers where you stopped: the last post's time and id. Start right after it, and every page reads just twenty.",
+     show: "Keyset pagination remembers where you stopped: the last post's time and id. Start right after it, and every page reads just 20."}
+  - {id: l4, scene: drift, say: "OFFSET has a second bug. New posts push old ones down while you scroll. Two hundred readers, ten pages each: over four thousand posts shown twice.",
+     show: "OFFSET has a second bug. New posts push old ones down while you scroll. 200 readers, 10 pages each: over 4,000 posts shown twice."}
+  - {id: l5, scene: deleted, say: "Delete posts already seen, and everything shifts up: over seventeen hundred were never shown at all. Keyset: none.",
+     show: "Delete posts already seen, and everything shifts up: over 1,700 were never shown at all. Keyset: none."}
+  - {id: l6, scene: ties, say: "But put the id in the cursor. With only the time, posts from the same second got skipped: one in twenty.",
+     show: "But put the id in the cursor. With only the time, posts from the same second got skipped: 1 in 20."}
+  - {id: l7, scene: count, say: "And page three of a hundred thousand costs a full count: about two hundred milliseconds. An estimate takes one.",
+     show: "And \"page 3 of 100,000\" costs a full count: about 200 milliseconds. An estimate takes 1."}
+  - {id: l8, scene: slack, say: "Slack moved its API from offsets to cursors for exactly these two reasons."}
+  - {id: l9, scene: cta, say: "Comment page for the free guide: every case tested, in real Java and SQL. Because page fifty thousand shouldn't read a million posts.",
+     show: "Comment PAGE for the free guide: every case tested, in real Java and SQL. Because page 50,000 shouldn't read a million posts.",
+     # YouTube has no comment-to-DM, so the Short ends on a follow
+     say_youtube: "Follow for one of these every day. Because page fifty thousand shouldn't read a million posts."}
+
+fact_check:
+  - claim: "Page 1 by OFFSET 1.4-2.0 ms; page 100,000: 204-281 ms by OFFSET, 0.92-0.98 ms by keyset, the same 20 posts (2,000,000 posts, 20 a page, median of 5, three runs)"
+    source: "derived from code sample samples/java, mode depth (PostgreSQL 16.13, pgJDBC 42.7.4, JDK 17.0.18, 5 Nov 2026)"
+  - claim: "Page 50,000 by OFFSET: the index scan returned 1,000,000 rows to the Limit to keep 20; by keyset: 20 rows, 4 buffers"
+    source: "derived from code sample samples/java, mode plan (EXPLAIN ANALYZE, BUFFERS)"
+  - claim: "200 sessions of 10 pages: 4,966 new posts arrived, OFFSET showed 4,443 posts twice, keyset 0; 1,988 shown posts deleted, OFFSET never showed 1,712 others, keyset 0"
+    source: "derived from code sample samples/java, mode drift (seeded; each session rolled back)"
+  - claim: "Paging the newest 10,000 posts with only created_at in the cursor skipped 499 (three posts a second); with (created_at, id): 0"
+    source: "derived from code sample samples/java, mode ties"
+  - claim: "count(*) on 2,000,000 rows: 156-245 ms; pg_class.reltuples estimate: about 1 ms"
+    source: "derived from code sample samples/java, mode count"
+  - claim: "Slack moved from offset to cursor-based pagination because offsets don't scale for large datasets and frequent writes cause skipped or duplicate results (Michael Hahn, 15 Aug 2017)"
+    source: "https://slack.engineering/evolving-api-pagination-at-slack/"
+  - claim: "Rows skipped by an OFFSET clause still have to be computed inside the server"
+    source: "https://www.postgresql.org/docs/18/queries-limit.html"

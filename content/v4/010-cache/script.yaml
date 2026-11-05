@@ -1,0 +1,38 @@
+# Behind the Button #10 (look v4): one cache key expires and the database gets a thousand queries at
+# once. In about a minute: what one miss costs, a stampede on a real Postgres (samples/go, three runs),
+# the two fixes (one request loads; serve the old value while one refreshes), keys that expire
+# together, and the real case (Facebook's own write-up of its 2010 outage). `scene` names the visual
+# each line plays over (studio-v4); `say` is spoken, `show` (when present) is the on-screen caption.
+id: 010-cache
+keyword: CACHE
+title: "One Key Expired. The Database Got 1,000 Queries."
+youtube_title: "Cache Stampede Explained: One Expired Key, 1,000 Queries"
+lines:
+  - {id: l1, scene: hook, say: "One cache key expired, and the database got a thousand queries at once.",
+     show: "One cache key expired, and the database got 1,000 queries at once."}
+  - {id: l2, scene: query, say: "A best-seller's rating: a million reviews to count, a tenth of a second every time. So you cache it for a minute.",
+     show: "A best-seller's rating: 1 million reviews to count, 0.1 seconds every time. So you cache it for a minute."}
+  - {id: l3, scene: hit, say: "While it's cached, a thousand requests cost the database nothing.",
+     show: "While it's cached, 1,000 requests cost the database nothing."}
+  - {id: l4, scene: stampede, say: "Then it expires. A thousand requests miss at the same moment, and every one asks the database. The last one waited over a minute.",
+     show: "Then it expires. 1,000 requests miss at the same moment, and every one asks the database. The last one waited over a minute."}
+  - {id: l5, scene: flight, say: "Fix one: the first request asks, the rest wait for its answer. One query. Everyone answered in under half a second."}
+  - {id: l6, scene: stale, say: "Fix two: serve the old rating while one request refreshes it in the background. Nobody waits."}
+  - {id: l7, scene: together, say: "And don't give every key the same lifetime: ten thousand keys cached together expired in the same second. Add some randomness.",
+     show: "And don't give every key the same lifetime: 10,000 keys cached together expired in the same second. Add some randomness."}
+  - {id: l8, scene: facebook, say: "Facebook, twenty ten: every client saw one bad cached value and tried to fix it from the database. Hundreds of thousands of queries a second. Down for about two and a half hours.",
+     show: "Facebook, 2010: every client saw one bad cached value and tried to fix it from the database. Hundreds of thousands of queries a second. Down for about 2.5 hours."}
+  - {id: l9, scene: cta, say: "Comment cache for the free guide: every case tested, in real Go and SQL. Because one expired key can take down a database.",
+     show: "Comment CACHE for the free guide: every case tested, in real Go and SQL. Because one expired key can take down a database.",
+     # YouTube has no comment-to-DM, so the Short ends on a follow
+     say_youtube: "Follow for one of these every day. Because one expired key can take down a database."}
+
+fact_check:
+  - claim: "The rating query (count and average of 1,000,000 reviews, index-only) took 100-104 ms, median of 20, three runs"
+    source: "derived from code sample samples/go, mode query (PostgreSQL 16.13, Go 1.24.6, pgx 5.7.2, 5 Nov 2026)"
+  - claim: "1,000 requests on a just-expired key: 1,000 queries, slowest request 63.5-64.1 s; first-one-loads: 1 query, all answered in 213-345 ms; serve-the-old-value: 1 query, slowest under 0.7 ms"
+    source: "derived from code sample samples/go, mode stampede (pool of 20 connections, three runs)"
+  - claim: "10,000 keys cached in the same second with a 5-minute TTL expire in the same second; with ±10% jitter the worst second has 195"
+    source: "derived from code sample samples/go, mode together"
+  - claim: "Facebook, 23 Sept 2010: an automated system for verifying configuration values; every client saw the invalid value and tried to fix it with a database query; hundreds of thousands of queries a second; down or unreachable for about 2.5 hours"
+    source: "https://engineering.fb.com/2010/09/23/uncategorized/more-details-on-today-s-outage/ (Robert Johnson)"

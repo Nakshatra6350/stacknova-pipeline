@@ -1,0 +1,406 @@
+# The free guide for "Behind the Button #10: One key expired, and the database got 1,000 queries"
+# (keyword CACHE). Built by studio/scripts/pack.py content/v4/010-cache into out/release/packs/. Every
+# result comes from samples/go (go run . -mode=<mode>, three runs each, on PostgreSQL 16.13 with Go
+# 1.24.6 and pgx 5.7.2, 5 Nov 2026); code is cut from those files by line range.
+keyword: CACHE
+file: stacknova-stop-the-stampede-guide
+lang: go
+kicker: "BEHIND THE BUTTON · FREE GUIDE #10"
+title: Stop the Stampede
+subtitle: What happens when a busy cache key expires, why a thousand requests can take a database down, and the two small fixes that stop it. Real Go and SQL, every case tested.
+versions: Tested on PostgreSQL 16.13, Go 1.24.6 and pgx 5.7.2, with a pool of 20 connections, on one Windows laptop, on 5 Nov 2026. The reviews are made up; the timings are real.
+inside:
+  - "Part 1 · The moment: one product page, every test result, Facebook's 2010 outage"
+  - "Part 2 · The stampede: the obvious cache, what it did to the database"
+  - "Part 3 · The fixes: one request loads, serve the old value, spread the expiry, refresh early"
+  - "Part 4 · In production: many servers, failures, and what this test doesn't show"
+  - "Part 5 · Interview kit: a 2-minute answer, 12 questions, a one-page cheat sheet"
+
+sections:
+  # ---------------------------------------------------------------- part 1
+  - kind: part
+    n: "1"
+    title: The moment
+    lead: A product page shows a rating. Counting it takes a tenth of a second, so it's cached. Then, once a minute, the cached copy runs out.
+    items:
+      - What one product page asks
+      - "My test: every result"
+      - Facebook, 2010
+
+  - kind: flowchart
+    title: What one product page asks
+    lead: "The best-seller has 1,000,000 reviews. Its page shows how many, and the average."
+    nodes:
+      - {head: "The page needs the rating", body: "\"4.20 stars from 1,000,000 reviews\". The same answer for everybody, for a while."}
+      - {head: "Counting it is slow", body: "Even with the right index, Postgres counts a million entries: 100-104 ms in my test (page 7)."}
+      - {head: "So the app keeps a copy", body: "In memory, for 60 seconds. Thousands of page views read the copy, and the database rests."}
+      - {head: "The copy expires", body: "At that instant, every request still arriving finds nothing. What happens next is this guide.", tone: bad}
+      - {head: "Done right: one query", body: "One request refreshes the copy; nobody else touches the database (Part 3).", tone: ok}
+
+  - kind: numbers
+    title: "My test: every result"
+    lead: "1,000 requests for the same rating, all at once, on a pool of 20 connections. Three runs each. **Lower is better.**"
+    rows:
+      - ["~100 ms", "One rating query: a million reviews counted"]
+      - ["1,000", "Queries when the key had just expired and everyone loaded"]
+      - ["64 s", "The last of those 1,000 requests' wait"]
+      - [1, "Query when the first request loaded and the rest waited"]
+      - ["0.35 s", "Until all 1,000 had their answer, that way"]
+      - ["0.7 ms", "Slowest request when the old value was served meanwhile"]
+      - [20, "Queries with 20 servers, each with its own cache"]
+      - ["10,000", "Keys expiring in the same second, all cached together"]
+      - [195, "The worst second, with lifetimes spread by ±10%"]
+    after:
+      - p: "To run any of them: `go run . -mode=stampede`, with the list of modes at the top of `main.go`. The database tests need Postgres; `together` and `early` don't."
+
+  - kind: text
+    title: Facebook, 2010
+    lead: "On 23 September 2010, Facebook was down or unreachable for about 2.5 hours. Robert Johnson explained what happened the same day, on Facebook's engineering blog."
+    blocks:
+      - bullets:
+          - "**The trigger:** a change to a configuration value that a checking system read as invalid."
+          - "**The herd:** in his words, \"every single client saw the invalid value and attempted to fix it.\" Fixing it meant a query to a cluster of databases."
+          - "**The flood:** that cluster was overwhelmed by hundreds of thousands of queries a second, and the failures kept it going: in his words, \"a feedback loop that didn't allow the databases to recover.\""
+          - "**The fix:** they stopped all traffic to that database cluster, which meant turning the site off, and switched off the system that tried to correct the values."
+      - callout: "It's the same shape as a cache stampede: one cached thing goes bad, and every client goes to the database for it at once. My test is a small version of that shape on one laptop, not Facebook's system."
+        label: THE CONNECTION
+        tone: ok
+
+  # ---------------------------------------------------------------- part 2
+  - kind: part
+    n: "2"
+    title: The stampede
+    lead: The cache everyone writes first works perfectly, until the moment the value expires while the page is busy.
+    items:
+      - The query being protected
+      - The obvious cache
+      - What 1,000 requests did
+      - Why the last one waited a minute
+
+  - kind: code
+    title: The query being protected
+    lead: "Count and average every review of one product. An index on `(product_id, stars)` lets Postgres answer from the index alone, and it still has to visit a million entries."
+    from: samples/go/db.go
+    lines: [44, 56]
+    notes:
+      - [45, "the same query for every page view of this product"]
+      - [53, "one call is one query: the code counts them"]
+    after:
+      - code: |
+          one rating query: 100-104 ms (median of 20, three runs)
+          1,000,000 reviews, 4.20 stars
+      - p: "A tenth of a second is fine for one person. It isn't fine 1,000 times a second: that would be 100 seconds of database work every second."
+
+  - kind: code
+    title: The obvious cache
+    lead: "Look in the map. If it's there and fresh, return it. If not, load it and store it."
+    from: samples/go/cache.go
+    lines: [26, 41]
+    notes:
+      - [30, "fresh: no database at all"]
+      - [33, "every request that missed runs this line, at the same time"]
+    after:
+      - p: "Nothing here is wrong for one request at a time. The trouble is the gap between noticing the miss (line 30) and storing the new value (line 38): everyone who arrives in that gap loads too."
+
+  - kind: table
+    title: What 1,000 requests did
+    lead: "The key had expired a second earlier. 1,000 requests, released at the same instant. Three runs:"
+    columns: [RUN, QUERIES, MEDIAN WAIT, LAST ONE'S WAIT]
+    widths: "16mm 1fr 1fr 1fr"
+    rows:
+      - ["1", {t: "1,000", tone: bad}, "31.5 s", {t: "64.1 s", tone: bad}]
+      - ["2", {t: "1,000", tone: bad}, "31.2 s", {t: "64.0 s", tone: bad}]
+      - ["3", {t: "1,000", tone: bad}, "31.6 s", {t: "63.5 s", tone: bad}]
+      - [{t: "fresh key", tone: ok}, {t: "0", tone: ok}, "under 0.01 ms", {t: "0.5 ms", tone: ok}]
+    after:
+      - p: "**One expired key turned 1,000 cheap reads into 1,000 identical queries.** Every one of them computed the same 4.20 stars."
+
+  - kind: text
+    title: Why the last one waited a minute
+    lead: "1,000 queries of 100 ms each is 100 seconds of work. The pool lets 20 run at once, so you might expect 5 seconds. It took 64."
+    blocks:
+      - bullets:
+          - "**The pool queues:** 980 requests wait for one of 20 connections before their query even starts."
+          - "**20 at once isn't 20 times faster:** each query is pure counting, so they share the laptop's CPU cores. Running side by side, each took far longer than 100 ms."
+          - "**The answer was the same each time.** All that work produced one number, a thousand times."
+      - p: "That's reasoning from the numbers, not a separate test: on a server with more cores the total would be shorter, and the shape the same. The work grows with the number of requests that miss, and the busiest keys get the most requests."
+      - callout: "A stampede hits hardest exactly when the page is busiest, because that's when the most requests arrive in the gap."
+        label: WHY IT HURTS
+        tone: bad
+
+  # ---------------------------------------------------------------- part 3
+  - kind: part
+    n: "3"
+    title: The fixes
+    lead: Four small changes, each tested. The first two fix the stampede; the last two stop many keys expiring at once.
+    items:
+      - "Fix 1: one request loads"
+      - "Fix 2: serve the old value"
+      - Every fix, side by side
+      - Keys that expire together
+      - Refreshing early, by chance
+      - Which fix, when
+
+  - kind: code
+    title: "Fix 1: one request loads"
+    lead: "The first request to miss starts the load and leaves a note: \"I'm on it\". Everyone after it waits on that note instead of asking the database."
+    from: samples/go/cache.go
+    lines: [58, 82]
+    notes:
+      - [64, "someone is already loading this key: wait for them"]
+      - [73, "only the first caller gets here"]
+      - [80, "wake every waiter at once, with the same answer"]
+    after:
+      - p: "Go has this built in as `golang.org/x/sync/singleflight`. Its docs: \"the duplicate caller waits for the original to complete and receives the same results.\" Writing it by hand shows there's no magic: a map of calls in progress, and a channel to wait on."
+      - p: "**If the load fails, every waiter gets the error, and nothing is cached** (line 75), so the next request tries again."
+
+  - kind: code
+    title: "Fix 2: serve the old value"
+    lead: "The value expired a moment ago. It's still a very good answer. Return it, and let one request refresh it in the background."
+    from: samples/go/cache.go
+    lines: [94, 123]
+    notes:
+      - [100, "one refresh, started by the first request to notice"]
+      - [103, "everyone gets the old value straight away"]
+      - [119, "if the refresh fails, keep the old value"]
+    after:
+      - p: "HTTP has the same idea for web caches: `Cache-Control: stale-while-revalidate`, from RFC 5861 (2010). A cache may keep serving a stale response for a set number of seconds while it revalidates in the background."
+
+  - kind: table
+    title: Every fix, side by side
+    lead: "Same 1,000 requests, same expired key, three runs each:"
+    columns: [WAY, QUERIES, LAST ONE'S WAIT, ALL ANSWERED IN]
+    widths: "1fr 20mm 28mm 30mm"
+    rows:
+      - ["Everyone loads", {t: "1,000", tone: bad}, {t: "63.5-64.1 s", tone: bad}, "the same"]
+      - [{t: "One loads, the rest wait", tone: ok}, {t: "1", tone: ok}, "0.21-0.35 s", "0.21-0.35 s"]
+      - [{t: "Serve the old value", tone: ok}, {t: "1", tone: ok}, {t: "under 0.7 ms", tone: ok}, "under 1 ms"]
+      - ["20 servers, one loads on each", "20", "1.13-1.20 s", "1.13-1.21 s"]
+    after:
+      - p: "With Fix 1, everyone waits for one query instead of a thousand: about 0.2-0.35 s. That's more than the query alone (100 ms); I didn't measure where the rest went, with 1,000 goroutines on one laptop. With Fix 2, nobody waits for the database at all."
+      - p: "The last row is the subject of page 19."
+
+  - kind: code
+    title: Keys that expire together
+    lead: "A deploy, a restart or a cache flush fills thousands of keys in the same second, all with the same lifetime. Five minutes later, they all run out in the same second too."
+    from: samples/go/cache.go
+    lines: [125, 128]
+    after:
+      - code: |
+          10,000 keys cached at once, 5-minute lifetime
+          lifetime exactly 5 min:   10,000 expire in the worst second
+          lifetime 5 min ± 10%:        195 in the worst second (60 s spread)
+          lifetime 5 min ± 20%:        109 in the worst second (120 s spread)
+      - p: "A little randomness turns one cliff into a gentle slope: 50 times fewer misses in the worst second, for a lifetime that varies by 30 seconds either way."
+
+  - kind: code
+    title: Refreshing early, by chance
+    lead: "The XFetch rule, from a 2015 paper by Vattani, Chierichetti and Lowenstein: each request may refresh a little before expiry, with a chance that grows as expiry gets near and the load gets slower."
+    from: samples/go/cache.go
+    lines: [130, 137]
+    notes:
+      - [135, "log of a random number below 1 is negative, so this is a random head start"]
+    after:
+      - code: |
+          one key, 1,000 requests a second, 60 s lifetime, 100 ms load,
+          10 minutes of simulated traffic (no database):
+          expire, then everyone loads     900 loads,   900 requests waited
+          expire, then one loads            9 loads,   900 requests waited
+          refresh early, beta 1          26.6 loads,  26.6 requests waited
+          refresh early, beta 2          16.3 loads,  16.3 requests waited
+      - p: "The paper's version: recompute if `time() - delta * beta * log(rand()) >= expiry`, where delta is how long the last recompute took and beta defaults to 1. In my simulation, only the requests that chose to refresh ever waited, and a few refreshes overlapped."
+      - p: "That's a simulation in virtual time, not a database test, and it's marked as one in `main.go`."
+
+  - kind: table
+    title: Which fix, when
+    lead: "They combine well. A sensible default is the first three together."
+    columns: [FIX, USE IT WHEN, COST]
+    widths: "1fr 1fr 1fr"
+    rows:
+      - [{t: "One loads, rest wait", tone: ok}, "Always: it's the floor", "Waiters wait one load"]
+      - [{t: "Serve the old value", tone: ok}, "A slightly old answer is fine", "Answers can be a little stale"]
+      - [{t: "Spread lifetimes", tone: ok}, "Many keys are filled together", "Nothing worth mentioning"]
+      - ["Refresh early (XFetch)", "Loads are slow and keys are hot", "A few extra loads"]
+      - ["Refresh on a timer", "A handful of known hot keys", "Loads even when nobody asks"]
+    after:
+      - p: "Serving old values needs a limit: `maxStale` in my code. Past it, callers wait for fresh data, as in Fix 1. A rating can be a minute old; a bank balance can't."
+
+  # ---------------------------------------------------------------- part 4
+  - kind: part
+    n: "4"
+    title: In production
+    lead: My test ran one cache in one process. Real systems run many servers, and caches that fail in their own ways.
+    items:
+      - Many servers
+      - When the load fails
+      - What this test doesn't show
+
+  - kind: text
+    title: Many servers
+    lead: "Fix 1 works inside one process. With 20 app servers, each has its own note, so each sends its own query."
+    blocks:
+      - code: |
+          20 servers, one load at a time on each
+          20 queries; last request answered in 1.13-1.20 s (three runs)
+      - p: "20 is far better than 1,000, and often good enough. To get to one query across the whole fleet, the servers have to agree on who loads:"
+      - bullets:
+          - "**A shared cache with a lock:** the first server to take a short lock (in Redis or Memcached, say) loads; the others wait briefly and read the shared copy."
+          - "**Serve the old value from the shared cache:** if every server can read the stale copy, only the refresh needs coordinating."
+          - "**A refresher:** one background job keeps known hot keys fresh, so requests never see them expire."
+      - p: "Those are designs, not tests of mine: this guide only tested the one-process versions and the 20-server count."
+
+  - kind: text
+    title: When the load fails
+    lead: "The worst stampedes start when the database is already struggling. Make sure a failed load doesn't make it worse."
+    blocks:
+      - bullets:
+          - "**Don't cache the failure as an answer**, unless you mean to (\"no such product\" can be cached briefly; a timeout can't)."
+          - "**Keep serving the old value on errors** (Fix 2 does: page 13, line 119). HTTP calls this `stale-if-error`, also in RFC 5861."
+          - "**Bound the waiting.** In my Fix 1, waiters can't give up early. Real code passes a context with a deadline, so a hung load doesn't hold every waiter."
+          - "**Retry with backoff and jitter.** Facebook's outage was a loop: errors caused more queries, which caused more errors."
+      - callout: "A panic inside the load in my hand-written version would leave the waiters stuck forever. Go's own singleflight handles that case; another reason to use it in real code."
+        label: KNOWN GAP
+        tone: bad
+
+  - kind: text
+    title: What this test doesn't show
+    lead: "To be clear about the limits:"
+    blocks:
+      - bullets:
+          - "**One laptop.** The database, the app and 1,000 goroutines shared one machine. A real database server would finish the 1,000 queries sooner; it would still do 1,000 times the work."
+          - "**One key.** Real stampedes often hit many hot keys at once, which is what spreading lifetimes is for."
+          - "**An in-process cache.** Redis or Memcached add a network hop and shared state, which changes Fix 1 (page 19)."
+          - "**Made-up reviews.** The data is generated; the query and its cost are real."
+      - p: "What the tests do show is the shape: the cost of a stampede grows with traffic, and both fixes cut it to one query."
+
+  # ---------------------------------------------------------------- part 5
+  - kind: part
+    n: "5"
+    title: Interview kit
+    lead: "\"What happens when a hot cache key expires?\" comes up in nearly every caching question. Here's an answer with numbers behind it."
+    items:
+      - Your 2-minute answer
+      - 12 interview questions
+      - The mistakes people ship
+      - Checklist for a cache
+      - The one-page cheat sheet
+      - Collect the series
+
+  - kind: steps
+    title: Your 2-minute answer
+    lead: "When the interviewer asks \"what's a cache stampede, and how do you stop it?\", walk through this."
+    steps:
+      - head: Name it
+        body: "A hot key expires; every request in the gap misses and loads the same value. In my test, 1,000 requests made 1,000 identical queries."
+      - head: Show the cost
+        body: "A 100 ms query became a 64-second wait for the last request, because they all queued for the same database."
+      - head: Fix 1
+        body: "Let one request load and the rest wait for its answer (singleflight): 1 query, everyone answered in about 0.3 s."
+      - head: Fix 2
+        body: "Serve the slightly old value while one request refreshes in the background: nobody waits."
+      - head: Spread expiry
+        body: "Add jitter to lifetimes so keys filled together don't expire together: 10,000 in one second became 195."
+      - head: Scale it out
+        body: "Per-process fixes leave one load per server; a shared lock or a background refresher gets it to one. Never cache errors as answers."
+
+  - kind: qa
+    title: 12 interview questions
+    items:
+      - q: What is a cache stampede?
+        a: "Many requests miss the same expired key at once and all recompute it. Also called a thundering herd or dog-piling."
+      - q: Why is it worst on hot keys?
+        a: "More requests arrive during the reload. In my test, 1,000 requests on one key meant 1,000 queries."
+      - q: What does singleflight do?
+        a: "The first caller for a key does the work; duplicates wait and get the same result. 1 query instead of 1,000."
+      - q: What's stale-while-revalidate?
+        a: "Serve the expired value while one refresh runs in the background. In HTTP, RFC 5861 defines it as a Cache-Control extension."
+      - q: When can't you serve stale data?
+        a: "When a wrong answer costs more than a slow one: balances, stock you're about to sell, permissions."
+      - q: Why add jitter to TTLs?
+        a: "Keys filled together expire together. ±10% spread 10,000 expiries over 60 seconds; the worst second had 195."
+      - q: What's probabilistic early expiration?
+        a: "Each request may refresh before expiry, more likely as expiry nears (XFetch). It avoids the expiry moment altogether."
+      - q: Does singleflight work across servers?
+        a: "No, it's per process: 20 servers made 20 queries. Across a fleet you need a shared lock or a background refresher."
+      - q: What if the reload fails?
+        a: "Return the error to the waiters, don't cache it, keep serving the old value if you have one, and back off before retrying."
+      - q: What happened at Facebook in 2010?
+        a: "A config value was read as invalid; every client tried to fix it with a database query. Hundreds of thousands a second, about 2.5 hours down."
+      - q: Why not just make the TTL longer?
+        a: "It makes stampedes rarer, not smaller, and the data staler. The expiry moment still comes."
+      - q: How would you notice a stampede?
+        a: "Database load spikes in step with cache expiries, many identical queries at once, and cache misses clustered on a few keys."
+
+  - kind: table
+    title: The mistakes people ship
+    lead: "Each one works in testing, where traffic is low."
+    columns: [THE MISTAKE, WHAT HAPPENS, DO THIS]
+    widths: "1fr 1fr 1fr"
+    rows:
+      - ["Every miss loads", {t: "1,000 identical queries", tone: bad}, "One loads, the rest wait"]
+      - ["Same TTL for everything", {t: "10,000 expire in a second", tone: bad}, "Add ±10% jitter"]
+      - ["Deleting a hot key to refresh it", {t: "A stampede on purpose", tone: bad}, "Overwrite it with the new value"]
+      - ["Caching errors as values", {t: "Bad answers for a whole TTL", tone: bad}, "Cache only successes"]
+      - ["Waiters without a deadline", {t: "One hung load holds everyone", tone: bad}, "Pass a context with a timeout"]
+      - ["Retrying instantly on errors", {t: "A feedback loop", tone: bad}, "Back off, with jitter"]
+      - ["Flushing the whole cache on deploy", {t: "Every key cold at once", tone: bad}, "Warm gradually, or version keys"]
+
+  - kind: checklist
+    title: Checklist for a cache
+    items:
+      - "Only one request per process loads a missing key; the rest wait for it."
+      - "Hot keys are served stale while one request refreshes them, where that's acceptable."
+      - "Lifetimes have jitter, so keys filled together don't expire together."
+      - "Failed loads aren't cached, and waiters get the error."
+      - "Waiting has a deadline."
+      - "Retries back off, with jitter."
+      - "Across servers, a shared lock or a refresher keeps loads to one per key."
+      - "Database queries and cache misses are on the same dashboard, so a stampede is visible."
+
+  - kind: table
+    title: The one-page cheat sheet
+    lead: "Screenshot this one."
+    columns: [PROBLEM, FIX, REMEMBER]
+    widths: "1fr 1fr 1fr"
+    rows:
+      - ["Hot key expires", "One loads, rest wait", "1,000 queries became 1"]
+      - ["Waiting at all", "Serve the old value", "Slowest: 0.7 ms"]
+      - ["Many keys at once", "TTL ± 10%", "10,000 became 195"]
+      - ["The expiry moment", "Refresh early (XFetch)", "Chance grows near expiry"]
+      - ["Many servers", "Shared lock or refresher", "20 servers, 20 loads"]
+      - ["Loads failing", "Keep the old value", "stale-if-error"]
+      - ["Retry storms", "Backoff with jitter", "Facebook, 2010"]
+      - ["In Go", "x/sync/singleflight", "Same answer for duplicates"]
+      - ["In HTTP", "stale-while-revalidate", "RFC 5861"]
+
+  - kind: table
+    title: Collect the series
+    lead: "Every Behind the Button video comes with its own free guide like this one. Comment the keyword shown in each video to get it, and build the whole set."
+    columns: ["#", THE GUIDES]
+    widths: "8mm 1fr"
+    rows:
+      - ["1", "The last seat: race conditions in SQL (comment SEAT)"]
+      - ["2", "You tapped Pay twice: idempotency keys (comment PAY)"]
+      - ["3", "Why your OTP dies in 30 seconds: how TOTP works (comment OTP)"]
+      - ["4", "One more view: integer overflow and running out of IDs (comment VIEWS)"]
+      - ["5", "Four pages to a billion: indexes and Bloom filters (comment NAME)"]
+      - ["6", "Built to get lost: WebSockets and presence (comment TYPING)"]
+      - ["7", "A link is a password: single-use reset tokens (comment RESET)"]
+      - ["8", "The next square: finding the nearest driver (comment DRIVER)"]
+      - ["9", "The buffer knows: why video doesn't stall (comment BUFFER)"]
+      - [{t: "10", tone: ok}, {t: "Stop the stampede: when a cache key expires (this guide)", tone: ok}]
+      - ["11", "The 101st request: rate limiting (comment RATE)"]
+      - ["12", "Page after page: OFFSET and keyset pagination (comment PAGE)"]
+
+end:
+  video: "Behind the Button #10, One key expired, and the database got 1,000 queries: on Instagram @stacknova.dev and YouTube @StackNovaDev."
+  next: "This is guide #10 of the Behind the Button collection. Missed one? Comment the keyword on those videos. Follow, and comment the keyword on the next video to get guide #11."
+  more: "Find your busiest cached key and ask: what happens in the 100 ms after it expires? If the answer is \"every request loads it\", you know what to fix first."
+
+sources_lead: Every claim in this guide comes from one of these, or from the tests in it (5 Nov 2026).
+extra_sources:
+  - {title: "Facebook Engineering — More Details on Today's Outage (Robert Johnson, 23 Sept 2010)", url: "https://engineering.fb.com/2010/09/23/uncategorized/more-details-on-today-s-outage/"}
+  - {title: "Vattani, Chierichetti, Lowenstein — Optimal Probabilistic Cache Stampede Prevention, PVLDB 8(8), 2015 (XFetch)", url: "https://www.vldb.org/pvldb/vol8/p886-vattani.pdf"}
+  - {title: "RFC 5861 — HTTP Cache-Control Extensions for Stale Content (stale-while-revalidate, stale-if-error), M. Nottingham, May 2010", url: "https://www.rfc-editor.org/rfc/rfc5861"}
+  - {title: "Go — golang.org/x/sync/singleflight (duplicate function call suppression)", url: "https://pkg.go.dev/golang.org/x/sync/singleflight"}
+  - {title: "pgx — pgxpool, the connection pool used in the tests", url: "https://pkg.go.dev/github.com/jackc/pgx/v5/pgxpool"}

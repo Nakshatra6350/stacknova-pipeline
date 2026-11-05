@@ -1,6 +1,12 @@
 import React from "react";
 import { Composition } from "remotion";
 import { BufferCover } from "./buffer/Cover";
+import { CacheCover } from "./cache/Cover";
+import { RateCover } from "./rate/Cover";
+import { PageCover } from "./page/Cover";
+import { PAGE_VERSIONS, Page, pageDuration } from "./page/Page";
+import { RATE_VERSIONS, Rate, rateDuration } from "./rate/Rate";
+import { CACHE_VERSIONS, Cache, cacheDuration } from "./cache/Cache";
 import { BUFFER_VERSIONS, Buffer, bufferDuration } from "./buffer/Buffer";
 import { Cover } from "./Cover";
 import { DriverCover } from "./driver/Cover";
@@ -67,5 +73,20 @@ export const RemotionRoot: React.FC = () => (
     <Composition id="BufferShort" component={Buffer} defaultProps={{ version: "youtube" as const }}
                  durationInFrames={bufferDuration(BUFFER_VERSIONS.youtube.tl)} fps={FPS} width={1080} height={1920} />
     <Composition id="BufferCover" component={BufferCover} durationInFrames={1} fps={FPS} width={1080} height={1920} />
+    <Composition id="CacheReel" component={Cache} defaultProps={{ version: "reel" as const }}
+                 durationInFrames={cacheDuration(CACHE_VERSIONS.reel.tl)} fps={FPS} width={1080} height={1920} />
+    <Composition id="CacheShort" component={Cache} defaultProps={{ version: "youtube" as const }}
+                 durationInFrames={cacheDuration(CACHE_VERSIONS.youtube.tl)} fps={FPS} width={1080} height={1920} />
+    <Composition id="CacheCover" component={CacheCover} durationInFrames={1} fps={FPS} width={1080} height={1920} />
+    <Composition id="RateReel" component={Rate} defaultProps={{ version: "reel" as const }}
+                 durationInFrames={rateDuration(RATE_VERSIONS.reel.tl)} fps={FPS} width={1080} height={1920} />
+    <Composition id="RateShort" component={Rate} defaultProps={{ version: "youtube" as const }}
+                 durationInFrames={rateDuration(RATE_VERSIONS.youtube.tl)} fps={FPS} width={1080} height={1920} />
+    <Composition id="RateCover" component={RateCover} durationInFrames={1} fps={FPS} width={1080} height={1920} />
+    <Composition id="PageReel" component={Page} defaultProps={{ version: "reel" as const }}
+                 durationInFrames={pageDuration(PAGE_VERSIONS.reel.tl)} fps={FPS} width={1080} height={1920} />
+    <Composition id="PageShort" component={Page} defaultProps={{ version: "youtube" as const }}
+                 durationInFrames={pageDuration(PAGE_VERSIONS.youtube.tl)} fps={FPS} width={1080} height={1920} />
+    <Composition id="PageCover" component={PageCover} durationInFrames={1} fps={FPS} width={1080} height={1920} />
   </>
 );
